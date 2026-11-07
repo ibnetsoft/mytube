@@ -65,6 +65,10 @@ def produce(identity, request, snapshot, output, notify, sources=None):
         package = plan_package(CodexStagedContentRunner()._stage, 'local-' + identity, package,
                                optimize=request.get('reuse_check_policy') == 'compatible_first_v3')
     if request.get('mode') in ('new', 'grounded'):
+        from worker.wuxia_motion_policy import plan_new_package, applies as auto_wuxia_motion
+        if auto_wuxia_motion(package, request):
+            from worker.codex_content_runner import CodexStagedContentRunner
+            package = plan_new_package(CodexStagedContentRunner()._stage, 'local-' + identity, package, request, notify)
         from worker.wuxia_mouth_preparation import enable_new_package
         package = enable_new_package(package, request)
     package['applied_guidelines'] = [{k: row[k] for k in ('id','version','title','instruction')} for row in rows]

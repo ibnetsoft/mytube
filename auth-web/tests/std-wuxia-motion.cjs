@@ -33,3 +33,18 @@ test('invalid motion and unreviewed heat cannot silently render as a fixed camer
  const f=fixture('pan_mystery');assert.throws(()=>freezeWuxiaScene(f.project,1,[],0,4,24,{metadata:{}}),/이미지 모션 검증/);
  const g=fixture('none+heat');delete g.state.face_exclusion_boxes;assert.throws(()=>freezeWuxiaScene(g.project,1,[],0,4,24,{metadata:{}}),/missing_heat/);
 });
+test('new automatic policy freezes fixed scenes for actual review too, and preserves the scene selection',()=>{
+ const f=fixture('none');f.project.project_payload.structure.wuxia_motion_policy={contract:'wuxia_motion_auto/v1',enabled:true,actual_source_review_required:true,actual_output_review_required:true};
+ f.project.project_payload.structure.scenes[0].wuxia_motion_selection={reason:'대사 가독성을 위한 고정',basis:'planned_visuals'};
+ const t=freezeWuxiaScene(f.project,1,[],0,4,24,{metadata:{}});
+ assert.equal(t.contract,'wuxia_native_timeline/v5');assert.equal(t.motion_selection.reason,'대사 가독성을 위한 고정');assert.equal(t.auto_motion_policy.actual_output_review_required,true);
+ assert.ok(t.samples.every(s=>Object.keys(s.motion).length===0));
+});
+test('automatic fixed-scene review fits the existing snapshot budget for a ten-minute clock',()=>{
+ const f=fixture('none');f.project.project_payload.structure.wuxia_motion_policy={contract:'wuxia_motion_auto/v1',enabled:true,actual_output_review_required:true};
+ f.project.project_payload.structure.scenes[0].transition_effect='none';
+ f.project.project_payload.structure.wuxia_ae_package.scenes[0].preview_duration_seconds=600;
+ const t=freezeWuxiaScene(f.project,1,[],0,600,24,{metadata:{}});
+ assert.equal(t.samples.length,14400);assert.ok(Buffer.byteLength(JSON.stringify(t))<3_000_000);
+ assert.ok(t.samples.every(s=>!('transition' in s)&&Object.keys(s.motion).length===0));
+});

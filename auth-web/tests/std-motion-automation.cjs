@@ -162,3 +162,9 @@ test('wuxia with zero mouths and no ambient still freezes short impacts through 
  await f.run();const s=JSON.parse(f.calls.rpc[0].args.p_manifest.automation.snapshot_json),t=s.scenes[0].wuxia_timeline;
  assert.equal(t.contract,'wuxia_native_timeline/v3');assert.ok(t.samples.some(f=>f.effects.active?.length));assert.equal(t.samples.at(-1).effects.dx,undefined);assert.equal(s.settings.subtitles_enabled,false);assert.equal(s.motion.production_method,'ae');assert.equal(f.calls.models,0);
 });
+test('automatic wuxia scenes require a worker that acknowledges actual motion review, even when fixed',async()=>{
+ const f=fixture();f.project.project_payload.render_settings.motion.enabled=false;f.project.project_payload.render_settings.motion.aspect='16:9';const hash='a'.repeat(64);f.image.metadata={...f.image.metadata,gcs_bucket:'bucket',gcs_path:'source.png',sha256:hash};
+ f.project.project_payload.structure={wuxia_motion_policy:{contract:'wuxia_motion_auto/v1',enabled:true,actual_source_review_required:true,actual_output_review_required:true},scenes:[{scene_number:1,image_effect:'none',wuxia_motion_selection:{reason:'대사 가독성을 위한 고정'}}],wuxia_ae_package:{contract:'wuxia_still_ae_episode/v1',scenes:[{scene_id:'S001',states:[{asset_id:'state',sha256:hash,start:0,end:1,face_exclusion_boxes:[]}]}]}};
+ await f.run();const m=f.calls.rpc[0].args.p_manifest.automation,t=JSON.parse(m.snapshot_json).scenes[0].wuxia_timeline;
+ assert.equal(m.required_worker_contract,'wuxia_motion_auto/v1');assert.equal(t.contract,'wuxia_native_timeline/v5');assert.equal(t.auto_motion_policy.actual_output_review_required,true);assert.equal(t.motion_selection.reason,'대사 가독성을 위한 고정');assert.ok(t.samples.every(s=>Object.keys(s.motion).length===0));assert.equal(f.calls.models,0);
+});

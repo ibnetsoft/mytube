@@ -2,6 +2,10 @@
 import json
 import math
 
+def motion_frame(sample):
+    value=sample['motion']
+    return {'contract':'wuxia_motion_samples/v1','active':False,'dx':0,'dy':0,'scale':1,'heat':[],'issues':[]} if isinstance(value,dict) and value=={} else value
+
 def validate(timeline):
     enabled=timeline.get('contract')=='wuxia_native_timeline/v5'
     if not enabled:
@@ -10,7 +14,8 @@ def validate(timeline):
     states={s['asset_id']:s for s in timeline.get('states',[])}
     def number(v,lo,hi):return type(v) in (int,float) and math.isfinite(v) and lo<=v<=hi
     for sample in timeline.get('samples',[]):
-        f=sample.get('motion')
+        if 'motion' not in sample:raise ValueError('Missing frozen image motion sample')
+        f=motion_frame(sample)
         if not isinstance(f,dict) or f.get('contract')!='wuxia_motion_samples/v1' or f.get('issues')!=[]:
             raise ValueError('Invalid frozen image motion')
         if not number(f.get('dx'),-.03,.03) or not number(f.get('dy'),-.03,.03) or not number(f.get('scale'),1,1.24):
@@ -28,7 +33,7 @@ def validate(timeline):
 def jsx(timeline):
     if timeline.get('contract')!='wuxia_native_timeline/v5':return ''
     validate(timeline)
-    data=json.dumps([{'at':s['at'],**s['motion']} for s in timeline['samples']],allow_nan=False)
+    data=json.dumps([{'at':s['at'],**motion_frame(s)} for s in timeline['samples']],allow_nan=False)
     return '''
     var WMC='''+data+''';
     // Duplicate the complete source precomp, so mouths/ambient patches follow their artwork.

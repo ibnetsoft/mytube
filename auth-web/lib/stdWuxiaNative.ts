@@ -21,7 +21,9 @@ export function freezeWuxiaScene(project:any,number:number,rows:any[],start:numb
  if(!first)throw Error(`${number}번 씬의 무협 상태 원화 연출을 확인해 주세요.`)
  const p=project.project_payload||project,pkg=correctedWuxiaPackage(p.structure?.wuxia_ae_package||p.wuxia_ae_package)
  const scene=pkg.scenes.find((s:any)=>Number(String(s.scene_id).match(/S(\d+)$/)?.[1])===number)
- const hasMotion=first.motion.active,hasHeat=first.motion.heat.length>0
+ const autoPolicy=p.structure?.wuxia_motion_policy?.enabled===true?p.structure.wuxia_motion_policy:null
+ const authored=(p.structure?.scenes||p.scenes||[]).find((s:any)=>Number(s.scene_number||s.scene_order)===number)
+ const hasMotion=first.motion.active||Boolean(autoPolicy),hasHeat=first.motion.heat.length>0
  const states=(scene.states||[]).map((s:any)=>{
   const url=new URL(s.media_url||s.image_url||'', 'https://studio.airing.work')
   const path=url.searchParams.get('path'),bucket=url.searchParams.get('bucket')
@@ -34,7 +36,7 @@ export function freezeWuxiaScene(project:any,number:number,rows:any[],start:numb
    ...(hasHeat?{heat_face_reviewed:Array.isArray(s.face_exclusion_boxes),heat_protection_boxes:[s.face_exclusion_boxes,s.hand_exclusion_boxes,s.protected_regions].flatMap(b=>Array.isArray(b)?b:[])}:{})}
  })
  const samples:any[]=[],graphics:Record<string,any>={}
- const hasTransition=first.transition.kind!=='none'||hasMotion
+ const hasTransition=first.transition.kind!=='none'
  let transitionSource:any=null
  if(hasTransition&&first.transition.source&&['wipe_left','wipe_right','wipe_up','wipe_down','dissolve'].includes(first.transition.kind)){
   const s=first.transition.source,url=new URL(s.media_url||s.image_url||'','https://studio.airing.work')
@@ -62,9 +64,9 @@ export function freezeWuxiaScene(project:any,number:number,rows:any[],start:numb
   const {source:_,...transition}=frame.transition
   samples.push({at:local,effects:frame.effects.active.length?frame.effects:{},state:frame.state?.asset_id,graphics:visible,
    ...(hasTransition?{transition}:{}),
-   ...(hasMotion?{motion:frame.motion}:{}),
+   ...(hasMotion?{motion:frame.motion.active?frame.motion:{}}:{}),
    mouths:frame.mouths.map((m:any)=>({mouth:current.dialogue_mouths.indexOf(m.mouth),pose:m.pose})),
    ambient:frame.ambient.map(a=>({loop:current.ambient_loops.indexOf(a.loop),frame:a.index}))})
  }
- return {contract:hasMotion?'wuxia_native_timeline/v5':hasTransition?'wuxia_native_timeline/v4':scene.effects?.length?'wuxia_native_timeline/v3':hasWuxiaMouths(project)?'wuxia_native_timeline/v2':'wuxia_native_timeline/v1',states,graphics,samples,...(transitionSource?{transition_source:transitionSource}:{})}
+ return {contract:hasMotion?'wuxia_native_timeline/v5':hasTransition?'wuxia_native_timeline/v4':scene.effects?.length?'wuxia_native_timeline/v3':hasWuxiaMouths(project)?'wuxia_native_timeline/v2':'wuxia_native_timeline/v1',states,graphics,samples,...(autoPolicy?{auto_motion_policy:autoPolicy,motion_selection:authored?.wuxia_motion_selection||{basis:'preserved_manual_setting',image_effect:authored?.metadata?.image_effect??authored?.image_effect??'none'}}:{}),...(transitionSource?{transition_source:transitionSource}:{})}
 }

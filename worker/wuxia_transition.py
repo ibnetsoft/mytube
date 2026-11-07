@@ -10,6 +10,7 @@ def validate(timeline):
     if not enabled and any('transition' in s for s in samples):
         raise ValueError('Scene transitions require wuxia native v4')
     if not enabled:return
+    if timeline.get('contract')=='wuxia_native_timeline/v5' and not any('transition' in s for s in samples):return
     kind=None
     for sample in samples:
         f=sample.get('transition')
@@ -25,6 +26,7 @@ def validate(timeline):
 def jsx(timeline):
     if timeline.get('contract') not in ('wuxia_native_timeline/v4','wuxia_native_timeline/v5'):return ''
     validate(timeline)
+    if not any('transition' in s for s in timeline['samples']):return ''
     data=json.dumps({'samples':[{'at':s['at'],**s['transition']} for s in timeline['samples']],
                      'backdrop':timeline.get('transition_source')},ensure_ascii=True,allow_nan=False)
     return '''

@@ -1,5 +1,5 @@
 """Bind native timeline support to this particular worker lease."""
-SUPPORTED = {'wuxia_native_timeline/v1', 'wuxia_native_timeline/v2', 'wuxia_native_timeline/v3', 'wuxia_native_timeline/v4', 'wuxia_native_timeline/v5'}
+SUPPORTED = {'wuxia_native_timeline/v1', 'wuxia_native_timeline/v2', 'wuxia_native_timeline/v3', 'wuxia_native_timeline/v4', 'wuxia_native_timeline/v5', 'wuxia_motion_auto/v1'}
 
 def claim_acknowledgement(snapshot, metadata, token):
     required = metadata.get('required_worker_contract') or (metadata.get('input') or {}).get('required_worker_contract')
@@ -9,5 +9,7 @@ def claim_acknowledgement(snapshot, metadata, token):
     if required:
         if required not in SUPPORTED or not timelines:
             raise ValueError('Unsupported required wuxia worker contract')
+        if required=='wuxia_motion_auto/v1' and not any(t.get('auto_motion_policy',{}).get('actual_output_review_required') is True for t in timelines):
+            raise ValueError('Automatic motion review contract has no matching scene policy')
         return {'worker_contract_ack': {'contract': required, 'lease_token': token}}
     return {}
