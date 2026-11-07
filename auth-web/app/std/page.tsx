@@ -8704,8 +8704,9 @@ export default function StdPortalPage() {
                         onClick={e => e.stopPropagation()}
                     >
                         {/* 팝업 헤더 */}
-                        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6 sm:py-4 border-b border-white/10 bg-[#181d26] shrink-0">
-                            <div className="flex flex-wrap items-center gap-3 sm:gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 sm:px-6 sm:py-4 border-b border-white/10 bg-[#181d26] shrink-0">
+                            <div className="grid min-w-0 grid-cols-1 xl:grid-cols-[auto_minmax(0,1fr)] items-center gap-3 sm:gap-4">
+                                <div className="flex flex-wrap items-center gap-3 sm:gap-4">
                                 <h2 className="text-base font-bold text-white flex items-center gap-2 whitespace-nowrap">
                                     <span>📁</span>
                                     <span>프로젝트 목록</span>
@@ -8739,11 +8740,20 @@ export default function StdPortalPage() {
                                         }`}>{projectsRefreshing && !projects.length ? '…' : projectsLoadError && !projects.length ? '—' : completeProjects.length}</span>
                                     </button>
                                 </div>
-                                {projectsRefreshing && (
-                                    <span role="status" className="text-xs text-gray-400">
-                                        {projects.length > 0 ? '저장된 목록을 표시하고 있습니다. 최신 상태 확인 중…' : '프로젝트 목록을 불러오고 있습니다…'}
-                                    </span>
-                                )}
+                                </div>
+                                {/* 항상 같은 높이를 확보해 안내가 바뀌어도 헤더와 목록이 움직이지 않도록 한다. */}
+                                <div className="h-16 min-w-0 overflow-y-auto text-xs leading-4" data-project-list-notice>
+                                    {projectsLoadError ? (
+                                        <div role="alert" className="rounded-lg border border-amber-400/30 bg-amber-400/10 px-3 py-1 text-amber-200">
+                                            {projectsLoadError}{projects.length > 0 && ' 표시된 목록은 이전에 불러온 상태입니다.'}
+                                            <button type="button" disabled={loading} className="ml-3 underline disabled:opacity-50" onClick={refreshProjectList}>다시 불러오기</button>
+                                        </div>
+                                    ) : projectsRefreshing ? (
+                                        <div role="status" className="py-1 text-gray-400">
+                                            {projects.length > 0 ? '저장된 목록을 표시하고 있습니다. 최신 상태 확인 중…' : '프로젝트 목록을 불러오고 있습니다…'}
+                                        </div>
+                                    ) : null}
+                                </div>
                             </div>
                             <div className="flex items-center gap-2 sm:gap-3">
                             <button type="button" disabled={projectsRefreshing} onClick={refreshProjectList} className="rounded-lg border border-white/10 px-3 py-2 font-bold whitespace-nowrap text-gray-300 hover:bg-white/5 disabled:opacity-40">{ui('새로고침')}</button>
@@ -8761,12 +8771,6 @@ export default function StdPortalPage() {
 
                         {/* 팝업 바디 (테이블) */}
                         <div className="overflow-y-auto min-h-0 flex-1 p-3 sm:p-6">
-                            {projectsLoadError && (
-                                <div role="alert" className="mb-4 rounded-lg border border-amber-400/30 bg-amber-400/10 p-3 text-sm text-amber-200">
-                                    {projectsLoadError}{projects.length > 0 && ' 표시된 목록은 이전에 불러온 상태입니다.'}
-                                    <button type="button" disabled={loading} className="ml-3 underline disabled:opacity-50" onClick={refreshProjectList}>다시 불러오기</button>
-                                </div>
-                            )}
                             <div className="space-y-3 md:hidden">
                                 <label className="flex min-h-10 items-center gap-3 px-1 text-sm text-gray-300">
                                     <input type="checkbox" aria-label="현재 목록 전체 선택" disabled={deletingProjects || !visibleProjects.length} checked={visibleProjects.length > 0 && checkedVisibleIds.length === visibleProjects.length} onChange={e => setCheckedProjectIds(e.target.checked ? visibleProjects.map((project: any) => String(project.id)) : [])} className="h-5 w-5 rounded bg-[#1c2027] border-gray-600" />
