@@ -50,9 +50,10 @@ def prepare(source,clean_plate,spec,directory):
     allowed=ImageChops.subtract(allowed,protected)
     rgb=np.asarray(base).astype(float);red,green,blue=rgb[:,:,0],rgb[:,:,1],rgb[:,:,2]
     # Color selection is confined to a source-reviewed ROI, never global blue clothing.
-    strength=np.minimum(np.clip((blue-red-22)/45,0,1),np.clip((green-red-12)/32,0,1))
+    strength=np.minimum.reduce((np.clip((blue-red-55)/55,0,1),np.clip((green-red-15)/40,0,1),np.clip((blue-160)/40,0,1)))
     matte=Image.fromarray(np.uint8(strength*255)).filter(ImageFilter.GaussianBlur(1.1))
     matte=ImageChops.multiply(matte,allowed)
+    if not matte.getbbox():raise ValueError('No bright blue sword energy in the reviewed region')
     removal=matte.filter(ImageFilter.MaxFilter(7)).filter(ImageFilter.GaussianBlur(1.2))
     removal=ImageChops.multiply(removal,allowed)
     # Only luminous color islands are cleaned; generated anatomy never enters output.

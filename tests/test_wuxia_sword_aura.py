@@ -40,3 +40,8 @@ def test_native_loader_rejects_correctly_hashed_frame_painted_on_blade(tmp_path)
  loop={'contract':'ambient_loop/v1','enabled':True,'source_sha256':digest(source),'role':'environment','width':40,'height':40,'region':[.3,.3,.7,.7],'protected_regions':[[0,0,.2,1]],'start_ms':0,'end_ms':2000,'phase_ms':0,'repeat':True,'frames':[{'media_url':'https://example.test/f.png','gcs_bucket':'test','gcs_path':'f.png','sha256':digest(frame),'duration_ms':60}]*2,'sword_aura':{'contract':'wuxia_sword_aura/v1','source_reviewed':True,'source_sha256':digest(source),'clean_plate_sha256':'a'*64,'reason':'visible blue energy','amplitude_px':3,'protected_polygons':[[[.4,.4],[.6,.4],[.6,.6],[.4,.6]]]}}
  with pytest.raises(ValueError,match='protected'):
   prepare_runtime(source,[loop],tmp_path/'native',lambda:None,lambda _,p:shutil.copyfile(frame,p))
+
+def test_dark_blue_background_is_not_misclassified_as_sword_energy(tmp_path):
+ source=tmp_path/'blue-wall.png';Image.new('RGB',(100,100),(30,65,110)).save(source)
+ spec={'source_reviewed':True,'source_sha256':digest(source),'reason':'claimed blue energy','region':[.4,.2,.8,.6],'protected_regions':[[0,0,.2,1]],'protected_polygons':[[[0,0],[.2,0],[.2,1],[0,1]]],'amplitude_px':3,'end_ms':2000}
+ with pytest.raises(ValueError,match='No bright blue'):prepare(source,source,spec,tmp_path/'rejected')
