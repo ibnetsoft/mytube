@@ -969,6 +969,8 @@ def process_one(engine='ae', job_id=None):
         correlation=float(np.corrcoef(source_audio[:length],final_audio[:length])[0,1]) if np.std(source_audio[:length])>1 else 1.
         if abs(len(final_audio)/8000-snapshot['scenes'][-1]['end'])>.12 or not math.isfinite(correlation) or correlation<.5:raise NeedsReview('Final soundtrack no longer preserves the recorded narration')
         final_reviews=[]
+        compact_review=(os.getenv('AIR_WUXIA_RELEASE_NATIVE_TEMP')=='1' and any(s.get('wuxia_timeline') for s in snapshot['scenes']))
+        from wuxia_render_cache import capture_review_frame,release_review_evidence
         for index,scene in enumerate(snapshot['scenes']):
             if video_postwork_review_bypass(meta,snapshot):continue
             prior_review=ordered[index].get('review') or {}
@@ -996,17 +998,16 @@ def process_one(engine='ae', job_id=None):
                     final_fractions.update(t/(scene['end']-scene['start']) for t in (a+.08,(a+b)/2,b-.08))
             for fraction in sorted(final_fractions):
                 t=max(0,min(scene['end']-scene['start']-2/snapshot['motion']['fps'],fraction*(scene['end']-scene['start'])))
-                frame=final_dir/f'final-{scene["number"]}-{fraction}.png';run([ffmpeg(),'-v','error','-y','-ss',str(t),'-i',str(segment),'-frames:v','1',str(frame)]);context['_local_image_paths'].append(str(frame.resolve()))
+                frame=capture_review_frame(segment,t,final_dir/f'final-{scene["number"]}-{fraction}.png',compact=compact_review);context['_local_image_paths'].append(str(frame.resolve()))
             for boundary in (scene['start'],scene['end']):
                 for delta in (-.06,.06):
                     t=boundary+delta
                     if 0<=t<snapshot['scenes'][-1]['end']-2/snapshot['motion']['fps']:
-                        frame=final_dir/f'boundary-{t:.6f}.png';run([ffmpeg(),'-v','error','-y','-ss',str(t),'-i',str(output),'-frames:v','1',str(frame)]);context['_local_image_paths'].append(str(frame.resolve()))
+                        frame=capture_review_frame(output,t,final_dir/f'boundary-{t:.6f}.png',compact=compact_review);context['_local_image_paths'].append(str(frame.resolve()))
             from final_caption_evidence import caption_samples
             context['caption_frame_evidence']=[]
             for sample in caption_samples(snapshot['subtitles'],scene,snapshot['motion']['fps'],snapshot['scenes'][-1]['end']):
-                frame=final_dir/f'caption-{sample["subtitle_index"]}-{sample["phase"]}.png'
-                run([ffmpeg(),'-v','error','-y','-ss',str(sample['time']),'-i',str(output),'-frames:v','1','-c:v','png','-pix_fmt','rgb24','-threads','1',str(frame)])
+                frame=capture_review_frame(output,sample['time'],final_dir/f'caption-{sample["subtitle_index"]}-{sample["phase"]}.png',compact=compact_review)
                 context['_local_image_paths'].append(str(frame.resolve()))
                 context['caption_frame_evidence'].append({**sample,'file':str(frame.resolve())})
             context['final_audio_evidence']={'method':'decoded_pcm_same_clock_without_time_warp','sample_rate':8000,
@@ -1043,6 +1044,7 @@ def process_one(engine='ae', job_id=None):
                     return True
                 note(snapshot,scene,'final_review',issue)
             final_reviews.append(response)
+            if compact_review:release_review_evidence(context['_local_image_paths'],segment,final_dir,scene['number'],output)
         from submitted_video_postwork import require_final_reviews
         if any(r.get('skipped') for r in final_reviews):
             note(snapshot,{},'final_review_partial','Risk-based final review: some scenes were not visually reviewed after assembly.')

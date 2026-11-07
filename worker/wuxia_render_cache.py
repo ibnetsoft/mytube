@@ -36,3 +36,31 @@ def release_temporary_movie(source,output,directory,*,verify=None):
     target.write_text(json.dumps(receipt,indent=2),encoding='utf-8')
     source.unlink();receipt['released']=True
     target.write_text(json.dumps(receipt,indent=2),encoding='utf-8')
+
+
+def capture_review_frame(movie,time,path,*,compact=False):
+    """Full-resolution review evidence; final media is never recompressed here."""
+    from ae_media_utils import run,ffmpeg
+    path=Path(path).with_suffix('.jpg') if compact else Path(path)
+    codec=['-c:v','mjpeg','-q:v','2','-pix_fmt','yuvj444p'] if compact else ['-c:v','png','-pix_fmt','rgb24']
+    run([ffmpeg(),'-v','error','-y','-ss',str(time),'-i',str(movie),'-frames:v','1',*codec,'-threads','1',str(path)])
+    return path
+
+
+def release_review_evidence(paths,segment,directory,scene,master):
+    """Keep hashes and the authoritative master, bound derived review cache to one scene."""
+    if os.getenv('AIR_WUXIA_RELEASE_NATIVE_TEMP')!='1':return
+    directory=Path(directory).resolve();master=Path(master).resolve();segment=Path(segment)
+    from motion_media_storage import media_directory
+    own_media=media_directory(directory).resolve()
+    files=list(dict.fromkeys([Path(p)for p in paths]+[segment]));records=[]
+    for p in files:
+        if not p.is_file():continue
+        name=p.name
+        frame=(p.resolve().parent==directory and name.startswith(('final-','boundary-','caption-')) and p.suffix in ('.png','.jpg'))
+        clip=(p.resolve().parent==own_media and name==f'review-{scene}.mp4')
+        if p.is_symlink() or p.resolve()==master or not(frame or clip):raise ValueError('Refusing to release non-review media')
+        records.append({'file':str(p),'sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'bytes':p.stat().st_size})
+    receipt=directory/f'review-evidence-{scene}.json'
+    receipt.write_text(json.dumps({'master':str(master),'scene':scene,'files':records,'policy':'derived_evidence_reproducible_from_master'},indent=2),encoding='utf-8')
+    for r in records:Path(r['file']).unlink()
