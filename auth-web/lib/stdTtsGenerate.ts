@@ -106,6 +106,9 @@ function shouldRotateElevenLabsKey(status: number, detail: string) {
         || message.includes('quota')
         || message.includes('billing')
         || message.includes('payment required')
+        || message.includes('payment_required')
+        || message.includes('payment_issue')
+        || message.includes('invalid_api_key')
         || message.includes('invalid api key')
         || message.includes('unauthorized')
         || message.includes('access denied')
@@ -190,17 +193,19 @@ async function inspectElevenLabsKey(apiKey: string, keySlot: number): Promise<El
                 reason: `subscription_check_failed_${res.status}: ${detail.slice(0, 180)}`,
             }
         }
-        const data = await res.json().catch(() => ({}))
-        const limit = Number(data?.character_limit || 0)
-        const used = Number(data?.character_count || 0)
-        const remaining = Number.isFinite(limit) && Number.isFinite(used) && limit > 0
-            ? Math.max(0, limit - used)
-            : null
-        result = {
-            apiKey,
-            keySlot,
-            remaining,
-            tier: data?.tier || null,
+        else {
+            const data = await res.json().catch(() => ({}))
+            const limit = Number(data?.character_limit || 0)
+            const used = Number(data?.character_count || 0)
+            const remaining = Number.isFinite(limit) && Number.isFinite(used) && limit > 0
+                ? Math.max(0, limit - used)
+                : null
+            result = {
+                apiKey,
+                keySlot,
+                remaining,
+                tier: data?.tier || null,
+            }
         }
     } catch (error: any) {
         result = {

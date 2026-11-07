@@ -1,0 +1,7 @@
+const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),ts=require('typescript');
+const text=fs.readFileSync('auth-web/lib/stdTtsGenerate.ts','utf8'),ast=ts.createSourceFile('tts.ts',text,ts.ScriptTarget.Latest,true);
+const names=['shouldRotateElevenLabsKey','inspectElevenLabsKey'];
+const functions=ast.statements.filter(n=>ts.isFunctionDeclaration(n)&&names.includes(n.name?.text)).map(n=>n.getText(ast)).join('\n');
+function fixture(fetch){const code=ts.transpile(functions+'\nreturn {shouldRotateElevenLabsKey,inspectElevenLabsKey}',{target:9,module:1});return new Function('fetch','createHash','elevenLabsKeyInspectionCache','ELEVENLABS_KEY_INSPECTION_TTL_MS',code)(fetch,require('crypto').createHash,new Map(),1000)}
+test('payment and invalid key diagnostics permit registered backup keys without changing model or voice',()=>{const {shouldRotateElevenLabsKey:rotate}=fixture();for(const detail of ['{"detail":{"code":"payment_issue"}}','payment_required','invalid_api_key'])assert.equal(rotate(401,detail),true);assert.equal(rotate(422,'unsupported model'),false)});
+test('failed subscription checks retain their skipped state instead of becoming usable',async()=>{const {inspectElevenLabsKey:inspect}=fixture(async()=>({ok:false,status:401,text:async()=>'{"detail":{"status":"invalid_api_key"}}',json:async()=>{throw Error('Body already consumed')}}));const key=await inspect('fixture',3);assert.equal(key.skipped,true);assert.match(key.reason,/subscription_check_failed_401/);assert.equal(key.keySlot,3)});
