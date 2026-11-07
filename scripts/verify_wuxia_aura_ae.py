@@ -36,6 +36,7 @@ def isolated_script(afterfx,jsx,project,timeout=240):
 
 def main():
     p=argparse.ArgumentParser();p.add_argument('--snapshot',type=Path,required=True);p.add_argument('--output',type=Path,required=True);p.add_argument('--upload-prefix',required=True);a=p.parse_args()
+    a.snapshot=a.snapshot.resolve();a.output=a.output.resolve()
     snapshot=json.loads(a.snapshot.read_text(encoding='utf-8-sig'));fps=snapshot['motion']['fps'];a.output.mkdir(parents=True,exist_ok=True)
     receipts=[];ae._run_afterfx_script=isolated_script
     # Same mutex as ordinary native jobs, plus an actual aerender process check.
