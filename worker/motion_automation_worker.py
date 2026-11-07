@@ -399,10 +399,8 @@ def render_base(snapshot,scene,plan,source,preview,runner,directory,fresh):
             def download_wuxia(frame,path):_download(frame['gcs_bucket'],frame['gcs_path'],path)
             prepared['plan']['wuxia_runtime']=prepare_wuxia(scene['wuxia_timeline'],directory/'wuxia',fresh,download_wuxia,duration,snapshot['motion']['fps'],snapshot.get('audio'))
             runtime=prepared['plan']['wuxia_runtime']
-            prepared['plan']['width'],prepared['plan']['height']=runtime['size']
-            prepared['layers']['original']=Path(runtime['states'][0]['file'])
-            prepared['plan']['camera']=[dict(t=t,x=.5,y=.5,scale=1,rotation=0,opacity=100) for t in (0,1)]
-            prepared['plan']['fit']='cover'
+            from wuxia_native_timeline import bind_prepared
+            bind_prepared(prepared,runtime)
         elif scene.get('ambient_loops'):
             from ambient_loop import prepare_runtime
             from ae_scene_production import _download

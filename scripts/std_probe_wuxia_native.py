@@ -22,7 +22,7 @@ def main():
  from worker.wuxia_native_timeline import prepare as prepare_wuxia
  def download(ref,path):_download(ref['gcs_bucket'],ref['gcs_path'],path)
  runtime=prepare_wuxia(tl,directory/'wuxia',lambda:None,download,seconds,snap['motion']['fps'],snap['audio'])
- source=Path(runtime['states'][0]['file']);prepared=prepare(source,sc,snap['motion'],sc['prepared_direction']);prepared['plan'].update(wuxia_runtime=runtime,width=runtime['size'][0],height=runtime['size'][1],camera=[dict(t=t,x=.5,y=.5,scale=1,rotation=0,opacity=100)for t in (0,1)],fit='cover');prepared['layers']['original']=source
+ source=Path(runtime['states'][0]['file']);prepared=prepare(source,sc,snap['motion'],sc['prepared_direction']);__import__('wuxia_native_timeline').bind_prepared(prepared,runtime)
  native=_render_native(prepared,directory,seconds)
  from worker.ae_media_utils import ffmpeg,run
  run([ffmpeg(),'-v','error','-i',str(native),'-f','null','-'])

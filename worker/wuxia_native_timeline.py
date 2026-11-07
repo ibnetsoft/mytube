@@ -32,6 +32,17 @@ def prepare(timeline,directory,fresh,download,duration,fps,audio=None):
  result['size']=list(size)
  return result
 
+
+def bind_prepared(prepared,runtime):
+ """The frozen web timeline owns all Wuxia camera/effect execution."""
+ plan=prepared['plan'];plan['wuxia_runtime']=runtime
+ plan['width'],plan['height']=runtime['size']
+ prepared['layers']['original']=Path(runtime['states'][0]['file'])
+ plan['camera']=[dict(t=t,x=.5,y=.5,scale=1,rotation=0,opacity=100)for t in (0,1)]
+ plan['fit']='cover';plan['effects']=[];plan['lights']=[]
+ plan['transition']={'in':'none','out':'none','fraction':0}
+ return prepared
+
 def jsx(timeline,duration,fps):
  states=[]
  for state in timeline['states']:

@@ -45,3 +45,15 @@ def test_native_ae_keeps_every_fixed_rate_frame_without_smoothing(duration,axis)
  assert [(f['at'],f[axis]) for f in data['effect_samples']]==[(f['at'],f['effects'][axis]) for f in frames]
  assert 'whold(pos);whold(sca)' in source
  assert 'wiggle(' not in source # no AE-side frequency reinterpretation
+
+
+def test_frozen_web_timeline_cannot_get_a_second_generic_camera_or_shake():
+ from wuxia_native_timeline import bind_prepared
+ prepared={'plan':{'effects':[{'type':'impact_shake'}],'lights':[{'type':'flash'}],'camera':[{'scale':1.2}],'fit':'contain','transition':{'out':'fade'}},'layers':{'original':'old.png'}}
+ runtime={'size':[1672,941],'states':[{'file':'reviewed.png'}]}
+ bound=bind_prepared(prepared,runtime)
+ assert bound['plan']['wuxia_runtime'] is runtime
+ assert bound['plan']['effects']==[] and bound['plan']['lights']==[]
+ assert all(k['scale']==1 for k in bound['plan']['camera'])
+ assert bound['plan']['transition']=={'in':'none','out':'none','fraction':0}
+ assert bound['layers']['original']==Path('reviewed.png')
