@@ -16,6 +16,10 @@ def test_isolated_aura_changes_phase_but_never_original_or_protected_blade(tmp_p
  images=[Image.open(f['local_path']) for f in loop['frames']]
  assert len({im.tobytes() for im in images})==16
  for im in images:validate_alpha(loop,im.getchannel('A'))
+ import shutil
+ paths={f['sha256']:f['local_path'] for f in loop['frames']}
+ runtime=prepare_runtime(source,[loop],tmp_path/'native-accepted',lambda:None,lambda f,p:shutil.copyfile(paths[f['sha256']],p))
+ assert len(runtime[0]['files'])==16
  bad=Image.new('L',base.size);ImageDraw.Draw(bad).rectangle((130,75,132,77),fill=255)
  with pytest.raises(ValueError,match='protected'):validate_alpha(loop,bad)
  spec['source_sha256']='0'*64
@@ -28,3 +32,11 @@ def test_aura_output_review_samples_different_actual_patch_phases():
  assert 'wuxia_sword_aura_execution' in e['required_checks']
  assert len({str(s['ambient']) for s in e['frozen_samples']})>1
  assert e['source_states'][0]['sword_aura']
+
+def test_native_loader_rejects_correctly_hashed_frame_painted_on_blade(tmp_path):
+ import shutil
+ source=tmp_path/'source.png';Image.new('RGB',(40,40),(30,40,50)).save(source)
+ frame=tmp_path/'frame.png';im=Image.new('RGBA',(40,40));im.putpixel((20,20),(0,160,255,255));im.save(frame)
+ loop={'contract':'ambient_loop/v1','enabled':True,'source_sha256':digest(source),'role':'environment','width':40,'height':40,'region':[.3,.3,.7,.7],'protected_regions':[[0,0,.2,1]],'start_ms':0,'end_ms':2000,'phase_ms':0,'repeat':True,'frames':[{'media_url':'https://example.test/f.png','gcs_bucket':'test','gcs_path':'f.png','sha256':digest(frame),'duration_ms':60}]*2,'sword_aura':{'contract':'wuxia_sword_aura/v1','source_reviewed':True,'source_sha256':digest(source),'clean_plate_sha256':'a'*64,'reason':'visible blue energy','amplitude_px':3,'protected_polygons':[[[.4,.4],[.6,.4],[.6,.6],[.4,.6]]]}}
+ with pytest.raises(ValueError,match='protected'):
+  prepare_runtime(source,[loop],tmp_path/'native',lambda:None,lambda _,p:shutil.copyfile(frame,p))

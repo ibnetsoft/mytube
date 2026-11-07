@@ -49,6 +49,8 @@ def main():
                 sid=state['asset_id'];directory=a.output/sid;directory.mkdir(parents=True,exist_ok=True)
                 positions=[i for i,s in enumerate(timeline['samples']) if s['state']==sid]
                 start=positions[len(positions)//3];count=min(36,len(positions)-len(positions)//3)
+                bubble=[i for i in positions if any(timeline['graphics'][g['id']]['kind']=='speech_bubble' and g['opacity']>=.99 for g in timeline['samples'][i]['graphics'])]
+                if len(bubble)>=42 and bubble[41]-bubble[0]==41:start=bubble[3];count=36
                 selected=timeline['samples'][start:start+count]
                 if len(selected)<12 or any(s['state']!=sid for s in selected):raise ValueError('Need a continuous same-state actual sample window')
                 t=copy.deepcopy(timeline);t['states']=[copy.deepcopy(state)];t['samples']=[{**copy.deepcopy(s),'at':i/fps} for i,s in enumerate(selected)];t.pop('transition_source',None)

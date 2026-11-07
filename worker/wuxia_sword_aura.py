@@ -30,6 +30,10 @@ def validate_contract(loop):
 
 def validate_alpha(loop,alpha):
     validate_contract(loop)
+    if loop.get('sword_aura'):
+        from worker.ambient_loop import pixel_box
+        b=alpha.getbbox();r=pixel_box(loop['region'],alpha.size)
+        if b and (b[0]<r[0] or b[1]<r[1] or b[2]>r[2] or b[3]>r[3]):raise ValueError('Sword aura escaped reviewed pixel envelope')
     if loop.get('sword_aura') and ImageChops.multiply(alpha,protection_mask(alpha.size,loop['sword_aura']['protected_polygons'])).getbbox():
         raise ValueError('Sword aura overlaps protected person/blade pixels')
 
@@ -41,7 +45,8 @@ def prepare(source,clean_plate,spec,directory):
     if plate.size!=base.size:raise ValueError('Clean plate alignment/canvas mismatch')
     size=base.size;w,h=size;directory.mkdir(parents=True,exist_ok=True)
     protected=protection_mask(size,spec['protected_polygons']);allowed=Image.new('L',size)
-    ImageDraw.Draw(allowed).rectangle(pixel_box(spec['region'],size),fill=255)
+    left,top,right,bottom=pixel_box(spec['region'],size)
+    ImageDraw.Draw(allowed).rectangle((left,top,right-1,bottom-1),fill=255)
     allowed=ImageChops.subtract(allowed,protected)
     rgb=np.asarray(base).astype(float);red,green,blue=rgb[:,:,0],rgb[:,:,1],rgb[:,:,2]
     # Color selection is confined to a source-reviewed ROI, never global blue clothing.
