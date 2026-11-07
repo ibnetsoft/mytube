@@ -2597,7 +2597,8 @@ class CodexStagedContentRunner:
         work_dir.mkdir(parents=True, exist_ok=True)
         # Changed instructions, rewritten text and QA feedback must never hit an old response.
         cache_key = [SENIOR_PROFILE, "astra-dialogue-v1", model, context, task]
-        inline_visual = name.startswith('03_ae_mouth') or name == '04_automatic_ae_review'
+        inline_visual = (name.startswith(('03_ae_mouth', 'motion_final_review_'))
+                         or name in {'04_automatic_ae_review', 'motion_actual_output_review'})
         if inline_visual:
             cache_key.append("inline-utf8-visual-v1")
         if reasoning:
