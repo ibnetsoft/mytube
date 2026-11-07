@@ -46,7 +46,9 @@ export function localizedProjectTitle(project: any, locale: SupportedLocale): st
     if (!project) return ''
     const source = project.source_payload || {}
     const payload = project.project_payload || {}
-    const localization = project.title_localization || {}
+    const storedLocalization = project.title_localization || {}
+    const topicTitle = topicSourceTitle(storedLocalization)
+    const localization = !topicTitle || topicTitle === project.title ? storedLocalization : {}
     const title = text(project.title, payload.title, payload.video_title, source.generated_title, source.topic)
     return localizedTopicTitle({
         ...source,
@@ -54,7 +56,7 @@ export function localizedProjectTitle(project: any, locale: SupportedLocale): st
         generated_title: title,
         source_title: title,
         topic: title,
-        title_translations: { ...payload.title_translations, ...source.title_translations, ...localization.title_translations },
+        title_translations: { ...payload.title_translations, ...source.title_translations, ...localization.title_translations, ...project.title_translations },
         progress_payload: source.progress_payload || localization.progress_payload,
         pregenerated_structure: source.pregenerated_structure || payload.structure || localization.pregenerated_structure,
         publish_metadata: source.publish_metadata || payload.publish_metadata || localization.publish_metadata,

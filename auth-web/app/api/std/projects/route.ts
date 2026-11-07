@@ -8,6 +8,7 @@ import { requireStdUser } from '@/lib/stdWeb'
 import { protectCharacterReferenceUrls } from '@/lib/stdCharacterProtection'
 import { getServerCache, setServerCache } from '@/lib/server-cache'
 import { createHash } from 'crypto'
+import { loadSavedProjectTitleTranslations, titleTranslationMap } from '@/lib/stdProjectTitleTranslations'
 
 export const dynamic = 'force-dynamic'
 const PROJECT_LIST_CACHE_SECONDS = 15
@@ -23,7 +24,7 @@ async function boundedCache<T>(operation: Promise<T>, fallback: T): Promise<T> {
 
 function projectListCacheKey(email: string, projects: any[]) {
     const digest = createHash('sha256').update(JSON.stringify([email.toLowerCase(), projects])).digest('hex')
-    return `std-project-list:v1:${digest}`
+    return `std-project-list:v2:${digest}`
 }
 
 export async function GET(req: Request) {
@@ -32,13 +33,22 @@ export async function GET(req: Request) {
 
     const { data, error } = await supabaseAdmin
         .from('std_projects')
-        .select('id,title,status,language,category_id,employee_email,topic_queue_id,assigned_duration_minutes,estimated_payout,drive_folder_id,created_at,updated_at,submitted_at,saved_render_version:progress_payload->latest_render_version,saved_thumbnail_design_url:project_payload->thumbnail_design->>thumbnail_url')
+        .select('id,title,status,language,category_id,employee_email,topic_queue_id,assigned_duration_minutes,estimated_payout,drive_folder_id,created_at,updated_at,submitted_at,saved_render_version:progress_payload->latest_render_version,saved_thumbnail_design_url:project_payload->thumbnail_design->>thumbnail_url,source_titles:source_payload->title_translations,project_titles:project_payload->title_translations')
         .eq('employee_email', auth.requester.email)
         .is('list_deleted_at', null)
         .order('updated_at', { ascending: false })
 
     if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 })
-    const baseProjects = data || []
+    let baseProjects = data || []
+    try {
+        const saved = await loadSavedProjectTitleTranslations(supabaseAdmin, baseProjects)
+        baseProjects = baseProjects.map(project => ({ ...project, title_translations: {
+            ...titleTranslationMap(project.project_titles), ...titleTranslationMap(project.source_titles), ...saved.get(project.id),
+        } }))
+    } catch (error) {
+        console.error('[STD projects] saved title translations unavailable:', error)
+        return NextResponse.json({ success: false, error: 'Could not load saved title translations' }, { status: 503 })
+    }
     const cacheKey = projectListCacheKey(auth.requester.email, baseProjects)
     const forceRefresh = req.headers.get('x-std-list-refresh') === '1'
     if (!forceRefresh) {

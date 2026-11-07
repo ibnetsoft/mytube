@@ -5,7 +5,7 @@ const MAX_AGE_MS = 24 * 60 * 60 * 1000
 const PREFIX = 'std-project-list:v1:'
 const FIELDS = ['id','title','status','language','category_id','category_name','topic_queue_id',
     'assigned_duration_minutes','created_at','updated_at','submitted_at',
-    'latest_render_version','step_status','shared_submission','title_localization'] as const
+    'latest_render_version','step_status','shared_submission','title_localization','title_translations'] as const
 
 type StorageLike = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>
 export function projectListScope(email: unknown, impersonateEmail: unknown = ''): string {

@@ -839,6 +839,7 @@ export default function StdPortalPage() {
         if (!scope || projectListScopeRef.current === scope) return
         projectListScopeRef.current = scope
         projectListGenerationRef.current++
+        setProjectTitleTranslations({})
         setProjects(readProjectListSnapshot(localStorage, scope) || [])
     }
     const acceptProjectList = (list: StdProject[], scope = projectListScopeRef.current, generation = projectListGenerationRef.current) => {
@@ -847,6 +848,7 @@ export default function StdPortalPage() {
         writeProjectListSnapshot(localStorage, scope, list)
     }
     const [projectTitleTranslations, setProjectTitleTranslations] = useState<Record<string, string>>({})
+    const projectTitleRequests = useRef(new Map<string, Promise<any>>())
     const [projectTitleRetry, setProjectTitleRetry] = useState(0)
     const [topicTitleTranslations, setTopicTitleTranslations] = useState<Record<string, string>>({})
     const [topicTitleRetry, setTopicTitleRetry] = useState(0)
@@ -1884,20 +1886,30 @@ export default function StdPortalPage() {
         if (!missing.length) return
         let active = true
         let retryTimer: number | undefined
-        void fetch('/api/std/projects/title-translations', {
-            method: 'POST', headers: authedJsonHeaders,
-            body: JSON.stringify({ locale: currentLocale, ids: missing.map((project: any) => project.id) }),
-        }).then(response => {
-            if (!response.ok) throw new Error(`Title translation request failed (${response.status})`)
-            return response.json()
-        }).then(result => {
-            if (!active) return
+        const scope = projectListScopeRef.current
+        const requestKey = JSON.stringify([scope, currentLocale, missing.map(project => [project.id, project.title])])
+        let request = projectTitleRequests.current.get(requestKey)
+        if (!request) {
+            request = fetch('/api/std/projects/title-translations', {
+                method: 'POST', headers: authedJsonHeaders,
+                body: JSON.stringify({ locale: currentLocale, ids: missing.map(project => project.id) }),
+            }).then(response => {
+                if (!response.ok) throw new Error(`Title translation request failed (${response.status})`)
+                return response.json()
+            })
+            projectTitleRequests.current.set(requestKey, request)
+            void request.finally(() => {
+                if (projectTitleRequests.current.get(requestKey) === request) projectTitleRequests.current.delete(requestKey)
+            }).catch(() => {})
+        }
+        void request.then(result => {
+            if (projectListScopeRef.current !== scope) return
             if (!Array.isArray(result?.translations) || !result.translations.length) throw new Error('Incomplete title translations')
-            saveProjectListTitleTranslations(localStorage, projectListScopeRef.current, currentLocale, result.translations)
+            saveProjectListTitleTranslations(localStorage, scope, currentLocale, result.translations)
             setProjectTitleTranslations(previous => {
                 const next = { ...previous }
                 for (const item of result.translations) next[JSON.stringify([currentLocale, item.id, item.source])] = item.title
-                return next
+                return result.translations.some((item: any) => previous[JSON.stringify([currentLocale, item.id, item.source])] !== item.title) ? next : previous
             })
         }).catch(error => {
             console.warn('[STD project title translation]', error?.message || 'Request failed')
