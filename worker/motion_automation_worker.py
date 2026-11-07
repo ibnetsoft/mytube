@@ -578,7 +578,8 @@ def review_output(runner,output,reference,voice,scene,plan,directory,fresh,previ
             for panel in shot['panels']:times.add(min(duration-1/30,a+(b-a)*panel['reveal']+1/30))
     times.update(p['time'] for p in cadence['abrupt_changes'])
     times.update(cadence['black_frames'])
-    times=sorted({max(0,min(duration-1/12,t)) for t in times});batches=[];wuxia_reviewed_times=set()
+    sample_limit=min(duration-1/cadence['fps'],(cadence['decoded_frames']-1)/cadence['fps']) if wuxia_evidence else duration-1/12
+    times=sorted({max(0,min(sample_limit,t)) for t in times});batches=[];wuxia_reviewed_times=set()
     for offset in range(0,len(times),4):
         fresh();frames=[];source_frames=[];paired_times=[];actual_times=[]
         for timestamp in sorted(set(times[offset:offset+4]+[max(0,min(duration-1/12,duration*.5))])):

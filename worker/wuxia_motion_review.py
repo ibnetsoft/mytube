@@ -32,7 +32,11 @@ without whole-camera wobble, and an unrequested effect must be absent. For
 wuxia_motion_protection inspect source/output anatomy, hands, lettering, full crop
 envelope and mouth/ambient patch alignment. Sampling is not exhaustive approval.
 The frozen schedule or renderer success is not proof. Missing/ambiguous evidence
-fails the relevant check and is retained in quality notes; never claim it passed.'''
+fails the relevant check and is retained in quality notes; never claim it passed.
+Each batch contains only some timestamps. Judge the expected pose/effect at the
+supplied actual times and limit evidence claims to those pixels. Other planned
+phases are inspected in their own batches; do not fail solely because a phase is
+not included in this batch, and never claim to have inspected an unseen phase.'''
 
 def evidence(scene,duration,fps):
     t=scene.get('wuxia_timeline') or {}
