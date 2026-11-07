@@ -59,7 +59,7 @@ def locate_selective_speakers(runner, identity, scene, image, rows, cast):
                 return result
         proxy = ReviewRunner()
         try:
-            return locate_speakers(proxy, identity, scene, image, rows, cast)
+            return locate_speakers(proxy, identity, scene, image, rows, cast, allow_uncertain=True)
         except ValueError as error:
             # Do not hide execution errors, missing files or malformed contracts.
             numeric_rejection = (str(error) in {

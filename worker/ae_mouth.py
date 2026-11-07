@@ -6,6 +6,7 @@ Semantic dialogue and visible-speaker decisions come from the local Codex CLI.
 from __future__ import annotations
 
 import array
+import copy
 import hashlib
 import json
 import math
@@ -73,7 +74,7 @@ def assess_dialogue(runner, identity: str, snapshot: dict) -> list[dict]:
              'reason': 'User-confirmed saved dialogue/speaker assignment' if row.get('kind') else 'Saved classification needs confirmation'} for row in subtitles]
 
 
-def visible_speakers(response: dict, speakers: list[str]) -> list[dict]:
+def visible_speakers(response: dict, speakers: list[str], *, allow_uncertain=False) -> list[dict]:
     rows = response.get('speakers')
     if not isinstance(rows, list) or len(rows) != len(speakers):
         raise ValueError('Visible speaker assessment is incomplete')
@@ -82,6 +83,14 @@ def visible_speakers(response: dict, speakers: list[str]) -> list[dict]:
         if row.get('speaker') != speaker or row.get('status') not in ('visible', 'offscreen', 'occluded', 'uncertain'):
             raise ValueError('Visible speaker assessment changed the cast')
         confidence = row.get('confidence')
+        if (allow_uncertain and not isinstance(confidence, bool) and isinstance(confidence, (int, float))
+            and math.isfinite(confidence) and 0 <= confidence <= 1
+            and (confidence < .9 or row['status'] == 'uncertain') and str(row.get('reason') or '').strip()):
+            row=copy.deepcopy(row)
+            row.update(status='uncertain',reason='Selective mouth visibility is not confirmed: '+row['reason'])
+            if isinstance(row.get('mouth_geometry'),dict):row['mouth_geometry']['render_policy']='preserve_original'
+            accepted.append(row)
+            continue
         if not isinstance(confidence, (int, float)) or not math.isfinite(confidence) or confidence < .9:
             raise ValueError('Visible speaker confidence needs review')
         if row['status'] == 'uncertain' or not str(row.get('reason') or '').strip():
@@ -109,7 +118,7 @@ def visible_speakers(response: dict, speakers: list[str]) -> list[dict]:
     return accepted
 
 
-def locate_speakers(runner, identity: str, scene: dict, image: Path, rows: list[dict], cast: dict) -> list[dict]:
+def locate_speakers(runner, identity: str, scene: dict, image: Path, rows: list[dict], cast: dict, *, allow_uncertain=False) -> list[dict]:
     speakers = list(dict.fromkeys(s['speaker'] for s in rows if s['kind'] == 'dialogue'))
     response = runner._stage(identity, '03_ae_mouth_visibility', {
         '_local_image_paths': [str(image.resolve())], 'source_sha256': digest(image),
@@ -147,7 +156,7 @@ def locate_speakers(runner, identity: str, scene: dict, image: Path, rows: list[
         for index,(candidate,name) in enumerate(zip(coarse,speakers)):
             if candidate.get('speaker')!=name:raise ValueError('Face search changed speaker')
             if candidate.get('status')=='offscreen':
-                accepted.extend(visible_speakers({'speakers':[candidate]},[name]));continue
+                accepted.extend(visible_speakers({'speakers':[candidate]},[name],allow_uncertain=allow_uncertain));continue
             face=candidate.get('face_box')
             if not isinstance(face,list) or len(face)!=4 or not all(isinstance(v,(int,float)) and math.isfinite(v) for v in face):
                 raise ValueError('Face search bounds missing')
@@ -181,7 +190,7 @@ def locate_speakers(runner, identity: str, scene: dict, image: Path, rows: list[
             if g.get('landmarks'):g['landmarks']={key:mapped(p) for key,p in g['landmarks'].items()}
             refined['mouth_geometry']=g
             accepted.append(refined)
-    accepted=visible_speakers({'speakers':accepted},speakers)
+    accepted=visible_speakers({'speakers':accepted},speakers,allow_uncertain=allow_uncertain)
     candidates = [s for s in accepted if s['status'] in ('visible', 'occluded')]
     if not candidates:return accepted
     from mouth_geometry import validate
