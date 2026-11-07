@@ -1,0 +1,12 @@
+[
+  {
+    "file": "worker\\wuxia_motion_review.py",
+    "sha256": "13fd87b736a4e7c075d5ae61364991180ffcd240251c541312e8a04e54e053ad",
+    "previous_sha256": "f8d30b0ae7c29036e7acffea6a3a76858d499e994f9f85bb8d85b18ffd23f15e"
+  },
+  {
+    "file": "worker\\motion_automation_worker.py",
+    "sha256": "67d631c3c568a575d44b4da308ef006e922b03eb82e394a2fe61cabcd4df1005",
+    "previous_sha256": "673e9c282d704cd433bbc8ca7619df72cb4291ca3bccfa7ef5c7519b9c912f3b"
+  }
+]

@@ -1,0 +1,37 @@
+[
+  {
+    "state": "QA_SWORD_AURA",
+    "review": {
+      "passed": false,
+      "energy_only": false,
+      "people_fixed": true,
+      "blade_fixed": true,
+      "lettering_fixed": true,
+      "late_energy_present": true,
+      "next_state_clean": true,
+      "no_ghosts_or_seams": true,
+      "evidence": "Compared the supplied source with decoded AE frames 0, 108, 209 and 215. People, hands, grip, steel blade and background geometry appear stationary; no lettering is visible. The source-blue aura remains visible at frame 215, the last in-state sample, but its exterior wisps show no clearly discernible ripple or traveling flow across the supplied phases. Sustained animation and repetition beyond the first cycle therefore cannot be confirmed. Frames 216 and 227 show the next plain state without carried-over blue energy. No visible duplicate wisps, polygon-edge discontinuities or clean-plate seams were observed. The fixed composition fits the depicted held sword pose; no added camera movement, heat distortion or transition effect is apparent, consistent with the supplied settings. Findings cover only the supplied decoded samples.",
+      "issues": [
+        "Required visible energy flow is ambiguous: the sampled aura contours appear effectively static. Persistent blue illumination alone does not establish animated sword aura.",
+        "Repetition beyond the first cycle and active flow through the last in-state frame are not demonstrated by the supplied pixels."
+      ]
+    },
+    "scope": "Actual local Codex CLI review of supplied decoded native Adobe output and source frames; sampling only"
+  },
+  {
+    "state": "QA_BODY_AURA",
+    "review": {
+      "passed": true,
+      "energy_only": true,
+      "people_fixed": true,
+      "blade_fixed": true,
+      "lettering_fixed": true,
+      "late_energy_present": true,
+      "next_state_clean": true,
+      "no_ghosts_or_seams": true,
+      "evidence": "Compared the supplied source with decoded AE frames 0, 108, 209 and 215. Orange-gold emission visibly changes along the exposed ribbons across these phases, including late samples at 8.7083s and the final in-state sample at 8.9583s, supporting continued cycling beyond the opening phase. The person, hair, clasped hands, clothing, boots, background geometry and speech-bubble lettering remain stationary. Energy crossing protected clothing stays fixed. No weapon is visible in this source state, so blade/grip protection is not applicable. No detached duplicate wisps, visible clean-plate seams or protected-edge displacement were observed. Frames 216 and 227 show the next state cleanly without carried-over aura. Fixed framing suits the stationary pose and readable dialogue; no unrequested heat distortion or transition effect is visible. Findings are limited to the supplied decoded samples, not exhaustive playback.",
+      "issues": []
+    },
+    "scope": "Actual local Codex CLI review of supplied decoded native Adobe output and source frames; sampling only"
+  }
+]

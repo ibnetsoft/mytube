@@ -1,0 +1,123 @@
+{
+  "passed": true,
+  "scope": "Real production Preview component, actual source and SHA-verified cloud patches; separate from authenticated live project and actual Adobe render",
+  "reports": [
+    {
+      "scene": 1,
+      "frame": 0,
+      "seconds": 0,
+      "ambient": 1,
+      "state": "QA_SWORD_AURA"
+    },
+    {
+      "scene": 1,
+      "frame": 5,
+      "seconds": 0.20833333333333334,
+      "ambient": 1,
+      "state": "QA_SWORD_AURA"
+    },
+    {
+      "scene": 1,
+      "frame": 108,
+      "seconds": 4.5,
+      "ambient": 1,
+      "state": "QA_SWORD_AURA"
+    },
+    {
+      "scene": 1,
+      "frame": 209,
+      "seconds": 8.708333333333334,
+      "ambient": 1,
+      "state": "QA_SWORD_AURA"
+    },
+    {
+      "scene": 1,
+      "frame": 215,
+      "seconds": 8.958333333333334,
+      "ambient": 1,
+      "state": "QA_SWORD_AURA"
+    },
+    {
+      "scene": 1,
+      "frame": 216,
+      "seconds": 9,
+      "ambient": 0,
+      "state": "QA_SWORD_PLAIN"
+    },
+    {
+      "scene": 1,
+      "frame": 227,
+      "seconds": 9.458333333333334,
+      "ambient": 0,
+      "state": "QA_SWORD_PLAIN"
+    },
+    {
+      "scene": 1,
+      "last_energy_phase_comparison": [
+        209,
+        215
+      ],
+      "outside_changed": 0,
+      "inside_changed": 3165
+    },
+    {
+      "scene": 2,
+      "frame": 0,
+      "seconds": 0,
+      "ambient": 1,
+      "state": "QA_BODY_AURA"
+    },
+    {
+      "scene": 2,
+      "frame": 5,
+      "seconds": 0.20833333333333334,
+      "ambient": 1,
+      "state": "QA_BODY_AURA"
+    },
+    {
+      "scene": 2,
+      "frame": 108,
+      "seconds": 4.5,
+      "ambient": 1,
+      "state": "QA_BODY_AURA"
+    },
+    {
+      "scene": 2,
+      "frame": 209,
+      "seconds": 8.708333333333334,
+      "ambient": 1,
+      "state": "QA_BODY_AURA"
+    },
+    {
+      "scene": 2,
+      "frame": 215,
+      "seconds": 8.958333333333334,
+      "ambient": 1,
+      "state": "QA_BODY_AURA"
+    },
+    {
+      "scene": 2,
+      "frame": 216,
+      "seconds": 9,
+      "ambient": 0,
+      "state": "QA_BODY_PLAIN"
+    },
+    {
+      "scene": 2,
+      "frame": 227,
+      "seconds": 9.458333333333334,
+      "ambient": 0,
+      "state": "QA_BODY_PLAIN"
+    },
+    {
+      "scene": 2,
+      "last_energy_phase_comparison": [
+        209,
+        215
+      ],
+      "outside_changed": 0,
+      "inside_changed": 39265
+    }
+  ],
+  "page_errors": []
+}

@@ -1,0 +1,43 @@
+{
+  "passed": true,
+  "cases": [
+    {
+      "kind": "sword",
+      "source_sha256": "7ffea097916171ecb32fdcdb20fbe6083a0e9aefc9698c18ca6990532f365ac4",
+      "actual_selection": true,
+      "actual_composite_review": {
+        "source_sha256": "7ffea097916171ecb32fdcdb20fbe6083a0e9aefc9698c18ca6990532f365ac4",
+        "passed": true,
+        "people_fixed": true,
+        "blade_fixed": true,
+        "lettering_fixed": true,
+        "energy_only": true,
+        "no_ghosts_or_seams": true,
+        "evidence": "Visually inspected the original, clean plate and all four actual composites (0, 4, 8, 12). The selected exterior cyan arch above the blade changes shape across phases; people, hands, physical blades and background remain aligned. No lettering is present. Clean-plate changes outside the mask do not appear in the actual composites. No visible doubled energy, exposed seams or background wobble. Pixel comparison confirms changes are confined to the selected arch area (x1403–1607, y455–566), with distinct changes between every sampled phase."
+      },
+      "frames": 16,
+      "cloud_sha_canvas_alpha_verified": true,
+      "all_protected_source_pixels_exactly_unchanged": true,
+      "repeat": true
+    },
+    {
+      "kind": "body",
+      "source_sha256": "1ccb7b211cbf9c3791158baee8da6ec98706002a12a7f7620d990b8160a54ce4",
+      "actual_selection": true,
+      "actual_composite_review": {
+        "source_sha256": "1ccb7b211cbf9c3791158baee8da6ec98706002a12a7f7620d990b8160a54ce4",
+        "passed": true,
+        "people_fixed": true,
+        "blade_fixed": true,
+        "lettering_fixed": true,
+        "energy_only": true,
+        "no_ghosts_or_seams": true,
+        "evidence": "Visually inspected the original, clean plate and all four actual composites (phases 0, 4, 8, 12). Orange-yellow energy ribbons show alternating brightness along the upper, side and lower curls. Face, hair, hands, clothing, boots, speech-bubble outline and Korean lettering remain stationary. The energy crossing the robe stays fixed as specified. Stone wall joints, pillars and floor remain aligned; no visible rectangular clipping, doubled energy contours, exposed cleanup seams or background wobble appear in the composites. Residual glow in the clean plate does not produce visible contamination in the actual composites. No blade is present."
+      },
+      "frames": 16,
+      "cloud_sha_canvas_alpha_verified": true,
+      "all_protected_source_pixels_exactly_unchanged": true,
+      "repeat": true
+    }
+  ]
+}

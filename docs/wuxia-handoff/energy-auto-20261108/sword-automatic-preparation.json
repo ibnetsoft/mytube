@@ -1,0 +1,1241 @@
+{
+  "contract": "wuxia_energy_auto/v1",
+  "source_sha256": "7ffea097916171ecb32fdcdb20fbe6083a0e9aefc9698c18ca6990532f365ac4",
+  "decision": "present",
+  "reason": "Actual blue supernatural energy curls outside the sword. Select the exterior upper-right arch, excluding the blade coating and all figures.",
+  "selection": {
+    "source_sha256": "7ffea097916171ecb32fdcdb20fbe6083a0e9aefc9698c18ca6990532f365ac4",
+    "decision": "present",
+    "reason": "Actual blue supernatural energy curls outside the sword. Select the exterior upper-right arch, excluding the blade coating and all figures.",
+    "regions": [
+      {
+        "kind": "sword",
+        "region": [
+          0.824,
+          0.477,
+          0.966,
+          0.608
+        ],
+        "energy_polygons": [
+          [
+            [
+              0.833,
+              0.586
+            ],
+            [
+              0.835,
+              0.55
+            ],
+            [
+              0.845,
+              0.519
+            ],
+            [
+              0.864,
+              0.495
+            ],
+            [
+              0.889,
+              0.485
+            ],
+            [
+              0.916,
+              0.486
+            ],
+            [
+              0.941,
+              0.497
+            ],
+            [
+              0.957,
+              0.517
+            ],
+            [
+              0.958,
+              0.534
+            ],
+            [
+              0.947,
+              0.538
+            ],
+            [
+              0.933,
+              0.521
+            ],
+            [
+              0.913,
+              0.51
+            ],
+            [
+              0.89,
+              0.509
+            ],
+            [
+              0.872,
+              0.518
+            ],
+            [
+              0.856,
+              0.54
+            ],
+            [
+              0.847,
+              0.57
+            ],
+            [
+              0.844,
+              0.595
+            ],
+            [
+              0.836,
+              0.599
+            ]
+          ]
+        ],
+        "protected_polygons": [
+          [
+            [
+              0.09,
+              1
+            ],
+            [
+              0.154,
+              0.909
+            ],
+            [
+              0.176,
+              0.797
+            ],
+            [
+              0.168,
+              0.625
+            ],
+            [
+              0.151,
+              0.459
+            ],
+            [
+              0.178,
+              0.348
+            ],
+            [
+              0.25,
+              0.314
+            ],
+            [
+              0.255,
+              0.201
+            ],
+            [
+              0.292,
+              0.119
+            ],
+            [
+              0.286,
+              0.037
+            ],
+            [
+              0.315,
+              0
+            ],
+            [
+              0.389,
+              0
+            ],
+            [
+              0.405,
+              0.095
+            ],
+            [
+              0.442,
+              0.147
+            ],
+            [
+              0.475,
+              0.272
+            ],
+            [
+              0.472,
+              0.377
+            ],
+            [
+              0.558,
+              0.448
+            ],
+            [
+              0.582,
+              0.574
+            ],
+            [
+              0.569,
+              0.704
+            ],
+            [
+              0.585,
+              0.79
+            ],
+            [
+              0.587,
+              0.931
+            ],
+            [
+              0.549,
+              0.962
+            ],
+            [
+              0.563,
+              1
+            ]
+          ],
+          [
+            [
+              0.036,
+              0.493
+            ],
+            [
+              0.048,
+              0.362
+            ],
+            [
+              0.088,
+              0.323
+            ],
+            [
+              0.099,
+              0.258
+            ],
+            [
+              0.124,
+              0.25
+            ],
+            [
+              0.145,
+              0.307
+            ],
+            [
+              0.169,
+              0.355
+            ],
+            [
+              0.176,
+              0.439
+            ],
+            [
+              0.155,
+              0.499
+            ],
+            [
+              0.135,
+              0.573
+            ],
+            [
+              0.118,
+              0.671
+            ],
+            [
+              0.095,
+              0.675
+            ],
+            [
+              0.076,
+              0.596
+            ],
+            [
+              0.067,
+              0.503
+            ]
+          ],
+          [
+            [
+              0.169,
+              0.393
+            ],
+            [
+              0.181,
+              0.301
+            ],
+            [
+              0.211,
+              0.269
+            ],
+            [
+              0.215,
+              0.228
+            ],
+            [
+              0.239,
+              0.22
+            ],
+            [
+              0.249,
+              0.27
+            ],
+            [
+              0.272,
+              0.301
+            ],
+            [
+              0.278,
+              0.341
+            ],
+            [
+              0.23,
+              0.374
+            ]
+          ],
+          [
+            [
+              0.48,
+              0.201
+            ],
+            [
+              0.505,
+              0.12
+            ],
+            [
+              0.55,
+              0.092
+            ],
+            [
+              0.552,
+              0.021
+            ],
+            [
+              0.582,
+              0.013
+            ],
+            [
+              0.598,
+              0.08
+            ],
+            [
+              0.618,
+              0.124
+            ],
+            [
+              0.642,
+              0.159
+            ],
+            [
+              0.651,
+              0.26
+            ],
+            [
+              0.64,
+              0.323
+            ],
+            [
+              0.642,
+              0.501
+            ],
+            [
+              0.622,
+              0.527
+            ],
+            [
+              0.59,
+              0.509
+            ],
+            [
+              0.582,
+              0.438
+            ],
+            [
+              0.563,
+              0.479
+            ],
+            [
+              0.525,
+              0.465
+            ],
+            [
+              0.503,
+              0.357
+            ],
+            [
+              0.492,
+              0.292
+            ]
+          ],
+          [
+            [
+              0.663,
+              0.352
+            ],
+            [
+              0.673,
+              0.295
+            ],
+            [
+              0.702,
+              0.267
+            ],
+            [
+              0.706,
+              0.239
+            ],
+            [
+              0.724,
+              0.235
+            ],
+            [
+              0.735,
+              0.27
+            ],
+            [
+              0.749,
+              0.304
+            ],
+            [
+              0.751,
+              0.385
+            ],
+            [
+              0.738,
+              0.443
+            ],
+            [
+              0.743,
+              0.543
+            ],
+            [
+              0.716,
+              0.564
+            ],
+            [
+              0.693,
+              0.527
+            ],
+            [
+              0.68,
+              0.446
+            ]
+          ],
+          [
+            [
+              0.743,
+              0.411
+            ],
+            [
+              0.751,
+              0.348
+            ],
+            [
+              0.789,
+              0.316
+            ],
+            [
+              0.795,
+              0.277
+            ],
+            [
+              0.815,
+              0.278
+            ],
+            [
+              0.826,
+              0.32
+            ],
+            [
+              0.849,
+              0.351
+            ],
+            [
+              0.858,
+              0.449
+            ],
+            [
+              0.838,
+              0.482
+            ],
+            [
+              0.842,
+              0.565
+            ],
+            [
+              0.83,
+              0.649
+            ],
+            [
+              0.805,
+              0.654
+            ],
+            [
+              0.791,
+              0.581
+            ],
+            [
+              0.763,
+              0.551
+            ],
+            [
+              0.747,
+              0.491
+            ]
+          ],
+          [
+            [
+              0.562,
+              0.832
+            ],
+            [
+              1,
+              0.524
+            ],
+            [
+              1,
+              0.604
+            ],
+            [
+              0.578,
+              0.899
+            ],
+            [
+              0.548,
+              0.935
+            ],
+            [
+              0.529,
+              0.898
+            ],
+            [
+              0.531,
+              0.786
+            ],
+            [
+              0.556,
+              0.765
+            ],
+            [
+              0.581,
+              0.788
+            ]
+          ],
+          [
+            [
+              0.043,
+              0.484
+            ],
+            [
+              0.137,
+              0.404
+            ],
+            [
+              0.146,
+              0.414
+            ],
+            [
+              0.052,
+              0.5
+            ]
+          ],
+          [
+            [
+              0.514,
+              0.28
+            ],
+            [
+              0.58,
+              0.466
+            ],
+            [
+              0.564,
+              0.483
+            ],
+            [
+              0.506,
+              0.305
+            ]
+          ],
+          [
+            [
+              0.685,
+              0.38
+            ],
+            [
+              0.734,
+              0.464
+            ],
+            [
+              0.729,
+              0.483
+            ],
+            [
+              0.68,
+              0.4
+            ]
+          ],
+          [
+            [
+              0.755,
+              0.456
+            ],
+            [
+              0.839,
+              0.533
+            ],
+            [
+              0.832,
+              0.552
+            ],
+            [
+              0.748,
+              0.478
+            ]
+          ]
+        ],
+        "amplitude_px": 4,
+        "reason": "The selected cyan arch visibly extends above the sword coating into background space. Its polygon includes the surrounding glow; protective polygons exclude all people, distant heads, hands, clothing, and physical weapons."
+      }
+    ]
+  },
+  "loops": [
+    {
+      "contract": "ambient_loop/v1",
+      "enabled": true,
+      "source_sha256": "7ffea097916171ecb32fdcdb20fbe6083a0e9aefc9698c18ca6990532f365ac4",
+      "role": "environment",
+      "width": 1672,
+      "height": 941,
+      "region": [
+        0.824,
+        0.477,
+        0.966,
+        0.608
+      ],
+      "protected_regions": [],
+      "start_ms": 0,
+      "end_ms": 3600000,
+      "phase_ms": 0,
+      "repeat": true,
+      "sword_aura": {
+        "contract": "wuxia_sword_aura/v1",
+        "source_reviewed": true,
+        "source_sha256": "7ffea097916171ecb32fdcdb20fbe6083a0e9aefc9698c18ca6990532f365ac4",
+        "clean_plate_sha256": "d80154b9d68e3bf75cd88c993c1d5df035df8849df708033280cf17bc3f3969d",
+        "protected_polygons": [
+          [
+            [
+              0.09,
+              1
+            ],
+            [
+              0.154,
+              0.909
+            ],
+            [
+              0.176,
+              0.797
+            ],
+            [
+              0.168,
+              0.625
+            ],
+            [
+              0.151,
+              0.459
+            ],
+            [
+              0.178,
+              0.348
+            ],
+            [
+              0.25,
+              0.314
+            ],
+            [
+              0.255,
+              0.201
+            ],
+            [
+              0.292,
+              0.119
+            ],
+            [
+              0.286,
+              0.037
+            ],
+            [
+              0.315,
+              0
+            ],
+            [
+              0.389,
+              0
+            ],
+            [
+              0.405,
+              0.095
+            ],
+            [
+              0.442,
+              0.147
+            ],
+            [
+              0.475,
+              0.272
+            ],
+            [
+              0.472,
+              0.377
+            ],
+            [
+              0.558,
+              0.448
+            ],
+            [
+              0.582,
+              0.574
+            ],
+            [
+              0.569,
+              0.704
+            ],
+            [
+              0.585,
+              0.79
+            ],
+            [
+              0.587,
+              0.931
+            ],
+            [
+              0.549,
+              0.962
+            ],
+            [
+              0.563,
+              1
+            ]
+          ],
+          [
+            [
+              0.036,
+              0.493
+            ],
+            [
+              0.048,
+              0.362
+            ],
+            [
+              0.088,
+              0.323
+            ],
+            [
+              0.099,
+              0.258
+            ],
+            [
+              0.124,
+              0.25
+            ],
+            [
+              0.145,
+              0.307
+            ],
+            [
+              0.169,
+              0.355
+            ],
+            [
+              0.176,
+              0.439
+            ],
+            [
+              0.155,
+              0.499
+            ],
+            [
+              0.135,
+              0.573
+            ],
+            [
+              0.118,
+              0.671
+            ],
+            [
+              0.095,
+              0.675
+            ],
+            [
+              0.076,
+              0.596
+            ],
+            [
+              0.067,
+              0.503
+            ]
+          ],
+          [
+            [
+              0.169,
+              0.393
+            ],
+            [
+              0.181,
+              0.301
+            ],
+            [
+              0.211,
+              0.269
+            ],
+            [
+              0.215,
+              0.228
+            ],
+            [
+              0.239,
+              0.22
+            ],
+            [
+              0.249,
+              0.27
+            ],
+            [
+              0.272,
+              0.301
+            ],
+            [
+              0.278,
+              0.341
+            ],
+            [
+              0.23,
+              0.374
+            ]
+          ],
+          [
+            [
+              0.48,
+              0.201
+            ],
+            [
+              0.505,
+              0.12
+            ],
+            [
+              0.55,
+              0.092
+            ],
+            [
+              0.552,
+              0.021
+            ],
+            [
+              0.582,
+              0.013
+            ],
+            [
+              0.598,
+              0.08
+            ],
+            [
+              0.618,
+              0.124
+            ],
+            [
+              0.642,
+              0.159
+            ],
+            [
+              0.651,
+              0.26
+            ],
+            [
+              0.64,
+              0.323
+            ],
+            [
+              0.642,
+              0.501
+            ],
+            [
+              0.622,
+              0.527
+            ],
+            [
+              0.59,
+              0.509
+            ],
+            [
+              0.582,
+              0.438
+            ],
+            [
+              0.563,
+              0.479
+            ],
+            [
+              0.525,
+              0.465
+            ],
+            [
+              0.503,
+              0.357
+            ],
+            [
+              0.492,
+              0.292
+            ]
+          ],
+          [
+            [
+              0.663,
+              0.352
+            ],
+            [
+              0.673,
+              0.295
+            ],
+            [
+              0.702,
+              0.267
+            ],
+            [
+              0.706,
+              0.239
+            ],
+            [
+              0.724,
+              0.235
+            ],
+            [
+              0.735,
+              0.27
+            ],
+            [
+              0.749,
+              0.304
+            ],
+            [
+              0.751,
+              0.385
+            ],
+            [
+              0.738,
+              0.443
+            ],
+            [
+              0.743,
+              0.543
+            ],
+            [
+              0.716,
+              0.564
+            ],
+            [
+              0.693,
+              0.527
+            ],
+            [
+              0.68,
+              0.446
+            ]
+          ],
+          [
+            [
+              0.743,
+              0.411
+            ],
+            [
+              0.751,
+              0.348
+            ],
+            [
+              0.789,
+              0.316
+            ],
+            [
+              0.795,
+              0.277
+            ],
+            [
+              0.815,
+              0.278
+            ],
+            [
+              0.826,
+              0.32
+            ],
+            [
+              0.849,
+              0.351
+            ],
+            [
+              0.858,
+              0.449
+            ],
+            [
+              0.838,
+              0.482
+            ],
+            [
+              0.842,
+              0.565
+            ],
+            [
+              0.83,
+              0.649
+            ],
+            [
+              0.805,
+              0.654
+            ],
+            [
+              0.791,
+              0.581
+            ],
+            [
+              0.763,
+              0.551
+            ],
+            [
+              0.747,
+              0.491
+            ]
+          ],
+          [
+            [
+              0.562,
+              0.832
+            ],
+            [
+              1,
+              0.524
+            ],
+            [
+              1,
+              0.604
+            ],
+            [
+              0.578,
+              0.899
+            ],
+            [
+              0.548,
+              0.935
+            ],
+            [
+              0.529,
+              0.898
+            ],
+            [
+              0.531,
+              0.786
+            ],
+            [
+              0.556,
+              0.765
+            ],
+            [
+              0.581,
+              0.788
+            ]
+          ],
+          [
+            [
+              0.043,
+              0.484
+            ],
+            [
+              0.137,
+              0.404
+            ],
+            [
+              0.146,
+              0.414
+            ],
+            [
+              0.052,
+              0.5
+            ]
+          ],
+          [
+            [
+              0.514,
+              0.28
+            ],
+            [
+              0.58,
+              0.466
+            ],
+            [
+              0.564,
+              0.483
+            ],
+            [
+              0.506,
+              0.305
+            ]
+          ],
+          [
+            [
+              0.685,
+              0.38
+            ],
+            [
+              0.734,
+              0.464
+            ],
+            [
+              0.729,
+              0.483
+            ],
+            [
+              0.68,
+              0.4
+            ]
+          ],
+          [
+            [
+              0.755,
+              0.456
+            ],
+            [
+              0.839,
+              0.533
+            ],
+            [
+              0.832,
+              0.552
+            ],
+            [
+              0.748,
+              0.478
+            ]
+          ]
+        ],
+        "reason": "The selected cyan arch visibly extends above the sword coating into background space. Its polygon includes the surrounding glow; protective polygons exclude all people, distant heads, hands, clothing, and physical weapons.",
+        "amplitude_px": 4,
+        "method": "isolated_energy_turbulence_and_traveling_emission",
+        "stationary_original": true,
+        "energy_kind": "sword"
+      },
+      "frames": [
+        {
+          "media_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=wuxia-energy-qa%2F20261108%2F65c142d89e6bfd4988a9bcd212e079941816c26440bd1797e09b9562b759879e.png",
+          "gcs_bucket": "air-studio-prod",
+          "gcs_path": "wuxia-energy-qa/20261108/65c142d89e6bfd4988a9bcd212e079941816c26440bd1797e09b9562b759879e.png",
+          "duration_ms": 60,
+          "sha256": "65c142d89e6bfd4988a9bcd212e079941816c26440bd1797e09b9562b759879e"
+        },
+        {
+          "media_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=wuxia-energy-qa%2F20261108%2F6420b8fb46535d8bcd96a323b26ef423e492ceca318be8ff9f87c22d6415a187.png",
+          "gcs_bucket": "air-studio-prod",
+          "gcs_path": "wuxia-energy-qa/20261108/6420b8fb46535d8bcd96a323b26ef423e492ceca318be8ff9f87c22d6415a187.png",
+          "duration_ms": 60,
+          "sha256": "6420b8fb46535d8bcd96a323b26ef423e492ceca318be8ff9f87c22d6415a187"
+        },
+        {
+          "media_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=wuxia-energy-qa%2F20261108%2F3b0ccc3d9cc6b87e5fa88dc7fa73e2eb16f3fb74e4770dff4c55c78d607aba52.png",
+          "gcs_bucket": "air-studio-prod",
+          "gcs_path": "wuxia-energy-qa/20261108/3b0ccc3d9cc6b87e5fa88dc7fa73e2eb16f3fb74e4770dff4c55c78d607aba52.png",
+          "duration_ms": 60,
+          "sha256": "3b0ccc3d9cc6b87e5fa88dc7fa73e2eb16f3fb74e4770dff4c55c78d607aba52"
+        },
+        {
+          "media_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=wuxia-energy-qa%2F20261108%2Fed52b160c3d58bfadfc53ba51deced9a12652b15bc8b9ac15c3634eec458fafd.png",
+          "gcs_bucket": "air-studio-prod",
+          "gcs_path": "wuxia-energy-qa/20261108/ed52b160c3d58bfadfc53ba51deced9a12652b15bc8b9ac15c3634eec458fafd.png",
+          "duration_ms": 60,
+          "sha256": "ed52b160c3d58bfadfc53ba51deced9a12652b15bc8b9ac15c3634eec458fafd"
+        },
+        {
+          "media_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=wuxia-energy-qa%2F20261108%2F01184ec5998f126ce9b4aa12340e0829bd1a86dc7645caf8e76717ab7f3297f5.png",
+          "gcs_bucket": "air-studio-prod",
+          "gcs_path": "wuxia-energy-qa/20261108/01184ec5998f126ce9b4aa12340e0829bd1a86dc7645caf8e76717ab7f3297f5.png",
+          "duration_ms": 60,
+          "sha256": "01184ec5998f126ce9b4aa12340e0829bd1a86dc7645caf8e76717ab7f3297f5"
+        },
+        {
+          "media_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=wuxia-energy-qa%2F20261108%2F36e44d62006ed7775236a921165e8898f7019685476253c002407a6de46014db.png",
+          "gcs_bucket": "air-studio-prod",
+          "gcs_path": "wuxia-energy-qa/20261108/36e44d62006ed7775236a921165e8898f7019685476253c002407a6de46014db.png",
+          "duration_ms": 60,
+          "sha256": "36e44d62006ed7775236a921165e8898f7019685476253c002407a6de46014db"
+        },
+        {
+          "media_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=wuxia-energy-qa%2F20261108%2F966580072e480d8f2c3d19ecde73f8030d8a56041e96b7604c86a14f8893f1cf.png",
+          "gcs_bucket": "air-studio-prod",
+          "gcs_path": "wuxia-energy-qa/20261108/966580072e480d8f2c3d19ecde73f8030d8a56041e96b7604c86a14f8893f1cf.png",
+          "duration_ms": 60,
+          "sha256": "966580072e480d8f2c3d19ecde73f8030d8a56041e96b7604c86a14f8893f1cf"
+        },
+        {
+          "media_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=wuxia-energy-qa%2F20261108%2Fbc022ae7ecae42b4edfc39f3b794af6c32c83f56d9816d4345b47c8001352ed7.png",
+          "gcs_bucket": "air-studio-prod",
+          "gcs_path": "wuxia-energy-qa/20261108/bc022ae7ecae42b4edfc39f3b794af6c32c83f56d9816d4345b47c8001352ed7.png",
+          "duration_ms": 60,
+          "sha256": "bc022ae7ecae42b4edfc39f3b794af6c32c83f56d9816d4345b47c8001352ed7"
+        },
+        {
+          "media_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=wuxia-energy-qa%2F20261108%2F9d62e59c280727f62bdba0c0e80e777ea05940d6e96c3d96389ad395cbb79a52.png",
+          "gcs_bucket": "air-studio-prod",
+          "gcs_path": "wuxia-energy-qa/20261108/9d62e59c280727f62bdba0c0e80e777ea05940d6e96c3d96389ad395cbb79a52.png",
+          "duration_ms": 60,
+          "sha256": "9d62e59c280727f62bdba0c0e80e777ea05940d6e96c3d96389ad395cbb79a52"
+        },
+        {
+          "media_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=wuxia-energy-qa%2F20261108%2F2b1ac53b6b49ba5e09ba0cbf8749705c3270e8c9088eb4795e0cf251c41afe00.png",
+          "gcs_bucket": "air-studio-prod",
+          "gcs_path": "wuxia-energy-qa/20261108/2b1ac53b6b49ba5e09ba0cbf8749705c3270e8c9088eb4795e0cf251c41afe00.png",
+          "duration_ms": 60,
+          "sha256": "2b1ac53b6b49ba5e09ba0cbf8749705c3270e8c9088eb4795e0cf251c41afe00"
+        },
+        {
+          "media_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=wuxia-energy-qa%2F20261108%2F8c3692ff0c324ff23e50919d899874370e440b8e0a16326f44bae2534c2fed6d.png",
+          "gcs_bucket": "air-studio-prod",
+          "gcs_path": "wuxia-energy-qa/20261108/8c3692ff0c324ff23e50919d899874370e440b8e0a16326f44bae2534c2fed6d.png",
+          "duration_ms": 60,
+          "sha256": "8c3692ff0c324ff23e50919d899874370e440b8e0a16326f44bae2534c2fed6d"
+        },
+        {
+          "media_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=wuxia-energy-qa%2F20261108%2F649630682d5958af10ae67a4b7d32fed49a5187740e6d3e796fcce82834fc77e.png",
+          "gcs_bucket": "air-studio-prod",
+          "gcs_path": "wuxia-energy-qa/20261108/649630682d5958af10ae67a4b7d32fed49a5187740e6d3e796fcce82834fc77e.png",
+          "duration_ms": 60,
+          "sha256": "649630682d5958af10ae67a4b7d32fed49a5187740e6d3e796fcce82834fc77e"
+        },
+        {
+          "media_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=wuxia-energy-qa%2F20261108%2F3264683bdd1c6bbf520deac022137a90c33a7c4cd61bcad0a8336fcb7d32424b.png",
+          "gcs_bucket": "air-studio-prod",
+          "gcs_path": "wuxia-energy-qa/20261108/3264683bdd1c6bbf520deac022137a90c33a7c4cd61bcad0a8336fcb7d32424b.png",
+          "duration_ms": 60,
+          "sha256": "3264683bdd1c6bbf520deac022137a90c33a7c4cd61bcad0a8336fcb7d32424b"
+        },
+        {
+          "media_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=wuxia-energy-qa%2F20261108%2F8f24d33b10a1b5a35316655a16c64c084fe7cd3a01cde800c8339eb23534e6dc.png",
+          "gcs_bucket": "air-studio-prod",
+          "gcs_path": "wuxia-energy-qa/20261108/8f24d33b10a1b5a35316655a16c64c084fe7cd3a01cde800c8339eb23534e6dc.png",
+          "duration_ms": 60,
+          "sha256": "8f24d33b10a1b5a35316655a16c64c084fe7cd3a01cde800c8339eb23534e6dc"
+        },
+        {
+          "media_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=wuxia-energy-qa%2F20261108%2Fce2d399e7db11852f75f184bdc792e5554545be2b5049cefb307c93551034959.png",
+          "gcs_bucket": "air-studio-prod",
+          "gcs_path": "wuxia-energy-qa/20261108/ce2d399e7db11852f75f184bdc792e5554545be2b5049cefb307c93551034959.png",
+          "duration_ms": 60,
+          "sha256": "ce2d399e7db11852f75f184bdc792e5554545be2b5049cefb307c93551034959"
+        },
+        {
+          "media_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=wuxia-energy-qa%2F20261108%2F592f9c6bf9ca5cd964fce49d6c7128b5446f87cf9d8193bfb84dd078c774b90f.png",
+          "gcs_bucket": "air-studio-prod",
+          "gcs_path": "wuxia-energy-qa/20261108/592f9c6bf9ca5cd964fce49d6c7128b5446f87cf9d8193bfb84dd078c774b90f.png",
+          "duration_ms": 60,
+          "sha256": "592f9c6bf9ca5cd964fce49d6c7128b5446f87cf9d8193bfb84dd078c774b90f"
+        }
+      ],
+      "automation": "wuxia_energy_auto/v1"
+    }
+  ],
+  "review": {
+    "source_sha256": "7ffea097916171ecb32fdcdb20fbe6083a0e9aefc9698c18ca6990532f365ac4",
+    "passed": true,
+    "people_fixed": true,
+    "blade_fixed": true,
+    "lettering_fixed": true,
+    "energy_only": true,
+    "no_ghosts_or_seams": true,
+    "evidence": "Visually inspected the original, clean plate and all four actual composites (0, 4, 8, 12). The selected exterior cyan arch above the blade changes shape across phases; people, hands, physical blades and background remain aligned. No lettering is present. Clean-plate changes outside the mask do not appear in the actual composites. No visible doubled energy, exposed seams or background wobble. Pixel comparison confirms changes are confined to the selected arch area (x1403–1607, y455–566), with distinct changes between every sampled phase."
+  }
+}

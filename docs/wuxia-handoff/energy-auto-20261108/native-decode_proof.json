@@ -1,0 +1,40 @@
+[
+  {
+    "state": "QA_BODY_AURA",
+    "info": {
+      "fps": 24.0,
+      "frames": 228,
+      "duration": 9.5,
+      "width": 1920,
+      "height": 1080
+    },
+    "fully_decoded": true,
+    "early_middle_last_energy_and_clean_state_frames": [
+      0,
+      108,
+      209,
+      215,
+      216,
+      227
+    ]
+  },
+  {
+    "state": "QA_SWORD_AURA",
+    "info": {
+      "fps": 24.0,
+      "frames": 228,
+      "duration": 9.5,
+      "width": 1920,
+      "height": 1080
+    },
+    "fully_decoded": true,
+    "early_middle_last_energy_and_clean_state_frames": [
+      0,
+      108,
+      209,
+      215,
+      216,
+      227
+    ]
+  }
+]

@@ -1,0 +1,97 @@
+[
+  {
+    "file": "worker/ae_flat_scene.py",
+    "previous_sha256": "3d19a31a2fd121c6ed4a19a8bc9a6f309410469b84961c8a409f3decefa3bed9",
+    "current_sha256": "c730fcf3e4d8db12b593bae5e639b0b14c93d311dc203b2ba12a140aad912a3f"
+  },
+  {
+    "file": "worker/ae_scene_production.py",
+    "previous_sha256": "c9a515374411c56ee0886575c2a826ae71d828e1bc1add00ea3c6c04dff8cd42",
+    "current_sha256": "d8533410f70abc5ef21e28ae6b5b8b55779df61c316c4389bd9452f04af81042"
+  },
+  {
+    "file": "worker/ambient_loop.py",
+    "previous_sha256": null,
+    "current_sha256": "1fb11f985f2bfead14b9b9307f2195f3e89a9a18ce6769c9ca6b14a389352fe8"
+  },
+  {
+    "file": "worker/motion_automation_worker.py",
+    "previous_sha256": "d7985069486bb13a03bfa4427fbade674d19f244c6845efccd5d6b2543d0467f",
+    "current_sha256": "673e9c282d704cd433bbc8ca7619df72cb4291ca3bccfa7ef5c7519b9c912f3b"
+  },
+  {
+    "file": "worker/wuxia_native_timeline.py",
+    "previous_sha256": null,
+    "current_sha256": "9d5ed195535b8de28b3b7f4e3a2e180f8728b15c32c8834c46f59c6e6772a6c8"
+  },
+  {
+    "file": "worker/wuxia_effects.py",
+    "previous_sha256": null,
+    "current_sha256": "ea1936c84bbe9e885bebc25a146147cde0cf2af6cd31cc4988e39fc169b6783c"
+  },
+  {
+    "file": "worker/wuxia_motion.py",
+    "previous_sha256": null,
+    "current_sha256": "f3b8f48b695c3d6d7d3b7134a6626015a2f61fa3e3319a7a9ae9ee917cdf7ce7"
+  },
+  {
+    "file": "worker/wuxia_motion_review.py",
+    "previous_sha256": null,
+    "current_sha256": "f8d30b0ae7c29036e7acffea6a3a76858d499e994f9f85bb8d85b18ffd23f15e"
+  },
+  {
+    "file": "worker/wuxia_transition.py",
+    "previous_sha256": null,
+    "current_sha256": "8d6234252727f6aff32c5f534d70333005f6c2270229b9d0defb86e1cf9d6ac3"
+  },
+  {
+    "file": "worker/wuxia_mouth.py",
+    "previous_sha256": null,
+    "current_sha256": "8881228bbf31f20260c8d0f0d2106bfbbf1455abd5f6c35e41015339e2b5762e"
+  },
+  {
+    "file": "worker/wuxia_render_cache.py",
+    "previous_sha256": null,
+    "current_sha256": "a8ea3ab1efe580f72e1338bcb8a2901a9233adfc2168a03625b8f3702360b8e4"
+  },
+  {
+    "file": "worker/wuxia_worker_contract.py",
+    "previous_sha256": null,
+    "current_sha256": "b525f9e0eebcbca5f0c1df17220c076af7ec53e855d489c13486bfe9ab20410c"
+  },
+  {
+    "file": "worker/wuxia_sword_aura.py",
+    "previous_sha256": null,
+    "current_sha256": "4a613499960824655ce5ef643368b416cb9f9cfab84f2573139ed27cff103a64"
+  },
+  {
+    "file": "auth-web/lib/ecSupplementalAssetsContract.json",
+    "previous_sha256": "9ec220e6ddb6e1f7746f6b3916120879baa23118aa030f58dae3cd6f8dbfbf4e",
+    "current_sha256": "5280e61e1a3b3bc34d0d0ad672ea734d880ac6e8f788a7ee894d5b2d4ea18e08"
+  },
+  {
+    "file": "auth-web/lib/effectcraftSource.json",
+    "previous_sha256": "e82ac07b265930f3e0e4da3e1bce3908b2e3af82b115e845143f13cd8e5e99c2",
+    "current_sha256": "acd9699399bbe27260d2cfbccf1687b9d2dd17959057577afbe596868c0fbbfd"
+  },
+  {
+    "file": "auth-web/lib/japaneseDomesticDramaStyle.json",
+    "previous_sha256": "693291dfd04dd49d80b485214bc5441314eafc9f093b44008ae9a25217da526f",
+    "current_sha256": "629275877e865b7263036d698bdf59609a75693b4a330a09e0b1f46c679e68ce"
+  },
+  {
+    "file": "auth-web/lib/japaneseFolktaleStyle.json",
+    "previous_sha256": "38154c6396d35854bb0641a3a022fbb4258778590b802b212642ca439a708df9",
+    "current_sha256": "9cca18ad92669b75f883e52d883a74e6354a7871910ceaed8f1dac73c14f7285"
+  },
+  {
+    "file": "auth-web/lib/japaneseHistoricalDocumentaryStyle.json",
+    "previous_sha256": "7c487ddecffa2a8cd6c5edffe0f0479b6f25801c19e95087ed54e6b771e5bc13",
+    "current_sha256": "e77fdd121bc1c13713a3bcd5cfbcbc51230c72a910468c91317173d7577564b4"
+  },
+  {
+    "file": "auth-web/lib/scenePurposePolicy.json",
+    "previous_sha256": "ae546584d8c9667aab060ae1082efb897b53ddca90afc307d7b4b913e932e6c8",
+    "current_sha256": "ad461b79aef783a71e45fc607ff75578933434562fede464f890abc55ff92639"
+  }
+]

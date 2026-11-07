@@ -1,0 +1,34 @@
+{
+  "probes": [
+    {
+      "state": "QA_SWORD_AURA",
+      "source_sha256": "7ffea097916171ecb32fdcdb20fbe6083a0e9aefc9698c18ca6990532f365ac4",
+      "frozen_snapshot_sha256": "b41220eced365893c64c22d8590247fa039f4c190202159ca0685b149c96708d",
+      "original_scene": 1,
+      "original_scene_sample_start": 0,
+      "original_global_start": 0,
+      "frames": 228,
+      "fps": 24,
+      "sha256": "3368bf4a313d621b9f62ea5bf7995de34fb44fca783adba1769a4437ee7a3ebf",
+      "gcs_bucket": "air-studio-prod",
+      "gcs_path": "std-motion-energy-auto-qa/20261108-v2/QA_SWORD_AURA/3368bf4a313d621b9f62ea5bf7995de34fb44fca783adba1769a4437ee7a3ebf.mp4",
+      "renderer": "actual_adobe_afterfx_and_aerender",
+      "scope": "full frozen QA scene including terminal state gate"
+    },
+    {
+      "state": "QA_BODY_AURA",
+      "source_sha256": "1ccb7b211cbf9c3791158baee8da6ec98706002a12a7f7620d990b8160a54ce4",
+      "frozen_snapshot_sha256": "b41220eced365893c64c22d8590247fa039f4c190202159ca0685b149c96708d",
+      "original_scene": 2,
+      "original_scene_sample_start": 0,
+      "original_global_start": 9.5,
+      "frames": 228,
+      "fps": 24,
+      "sha256": "1f3ecdee55f301a32d154d0e447d441bad7388786521f1bdc58cb4ce88080e65",
+      "gcs_bucket": "air-studio-prod",
+      "gcs_path": "std-motion-energy-auto-qa/20261108-v2/QA_BODY_AURA/1f3ecdee55f301a32d154d0e447d441bad7388786521f1bdc58cb4ce88080e65.mp4",
+      "renderer": "actual_adobe_afterfx_and_aerender",
+      "scope": "full frozen QA scene including terminal state gate"
+    }
+  ]
+}

@@ -1,0 +1,185 @@
+{
+  "passed": true,
+  "effect": "source-bound wavering or shimmering emitted energy; traveling projectile motion is optional",
+  "sword": {
+    "review": {
+      "passed": true,
+      "energy_only": true,
+      "people_fixed": true,
+      "blade_fixed": true,
+      "lettering_fixed": true,
+      "late_energy_present": true,
+      "next_state_clean": true,
+      "no_ghosts_or_seams": true,
+      "evidence": "Inspected source, decoded full frames and native-resolution phase sheet. The cyan arch above the blade shows localized changes in luminous filament contour and brightness across early phases, recurring at 8.6667–8.9583s; this is visible shimmer beyond persistent illumination. Same-phase pairs 0/24, 0/208 and 2/209 retain matching arch structure despite compression differences; different-phase 209/215 visibly changes the arch, consistent with the larger measured delta of 4.99 versus 2.09–2.40. Energy remains visible at the final in-state sample, 8.9583s. Full frames preserve faces, anatomy, grip, steel edges, background geometry and protected silhouette boundaries. No lettering is present. No detached duplicate wisps, obvious clean-plate seams or patch misalignment are visible. Next-state frames at 9s and 9.4583s contain no carried-over cyan energy. Fixed composition fits the source; no added camera motion, heat distortion or transition effect is apparent or requested. Findings apply only to inspected samples; they do not establish exhaustive frame-by-frame or bit-exact protection.",
+      "issues": []
+    },
+    "measurements": [
+      {
+        "frames": [
+          0,
+          24
+        ],
+        "expected_patch_frames": [
+          0,
+          0
+        ],
+        "roi_rgb_mean_absolute_delta": 2.0856850504737827
+      },
+      {
+        "frames": [
+          0,
+          208
+        ],
+        "expected_patch_frames": [
+          0,
+          0
+        ],
+        "roi_rgb_mean_absolute_delta": 2.283942974083819
+      },
+      {
+        "frames": [
+          2,
+          209
+        ],
+        "expected_patch_frames": [
+          1,
+          1
+        ],
+        "roi_rgb_mean_absolute_delta": 2.4007291612925417
+      },
+      {
+        "frames": [
+          209,
+          215
+        ],
+        "expected_patch_frames": [
+          1,
+          5
+        ],
+        "roi_rgb_mean_absolute_delta": 4.992450429070147
+      }
+    ],
+    "detail_sheets": [
+      {
+        "path": "/Users/kimsehyun/Projects/mytube/output/codex-local-console/energy-auto-qa-20261108/actual-ae/actual-energy-detail-e046eccaf371-0-0.000000.png",
+        "state": "QA_SWORD_AURA",
+        "loop": 0,
+        "times": [
+          0.0,
+          0.08333333333333333,
+          0.20833333333333334,
+          0.3333333333333333,
+          0.4583333333333333,
+          0.5833333333333334,
+          0.7083333333333334,
+          0.8333333333333334,
+          0.9583333333333334,
+          1.0,
+          8.666666666666666,
+          8.708333333333334,
+          8.958333333333334
+        ],
+        "decoded_pixel_boxes": [
+          [
+            1570,
+            503,
+            1867,
+            669
+          ],
+          [
+            1570,
+            503,
+            1867,
+            669
+          ],
+          [
+            1570,
+            503,
+            1867,
+            669
+          ],
+          [
+            1570,
+            503,
+            1867,
+            669
+          ],
+          [
+            1570,
+            503,
+            1867,
+            669
+          ],
+          [
+            1570,
+            503,
+            1867,
+            669
+          ],
+          [
+            1570,
+            503,
+            1867,
+            669
+          ],
+          [
+            1570,
+            503,
+            1867,
+            669
+          ],
+          [
+            1570,
+            503,
+            1867,
+            669
+          ],
+          [
+            1570,
+            503,
+            1867,
+            669
+          ],
+          [
+            1570,
+            503,
+            1867,
+            669
+          ],
+          [
+            1570,
+            503,
+            1867,
+            669
+          ],
+          [
+            1570,
+            503,
+            1867,
+            669
+          ]
+        ],
+        "method": "native-resolution crops of supplied decoded frames; no synthesized motion"
+      }
+    ],
+    "video_sha256": "3368bf4a313d621b9f62ea5bf7995de34fb44fca783adba1769a4437ee7a3ebf"
+  },
+  "body": {
+    "state": "QA_BODY_AURA",
+    "review": {
+      "passed": true,
+      "energy_only": true,
+      "people_fixed": true,
+      "blade_fixed": true,
+      "lettering_fixed": true,
+      "late_energy_present": true,
+      "next_state_clean": true,
+      "no_ghosts_or_seams": true,
+      "evidence": "Compared the source with decoded AE frames at 0, 4.5, 8.7083 and 8.9583 seconds and the supplied detail sheet. The source-orange body aura shows changing luminous bands along its ribbons, including renewed variation between the two late samples and visible energy at the last in-state frame. Hair, face, hands, clothing, boots, background geometry and speech-bubble lettering remain stationary across sampled phases. Energy crossing the clothing stays fixed. No weapon is visible in the aura state, so blade/grip protection is not applicable there. No detached duplicate wisps, visible protection-edge tears or clean-plate seams were observed. Frames at 9 and 9.4583 seconds show the following state without carried-over aura. Fixed framing suits the stationary gathering pose; no unrequested camera movement, heat distortion or transition effect is visible. Findings cover only the supplied decoded samples, not continuous playback or an exact cycle count.",
+      "issues": []
+    },
+    "scope": "Actual local Codex CLI review of supplied decoded native Adobe output and source frames; sampling only"
+  },
+  "scope": "Actual Adobe full 9.5-second technical scenes: 9 seconds of energy plus 0.5-second clean state; silent QA distinct from final episode narration/master. Full decode and native-sample visual review, not exhaustive visual inspection of every encoded pixel."
+}

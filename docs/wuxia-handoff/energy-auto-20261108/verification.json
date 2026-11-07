@@ -1,0 +1,46 @@
+{
+  "python_tests": 37,
+  "javascript_tests": 21,
+  "isolated_web_build": "passed",
+  "database_migrations": [
+    "wuxia_energy_automation",
+    "wuxia_energy_result_guards",
+    "wuxia_energy_quality_notes",
+    "wuxia_energy_independent_policy"
+  ],
+  "database_policy_test": "Energy enabled with mouth disabled: enqueue and source-bound result publication verified in rolled-back transaction; no retained QA project",
+  "script_worker": "Restarted while local_busy=false; processing mouth jobs query returned zero",
+  "existing_finalized_episodes": "No automatic rewrite; existing episode-1 continuation retains its own reviewed source/voice/snapshot/cache",
+  "code_commit": "b3606cab1e8e35553bcc4f2a02ba11b0d86f982f",
+  "native_supervisor": {
+    "pid": 29348,
+    "status": "idle",
+    "updated_at": "2026-11-07T16:46:44.967910+00:00",
+    "startup": "Existing AIR Studio Local Media shortcut; same primary source root; no new installer or release"
+  },
+  "episode_one_continuation": {
+    "job_id": "61ee2c8e-4d85-4523-ba24-30b77b2bfc45",
+    "parent_pid": 22320,
+    "child_pid": 44668,
+    "state": "processing",
+    "phase": "production",
+    "current_scene": 11,
+    "total_scenes": 26,
+    "updated_at": "2026-11-07T16:47:37.433835+00:00",
+    "scope": "Separate existing episode master; no completion claimed"
+  },
+  "disk_recovery": {
+    "moved_files": 481,
+    "all_sha256_verified": true,
+    "old_output": "C:/Projects/air-wuxia-aura-20261107/output",
+    "junction_target": "D:/AIRStudio/aura-evidence-20261108/output",
+    "source_assets_and_voice_preserved": true
+  },
+  "production_deployment": {
+    "id": "dpl_EYFHQUnrtTntedjwERQZpt3GjywH",
+    "state": "READY",
+    "url": "https://studio.airing.work",
+    "commit": "b3606cab1e8e35553bcc4f2a02ba11b0d86f982f"
+  },
+  "native_review_module_sha256": "13fd87b736a4e7c075d5ae61364991180ffcd240251c541312e8a04e54e053ad"
+}

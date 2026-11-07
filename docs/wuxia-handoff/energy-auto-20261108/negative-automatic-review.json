@@ -1,0 +1,13 @@
+{
+  "contract": "wuxia_energy_auto/v1",
+  "source_sha256": "0ff0a6bc34aad9ef592a4ff6d2c0fc9d0c9bf0cc2055c0ead9ffe88061d9a6de",
+  "decision": "absent",
+  "reason": "The original artwork shows people in blue and teal clothing descending stone steps, physical sheathed weapons, warm sunset highlights, and a hanging lantern. No luminous supernatural wisps, sword energy, or energy emitted around any body are visibly present.",
+  "selection": {
+    "source_sha256": "0ff0a6bc34aad9ef592a4ff6d2c0fc9d0c9bf0cc2055c0ead9ffe88061d9a6de",
+    "decision": "absent",
+    "reason": "The original artwork shows people in blue and teal clothing descending stone steps, physical sheathed weapons, warm sunset highlights, and a hanging lantern. No luminous supernatural wisps, sword energy, or energy emitted around any body are visibly present.",
+    "regions": []
+  },
+  "loops": []
+}

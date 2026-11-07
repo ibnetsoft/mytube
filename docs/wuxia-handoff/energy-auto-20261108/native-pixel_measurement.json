@@ -1,0 +1,26 @@
+[
+  {
+    "state": "QA_SWORD_AURA",
+    "sample_frames": [
+      209,
+      215
+    ],
+    "last_energy_seconds": 8.958333333333334,
+    "protected_max_channel_delta_mean": 0.18717867270162578,
+    "protected_max_channel_delta_p99": 3.0,
+    "moving_energy_pixels_delta_gt_3": 7116,
+    "scope": "Decoded H264 comparison permits compression noise; exact zero protected-pixel modification is separately proved on all lossless patches."
+  },
+  {
+    "state": "QA_BODY_AURA",
+    "sample_frames": [
+      209,
+      215
+    ],
+    "last_energy_seconds": 8.958333333333334,
+    "protected_max_channel_delta_mean": 0.15995546038543898,
+    "protected_max_channel_delta_p99": 3.0,
+    "moving_energy_pixels_delta_gt_3": 76708,
+    "scope": "Decoded H264 comparison permits compression noise; exact zero protected-pixel modification is separately proved on all lossless patches."
+  }
+]
