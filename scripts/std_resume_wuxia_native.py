@@ -6,6 +6,7 @@ from pathlib import Path
 from datetime import datetime, timezone
 ROOT=Path(__file__).resolve().parents[1]
 sys.path[:0]=[str(ROOT),str(ROOT/'worker')]
+import worker_config  # Load the AE host environment/settings before queue access.
 from dotenv import load_dotenv
 load_dotenv(ROOT/'worker/connection.env')
 from worker.script_worker_store import ScriptStore
