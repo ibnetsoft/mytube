@@ -8734,6 +8734,11 @@ export default function StdPortalPage() {
                                         }`}>{projectsRefreshing && !projects.length ? '…' : projectsLoadError && !projects.length ? '—' : completeProjects.length}</span>
                                     </button>
                                 </div>
+                                {projectsRefreshing && (
+                                    <span role="status" className="text-xs text-gray-400">
+                                        {projects.length > 0 ? '저장된 목록을 표시하고 있습니다. 최신 상태 확인 중…' : '프로젝트 목록을 불러오고 있습니다…'}
+                                    </span>
+                                )}
                             </div>
                             <div className="flex items-center gap-2 sm:gap-3">
                             <button type="button" disabled={projectsRefreshing} onClick={refreshProjectList} className="rounded-lg border border-white/10 px-3 py-2 font-bold whitespace-nowrap text-gray-300 hover:bg-white/5 disabled:opacity-40">{ui('새로고침')}</button>
@@ -8751,7 +8756,6 @@ export default function StdPortalPage() {
 
                         {/* 팝업 바디 (테이블) */}
                         <div className="overflow-y-auto min-h-0 flex-1 p-3 sm:p-6">
-                            {projectsRefreshing && projects.length > 0 && <div role="status" className="mb-3 text-xs text-gray-400">저장된 목록을 표시하고 있습니다. 최신 상태 확인 중…</div>}
                             {projectsLoadError && (
                                 <div role="alert" className="mb-4 rounded-lg border border-amber-400/30 bg-amber-400/10 p-3 text-sm text-amber-200">
                                     {projectsLoadError}{projects.length > 0 && ' 표시된 목록은 이전에 불러온 상태입니다.'}
@@ -8801,7 +8805,6 @@ export default function StdPortalPage() {
                                         </article>
                                     )
                                 })}
-                                {projectsRefreshing && !projects.length && <div role="status" className="py-10 text-center text-gray-400">최신 저장 상태를 불러오는 중…</div>}
                                 {!projectsRefreshing && !projectsLoadError && visibleProjects.length === 0 && <div className="py-10 text-center text-gray-500">{projectsTab === 'complete' ? '완료된 프로젝트가 없습니다.' : '미완료 프로젝트가 없습니다.'}</div>}
                             </div>
                             <div className="hidden md:block bg-[#1c2027] rounded-xl border border-gray-700 overflow-x-auto shadow-2xl">
@@ -8996,7 +8999,6 @@ export default function StdPortalPage() {
                                                 </tr>
                                             )
                                         })}
-                                        {projectsRefreshing && !projects.length && <tr><td colSpan={16} className="px-4 py-10 text-center text-gray-400" role="status">최신 저장 상태를 불러오는 중…</td></tr>}
                                         {!projectsRefreshing && !projectsLoadError && visibleProjects.length === 0 && (
                                             <tr>
                                                 <td colSpan={16} className="px-4 py-10 text-center text-xs text-gray-500">
