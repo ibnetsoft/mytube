@@ -1,0 +1,18 @@
+{
+  "commit": "39030e71",
+  "sha256": "4e22229e83933fce24ad8a1e9f97884186f48765326819905935d4aeff29466d",
+  "bucket": "air-studio-prod",
+  "path": "worker-source/wuxia-aura/39030e71/4e22229e83933fce24ad8a1e9f97884186f48765326819905935d4aeff29466d.zip",
+  "files": [
+    "auth-web/lib/filmcraftSource.json",
+    "auth-web/lib/japaneseFolktaleStyle.json",
+    "auth-web/lib/japaneseHistoricalDocumentaryStyle.json",
+    "auth-web/lib/ecSupplementalAssetsContract.json",
+    "auth-web/lib/productionEnginePolicy.json",
+    "auth-web/lib/scenePurposePolicy.json",
+    "auth-web/lib/filmcraftNativeContract.json",
+    "auth-web/lib/effectcraftSource.json",
+    "auth-web/lib/japaneseDomesticDramaStyle.json",
+    "scripts/verify_wuxia_aura_ae.py"
+  ]
+}

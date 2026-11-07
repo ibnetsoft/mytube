@@ -1,0 +1,48 @@
+{
+  "passed": true,
+  "scope": "Four short actual Adobe AE/aerender outputs. Separate from complete episode and saved-voice final master verification.",
+  "method": "Downloaded SHA verified; full video decoded; original first/middle/last actual frames visually inspected for each state.",
+  "states": [
+    {
+      "state": "E01_S11_STATE_01",
+      "sha256": "6fd86c244bccbaf5e0b89fe0900cfea7c2c921e045ec5d60bf305eb20b62b4ce",
+      "frames": 36,
+      "fps": 24,
+      "people_blade_hilt_stationary": true,
+      "sword_aura_varies": true,
+      "lettering_stationary_when_present": true,
+      "visible_seams_or_ghost_blade": false
+    },
+    {
+      "state": "E01_S11_STATE_01_ACTING_01",
+      "sha256": "cdbd509631804e1a956f98e70d7a538dd2d898091483e1bc571fe214c519a492",
+      "frames": 36,
+      "fps": 24,
+      "people_blade_hilt_stationary": true,
+      "sword_aura_varies": true,
+      "lettering_stationary_when_present": true,
+      "visible_seams_or_ghost_blade": false
+    },
+    {
+      "state": "E01_S12_STATE_02",
+      "sha256": "0a620db3ece9e385279253d955554a8f7aa7c9d2c896742d98551adf6b092987",
+      "frames": 36,
+      "fps": 24,
+      "people_blade_hilt_stationary": true,
+      "sword_aura_varies": true,
+      "lettering_stationary_when_present": true,
+      "visible_seams_or_ghost_blade": false
+    },
+    {
+      "state": "E01_S13_STATE_02",
+      "sha256": "b49e5feff07811b611a4cbc8f17a71728b23e9a8fc4b51357ef9e68c8c4f4c76",
+      "frames": 36,
+      "fps": 24,
+      "people_blade_hilt_stationary": true,
+      "sword_aura_varies": true,
+      "lettering_stationary_when_present": true,
+      "visible_seams_or_ghost_blade": false
+    }
+  ],
+  "lossy_compression": "AE MP4 probes use H264; small nonzero stationary-area pixel differences are compression, not exact pixel equality. Exact original protected-pixel equality was separately checked on all 64 lossless composites."
+}

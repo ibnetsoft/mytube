@@ -1,0 +1,12 @@
+{
+  "id": "61ee2c8e-4d85-4523-ba24-30b77b2bfc45",
+  "state": "processing",
+  "phase": "direction",
+  "progress": "원본과 최종 음성 확인",
+  "error": null,
+  "heartbeat": "2026-11-07T15:18:13.883527+00:00",
+  "worker_ack": {
+    "contract": "wuxia_sword_aura/v1"
+  },
+  "scene": null
+}
