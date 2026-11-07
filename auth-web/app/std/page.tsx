@@ -10,7 +10,7 @@ import { subtitleSpeakerProgress, missingSpeakerSubtitleIndexes } from '@/lib/st
 import { subtitleMouthPreview } from '@/lib/stdMouthPreview'
 import { fetchCachedProject } from '@/lib/stdBrowserProjectCache'
 import { savedStdOutputStepStatus } from '@/lib/stdOutputStepStatus'
-import { listedProjectStepStatus, projectListThumbnailUrl } from '@/lib/stdProjectListDisplay'
+import { listedProjectStepStatus, projectListThumbnailCandidates, advanceProjectListThumbnail } from '@/lib/stdProjectListDisplay'
 import { projectListScope, readProjectListSnapshot, writeProjectListSnapshot, clearProjectListSnapshot, saveProjectListTitleTranslations, fetchSharedProjectList } from '@/lib/stdBrowserProjectListCache'
 import StdSpeakerCoordinates from '@/components/StdSpeakerCoordinates'
 import { subtitleTtsReadiness } from '@/lib/stdTtsReadiness'
@@ -8792,7 +8792,8 @@ export default function StdPortalPage() {
                                     const status = getListedProjectStepStatus(p)
                                     const translated = projectTitleTranslations[JSON.stringify([currentLocale, p.id, p.title])]
                                     const localizedTitle = localizedProjectTitle(p, currentLocale) || (translated !== p.title ? translated : '')
-                                    const thumbnail = projectListThumbnailUrl(p.thumbnail_url, isImpersonating ? impersonateEmail : null)
+                                    const thumbnailCandidates = projectListThumbnailCandidates(p, isImpersonating ? impersonateEmail : null)
+                                    const thumbnail = thumbnailCandidates[0]
                                     const steps = [
                                         { label: ui('주제'), done: status.isTopicDone }, { label: ui('기획'), done: status.isPlanningDone },
                                         { label: ui('대본'), done: status.isScriptDone }, { label: t('nav_image'), done: status.isVideoStepDone ?? status.isImageDone, skipped: status.videoNotRequired },
@@ -8807,7 +8808,7 @@ export default function StdPortalPage() {
                                                 <button type="button" onClick={() => { openProject(p.id); setTopicProjectOpen(false) }} className="flex min-w-0 flex-1 items-start gap-3 text-left">
                                                     <span className="relative flex h-14 w-20 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-white/10 bg-[#14181f] text-gray-600">
                                                         <ImageIcon className="h-5 w-5" />
-                                                        {thumbnail && <img src={thumbnail} alt="" className="absolute inset-0 h-full w-full object-cover" onError={event => { event.currentTarget.style.display = 'none' }} />}
+                                                        {thumbnail && <img key={thumbnailCandidates.join('|')} src={thumbnail} alt="" loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover" onError={event => advanceProjectListThumbnail(event.currentTarget, thumbnailCandidates)} />}
                                                     </span>
                                                     <span className="min-w-0 flex-1">
                                                         <span className="flex flex-wrap items-center gap-2 text-[11px] text-gray-400"><span className="rounded-full border border-indigo-500/30 bg-indigo-500/20 px-2 py-0.5 font-bold text-indigo-300">{topicUi(String(p.category_name || '').trim() || '미분류')}</span><span>#{p.topic_queue_id ?? '—'}</span></span>
@@ -8832,7 +8833,7 @@ export default function StdPortalPage() {
                                 <table className="w-full text-left text-xs divide-y divide-gray-700 min-w-[1080px]">
                                     <thead className="bg-[#181d26] text-gray-400 font-medium text-[11px] sticky top-0 z-10">
                                         <tr>
-                                            <th className="px-2 py-2.5 w-12 text-center">{ui("썸네일")}</th>
+                                            <th className="px-1 py-2.5 w-[68px] text-center">{ui("썸네일")}</th>
                                             <th className="px-3 py-2.5 w-10 text-center">
                                                 <input type="checkbox" aria-label="현재 목록 전체 선택" disabled={deletingProjects || !visibleProjects.length} checked={visibleProjects.length > 0 && checkedVisibleIds.length === visibleProjects.length} onChange={e => setCheckedProjectIds(e.target.checked ? visibleProjects.map((project: any) => String(project.id)) : [])} className="w-4 h-4 rounded bg-[#1c2027] border-gray-600 cursor-pointer" />
                                             </th>
@@ -8858,7 +8859,8 @@ export default function StdPortalPage() {
                                             const translatedTitle = projectTitleTranslations[JSON.stringify([currentLocale, p.id, p.title])]
                                             const localizedTitle = localizedProjectTitle(p, currentLocale) || (translatedTitle !== p.title ? translatedTitle : '')
                                             const projectCatName = String(p.category_name || '').trim() || '미분류'
-                                            const projectThumbnailUrl = projectListThumbnailUrl(p.thumbnail_url, isImpersonating ? impersonateEmail : null)
+                                            const projectThumbnailCandidates = projectListThumbnailCandidates(p, isImpersonating ? impersonateEmail : null)
+                                            const projectThumbnailUrl = projectThumbnailCandidates[0]
                                             const latestSubmittedVersion = Number(p.latest_render_version) || 0
                                             const isRenderSuccessHighlighted = renderSubmissionNotice?.phase === 'success' && renderSubmissionNotice.projectId === String(p.id)
                                             return (
@@ -8874,11 +8876,11 @@ export default function StdPortalPage() {
                                                             : 'hover:bg-[#14181f]'
                                                     }`}
                                                 >
-                                                    <td className="px-2 py-1.5 text-center">
-                                                        <div className="relative w-9 h-7 rounded border border-white/10 bg-[#14181f] text-gray-600 flex items-center justify-center mx-auto overflow-hidden">
+                                                    <td className="px-0.5 py-0 text-center">
+                                                        <div className="relative w-16 h-9 rounded border border-white/10 bg-[#14181f] text-gray-600 flex items-center justify-center mx-auto overflow-hidden">
                                                             <ImageIcon className="w-3.5 h-3.5" />
-                                                            {projectThumbnailUrl && <img key={projectThumbnailUrl} src={projectThumbnailUrl} alt="" className="absolute inset-0 h-full w-full object-cover"
-                                                                onError={event => { event.currentTarget.style.display = 'none' }} />}
+                                                            {projectThumbnailUrl && <img key={projectThumbnailCandidates.join('|')} src={projectThumbnailUrl} alt="" loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover"
+                                                                onError={event => advanceProjectListThumbnail(event.currentTarget, projectThumbnailCandidates)} />}
                                                         </div>
                                                     </td>
                                                     <td className="px-3 py-2 text-center" onClick={e => e.stopPropagation()}>

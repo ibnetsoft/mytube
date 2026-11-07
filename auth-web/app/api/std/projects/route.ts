@@ -24,7 +24,7 @@ async function boundedCache<T>(operation: Promise<T>, fallback: T): Promise<T> {
 
 function projectListCacheKey(email: string, projects: any[]) {
     const digest = createHash('sha256').update(JSON.stringify([email.toLowerCase(), projects])).digest('hex')
-    return `std-project-list:v2:${digest}`
+    return `std-project-list:v3:${digest}`
 }
 
 export async function GET(req: Request) {
@@ -33,7 +33,7 @@ export async function GET(req: Request) {
 
     const { data, error } = await supabaseAdmin
         .from('std_projects')
-        .select('id,title,status,language,category_id,employee_email,topic_queue_id,assigned_duration_minutes,estimated_payout,drive_folder_id,created_at,updated_at,submitted_at,saved_render_version:progress_payload->latest_render_version,saved_thumbnail_design_url:project_payload->thumbnail_design->>thumbnail_url,source_titles:source_payload->title_translations,project_titles:project_payload->title_translations')
+        .select('id,title,status,language,category_id,employee_email,topic_queue_id,assigned_duration_minutes,estimated_payout,drive_folder_id,created_at,updated_at,submitted_at,saved_render_version:progress_payload->latest_render_version,saved_thumbnail_design_url:project_payload->thumbnail_design->>thumbnail_url,saved_thumbnail_bg_url:project_payload->>thumbnail_bg_url,saved_thumbnail_design_bg_url:project_payload->thumbnail_design->>bg_url,saved_progress_thumbnail_bg_url:progress_payload->>thumbnail_bg_url,saved_source_thumbnail_bg_url:source_payload->>thumbnail_bg_url,source_titles:source_payload->title_translations,project_titles:project_payload->title_translations')
         .eq('employee_email', auth.requester.email)
         .is('list_deleted_at', null)
         .order('updated_at', { ascending: false })

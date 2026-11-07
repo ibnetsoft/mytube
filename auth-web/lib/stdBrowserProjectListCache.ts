@@ -5,7 +5,7 @@ const MAX_AGE_MS = 24 * 60 * 60 * 1000
 const PREFIX = 'std-project-list:v1:'
 const FIELDS = ['id','title','status','language','category_id','category_name','topic_queue_id',
     'assigned_duration_minutes','created_at','updated_at','submitted_at',
-    'latest_render_version','step_status','shared_submission','title_localization','title_translations'] as const
+    'thumbnail_url','thumbnail_fallback_urls','latest_render_version','step_status','shared_submission','title_localization','title_translations'] as const
 
 type StorageLike = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>
 export function projectListScope(email: unknown, impersonateEmail: unknown = ''): string {
@@ -32,6 +32,10 @@ export function writeProjectListSnapshot(storage: StorageLike, scope: string, pr
         const previous = new Map((readProjectListSnapshot(storage, scope, now) || []).map(project => [project.id, project]))
         const safe = projects.map(project => Object.fromEntries(FIELDS.filter(field => project?.[field] !== undefined).map(field => [field, project[field]])))
         for (const project of safe) {
+            // Signed remote URLs can contain credentials; persist only authenticated local proxies.
+            if (typeof project.thumbnail_url !== 'string' || !project.thumbnail_url.startsWith('/api/std/')) delete project.thumbnail_url
+            if (Array.isArray(project.thumbnail_fallback_urls)) project.thumbnail_fallback_urls = project.thumbnail_fallback_urls
+                .filter((url: unknown) => typeof url === 'string' && url.startsWith('/api/std/'))
             const old: any = previous.get(project.id)
             if (old?.title !== project.title || !old?.title_localization?.title_translations) continue
             project.title_localization = { ...project.title_localization, title_translations: {
