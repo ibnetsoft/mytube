@@ -57,3 +57,21 @@ def test_frozen_web_timeline_cannot_get_a_second_generic_camera_or_shake():
  assert all(k['scale']==1 for k in bound['plan']['camera'])
  assert bound['plan']['transition']=={'in':'none','out':'none','fraction':0}
  assert bound['layers']['original']==Path('reviewed.png')
+
+
+def test_state_pixel_sizes_are_preserved_and_cover_the_shared_output_canvas(tmp_path):
+ from PIL import Image
+ from ambient_loop import digest
+ from wuxia_native_timeline import prepare
+ states=[]
+ for name,size in [('a',(32,18)),('b',(64,37))]:
+  image=tmp_path/(name+'.png');Image.new('RGB',size,'red').save(image)
+  states.append({'asset_id':name,'sha256':digest(image),'ambient_loops':[],'dialogue_mouths':[]})
+ timeline={'contract':'wuxia_native_timeline/v1','states':states,'graphics':{},'samples':[{'at':0,'state':'a','graphics':[],'effects':{}},{'at':.5,'state':'b','graphics':[],'effects':{}}]}
+ def download(ref,target):target.write_bytes((tmp_path/(ref['asset_id']+'.png')).read_bytes())
+ runtime=prepare(timeline,tmp_path/'runtime',lambda:None,download,1,2)
+ assert runtime['size']==[1920,1080]
+ assert [s['canvas_size']for s in runtime['states']]==[[32,18],[64,37]]
+ assert [digest(Path(s['file']))for s in runtime['states']]==[s['sha256']for s in states]
+ source,_=jsx(runtime,1,2)
+ assert 'Math.max(W/f.width,H/f.height)' in source

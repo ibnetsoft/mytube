@@ -70,6 +70,9 @@ def write_jsx(plan, layer_paths, project, native, jsx, duration, fps=24):
     graphic_js=''
     if plan.get('wuxia_runtime'):
         from wuxia_native_timeline import jsx as wuxia_jsx
+        # Each SHA-verified Wuxia state/patch is independently object-covered by wimage.
+        # The generic original layer is disabled; its pixel canvas need not equal output.
+        script=script.replace('if(footage.width!==W || footage.height!==H) throw new Error("Layer canvas mismatch "+L.id);','')
         source_js,graphic_js=wuxia_jsx(plan['wuxia_runtime'],duration,fps)
         script=script.replace('    applySceneEffects(source,semanticLayers);',source_js+'\n    applySceneEffects(source,semanticLayers);')
     if plan.get('ambient_runtime'):

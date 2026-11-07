@@ -16,20 +16,19 @@ def prepare(timeline,directory,fresh,download,duration,fps,audio=None):
   if abs(sample['at']-i/fps)>1e-7 or sample['state'] not in ids:raise ValueError('Invalid wuxia output frame clock')
  from wuxia_effects import validate_samples
  validate_samples(timeline)
- size=None
  for state in states:
   fresh();path=directory/(state['sha256']+'.png')
   if not path.exists() or digest(path)!=state['sha256']:download(state,path)
   if digest(path)!=state['sha256']:raise ValueError('Wuxia state checksum mismatch')
   with Image.open(path) as image:
    if image.format!='PNG' or getattr(image,'n_frames',1)!=1:raise ValueError('Wuxia source must remain a still PNG')
-   if size and size!=image.size:raise ValueError('Wuxia state canvas mismatch')
-   size=image.size
+   if image.width*image.height>16_000_000:raise ValueError('Wuxia source canvas too large')
+   state['canvas_size']=list(image.size)
   state['file']=str(path.resolve())
   state['ambient_runtime']=prepare_runtime(path,state.get('ambient_loops',[]),directory/'ambient',fresh,download)
   from wuxia_mouth import prepare as prepare_mouths
   state['mouth_runtime']=prepare_mouths(path,state.get('dialogue_mouths',[]),directory/'mouths',fresh,download,audio)
- result['size']=list(size)
+ result['size']=[1920,1080]
  return result
 
 
@@ -88,7 +87,7 @@ def jsx(timeline,duration,fps):
     function wshape(vertices,closed){var sh=new Shape(),ins=[],outs=[];for(var k=0;k<vertices.length;k++){ins.push([0,0]);outs.push([0,0]);}sh.vertices=vertices;sh.inTangents=ins;sh.outTangents=outs;sh.closed=closed;return sh;}
     var wrig=null;
     if(WT.effect_samples.length){wrig=source.layers.addNull(S.duration);wrig.name='wuxia_art_impact_rig';var rt=wrig.property('ADBE Transform Group');rt.property('ADBE Anchor Point').setValue([W/2,H/2]);rt.property('ADBE Position').setValue([W/2,H/2]);}
-    function wimage(d,name){var f=app.project.importFile(new ImportOptions(new File(d.file)));if(f.width!==W||f.height!==H)throw new Error('Wuxia source canvas mismatch');var l=source.layers.add(f);l.name=name;l.outPoint=S.duration;var op=l.property('Opacity');op.setValueAtTime(0,0);for(var k=0;k<d.keys.length;k++)op.setValueAtTime(d.keys[k][0],d.keys[k][1]);whold(op);if(wrig)l.parent=wrig;return l;}
+    function wimage(d,name){var f=app.project.importFile(new ImportOptions(new File(d.file)));var l=source.layers.add(f);l.name=name;l.outPoint=S.duration;var tr=l.property('ADBE Transform Group'),fit=Math.max(W/f.width,H/f.height)*100;tr.property('ADBE Anchor Point').setValue([f.width/2,f.height/2]);tr.property('ADBE Position').setValue([W/2,H/2]);tr.property('ADBE Scale').setValue([fit,fit]);var op=l.property('Opacity');op.setValueAtTime(0,0);for(var k=0;k<d.keys.length;k++)op.setValueAtTime(d.keys[k][0],d.keys[k][1]);whold(op);if(wrig)l.parent=wrig;return l;}
     semanticLayers.original.enabled=false;
     for(var wi=0;wi<WT.states.length;wi++){var ws=WT.states[wi];wimage(ws,'wuxia_state_'+wi);for(var wp=0;wp<ws.patches.length;wp++)wimage(ws.patches[wp],'wuxia_ambient_'+wi+'_'+wp);}
     if(wrig){
