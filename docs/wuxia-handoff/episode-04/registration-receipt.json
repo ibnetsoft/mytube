@@ -21,7 +21,206 @@
   "source_assets_corrected": 8,
   "refreshed_at": "2026-11-07T04:12:21.690058+00:00",
   "real_browser_verified": false,
+  "selective_mouth_preparation": {
+    "state": "prepared",
+    "selection_complete": true,
+    "eligible_count": 2,
+    "reviewed_speakers": 39,
+    "excluded": [
+      {
+        "state": "E04_S01_STATE_01",
+        "speaker": "seojin",
+        "reason": "Independent annotated geometry review could not confirm the lips after one repair: 서진의 입은 보이지만, 주석의 화면 왼쪽 입꼬리 빨간 점이 실제 검은 입술 틈의 왼쪽 끝보다 아래에 있으며 붉은 혈흔과 겹친다. 왼쪽 끝점은 혈흔 위쪽에서 비스듬한 입술선이 끝나는 지점으로 옮겨야 한다. 오른쪽 끝점과 중앙은 입술선에 가깝지만, 왼쪽 입꼬리 오차가 남아 현재 기하 정보는 승인할 수 없다."
+      },
+      {
+        "state": "E04_S01_STATE_02",
+        "speaker": "seojin",
+        "reason": "오른쪽을 향한 얼굴에서 코끝 아래의 입술과 밝은 치아, 어두운 입안이 보인다. 입 왼쪽 아래의 혈흔은 입술 경계와 구분되며 머리카락이 입을 가리지 않는다."
+      },
+      {
+        "state": "E04_S02_STATE_01",
+        "speaker": "checkpoint_guard",
+        "reason": "왼쪽을 향한 얼굴의 코 아래에 윗입술, 밝은 치아, 어두운 구강과 아랫입술이 보이며 입을 가리는 물체가 없다."
+      },
+      {
+        "state": "E04_S03_STATE_01",
+        "speaker": "checkpoint_guard",
+        "reason": "얼굴 하부가 가려지지 않았으며 코끝 아래에 다문 입술의 양 끝과 아랫입술 윤곽이 선명하게 보인다."
+      },
+      {
+        "state": "E04_S03_STATE_01",
+        "speaker": "dogyeom",
+        "reason": "황토색 두건 아래 얼굴의 입술 양끝과 흰 치아가 선명하게 보이며, 손이나 다른 물체가 입을 가리지 않는다."
+      },
+      {
+        "state": "E04_S04_STATE_01",
+        "speaker": "checkpoint_guard",
+        "reason": "Lip geometry could not be confirmed after one repair: Lip center disagrees with lip endpoints"
+      },
+      {
+        "state": "E04_S04_STATE_01",
+        "speaker": "seojin",
+        "reason": "Lip geometry could not be confirmed after one repair: Lip center disagrees with lip endpoints"
+      },
+      {
+        "state": "E04_S04_STATE_01",
+        "speaker": "dogyeom",
+        "reason": "Lip geometry could not be confirmed after one repair: Lip center disagrees with lip endpoints"
+      },
+      {
+        "state": "E04_S04_STATE_01",
+        "speaker": "carter",
+        "reason": "Lip geometry could not be confirmed after one repair: Lip center disagrees with lip endpoints"
+      },
+      {
+        "state": "E04_S05_STATE_01",
+        "speaker": "checkpoint_guard",
+        "reason": "Lip geometry could not be confirmed after one repair: 입 패치는 실제 입을 포함하지만 nose_tip의 빨간 점이 실제 코끝보다 화면 오른쪽 위의 볼 쪽에 놓여 있다. 코끝은 코 아래 윤곽이 꺾이는 지점으로 옮겨야 한다. 입꼬리와 중심의 정합성만으로 전체 표식을 승인할 수 없다."
+      },
+      {
+        "state": "E04_S05_STATE_01",
+        "speaker": "carter",
+        "reason": "Lip geometry could not be confirmed after one repair: nose_tip의 빨간 점이 실제 돌출한 코끝보다 화면 왼쪽 아래에 있다. 또한 오른쪽 입꼬리 표식은 입의 오른쪽 경사 윤곽과 아랫입술이 만나는 끝점을 명확히 짚지 못한다. 실제 코끝과 양 입꼬리를 다시 지정한 뒤 그 중점으로 lip_center를 계산해야 한다."
+      },
+      {
+        "state": "E04_S06_STATE_01",
+        "speaker": "guard",
+        "reason": "오른쪽을 향한 얼굴에서 코 아래의 짧고 닫힌 입술 선이 보인다. 입술은 머리카락이나 옷에 가려지지 않는다."
+      },
+      {
+        "state": "E04_S06_STATE_01",
+        "speaker": "carter",
+        "reason": "올리브색 머릿수건과 큰 돌출 귀, 긴 얼굴의 수레꾼이다. 고개를 들고 화면 오른쪽을 바라보며, 코 아래 벌어진 입의 양쪽 입꼬리와 치아, 어두운 구강 및 아랫입술이 보인다."
+      },
+      {
+        "state": "E04_S06_STATE_01",
+        "speaker": "checkpoint_guard",
+        "reason": "왼쪽을 향한 옆얼굴이며 코끝 아래와 턱 위에 닫힌 입술이 보인다. 입술 앞쪽 윤곽과 오른쪽 입꼬리를 구분할 수 있고 가림은 없다."
+      },
+      {
+        "state": "E04_S07_STATE_01",
+        "speaker": "checkpoint_guard",
+        "reason": "Selective mouth visibility is not confirmed: 입은 코끝 아래와 턱 위에 굳게 다문 짧은 선으로 보인다. 양쪽 입꼬리와 아랫입술이 드러나 있으며, 왼쪽 볼의 긴 사선은 입술과 구별된다."
+      },
+      {
+        "state": "E04_S07_STATE_02",
+        "speaker": "carter",
+        "reason": "올리브색 머릿수건과 큰 귀, 긴 턱을 가진 얼굴이 왼쪽 위를 향한다. 실제 코끝 아래에 윗입술, 드러난 치아와 어두운 구강, 아랫입술이 보이며 입 전체에 가림이 없다."
+      },
+      {
+        "state": "E04_S10_STATE_01",
+        "speaker": "carter",
+        "reason": "오른쪽 위를 향한 옆얼굴이다. 코 아래 열린 입의 치아, 어두운 구강과 아랫입술이 보인다. 입 앞의 손과 입술 윤곽은 구분된다."
+      },
+      {
+        "state": "E04_S10_STATE_01",
+        "speaker": "dogyeom",
+        "reason": "Lip geometry could not be confirmed after one repair: 표시 크롭의 화면 왼쪽 입술 끝점이 실제 입꼬리보다 왼쪽 아래의 볼에 놓여 있다. 실제 입술선은 그보다 오른쪽 위에서 시작해 오른쪽 입꼬리로 올라간다. 중심점도 잘못 잡힌 왼쪽 끝점을 따라 왼쪽 아래로 치우쳐 있어 재지정이 필요하다."
+      },
+      {
+        "state": "E04_S11_STATE_01",
+        "speaker": "dogyeom",
+        "reason": "Selective mouth visibility is not confirmed: The lips are visible beneath the short moustache, below and left of the projecting nose tip. The mouth slopes downward toward screen-right and remains separate from the cheek crease and chin stubble."
+      },
+      {
+        "state": "E04_S12_STATE_01",
+        "speaker": "carter",
+        "reason": "Lip geometry could not be confirmed after one repair: 코끝 빨간 점이 실제 오른쪽으로 돌출한 코끝보다 왼쪽의 콧방울 부근에 놓였다. 입 오른쪽 끝점도 실제 입꼬리보다 아래쪽에 있어 아랫입술 경계에 걸린다. 실제 코끝과 양쪽 입술이 만나는 끝점으로 옮긴 뒤 중심점을 다시 산정해야 한다."
+      },
+      {
+        "state": "E04_S12_STATE_01",
+        "speaker": "dogyeom",
+        "reason": "Lip geometry could not be confirmed after one repair: 초록 사각형은 입을 포함하지만 빨간 입꼬리 점들이 실제 치아 양옆의 입술 접합점보다 아래에 놓였다. 특히 왼쪽 점이 입꼬리 아래 피부에 걸리고 중심점도 아래로 치우쳤다. 오른쪽으로 올라가는 실제 입술선을 따라 양 끝점을 올리고 그 중점으로 중심을 수정해야 한다."
+      },
+      {
+        "state": "E04_S13_STATE_01",
+        "speaker": "dogyeom",
+        "reason": "Lip geometry could not be confirmed after one repair: 무표식 크롭의 닫힌 입술선과 주석을 대조하면 중심점과 화면 오른쪽 끝점이 실제 입술선보다 아래쪽으로 치우쳐 있다. 특히 오른쪽 끝점은 입꼬리보다 아래의 피부에 놓여 실제 입술 양 끝을 정확히 연결하지 못한다. 코끝 표식의 위치 개선만으로 입술 기하를 승인할 수 없으며, 실제 닫힌 입술선을 따라 중심점과 오른쪽 입꼬리를 다시 지정해야 한다."
+      },
+      {
+        "state": "E04_S13_STATE_01",
+        "speaker": "seojin",
+        "reason": "Generated mouth layers need review: 서진의 closed 합성에서 원래 입술선이 지워져 입이 없는 듯 보이며, open 합성에서는 입꼬리와 혈흔 옆에 분리된 흔적이 남고 앞쪽 입술만 둥글게 돌출됩니다. closed·half·open 사이 입술 위치와 선화가 일관되지 않아 자연스러운 개폐로 판단할 수 없습니다. 청자와 나머지 장면은 유지됩니다.",
+        "source_preserved": true,
+        "rejected_pose_evidence": "/Users/kimsehyun/Projects/mytube/output/codex-local-console/prepared-mouths/5a93e7b97dc5ac5b64bf4fd514d527002dd7b6fde31a9fa930ddeb788bb22935.invalid-54b71077"
+      },
+      {
+        "state": "E04_S14_STATE_01",
+        "speaker": "guard",
+        "reason": "입은 코끝 아래와 턱 위에 가림 없이 보인다. 닫힌 윗입술선은 화면 왼쪽 입꼬리에서 오른쪽 입꼬리까지 거의 수평으로 이어지며, 그 아래 짧은 아랫입술 음영이 구분된다."
+      },
+      {
+        "state": "E04_S14_STATE_01",
+        "speaker": "clerk",
+        "reason": "Generated mouth layers need review: The clerk’s closed and half-mouth composites do not show a clear closed-to-partially-open progression: the closed pose fades the lip line, while the half pose remains visibly shut. The open pose shows a small aperture, and the listener appears unchanged, but the half-mouth state cannot be verified as a clean intermediate speaking pose.",
+        "source_preserved": true,
+        "rejected_pose_evidence": "/Users/kimsehyun/Projects/mytube/output/codex-local-console/prepared-mouths/ef1c24fd461496ca2e1d820f6b8c5b6900ed2b8dad95f2e4b93040e3c138ab44.invalid-4f4c4272"
+      },
+      {
+        "state": "E04_S15_STATE_01",
+        "speaker": "dogyeom",
+        "reason": "황토색 두건 아래 넓은 얼굴과 짧은 콧수염·턱수염이 보인다. 입술은 코끝 아래에 있으며, 콧수염 아래의 닫힌 입술 선과 옅은 아랫입술이 가림 없이 구별된다."
+      },
+      {
+        "state": "E04_S16_STATE_01",
+        "speaker": "carter",
+        "reason": "코 아래에서 비스듬히 벌어진 입의 양쪽 입꼬리, 윗니, 어두운 구강과 아랫입술 경계가 보이며 가림이 없다."
+      },
+      {
+        "state": "E04_S16_STATE_01",
+        "speaker": "checkpoint_guard",
+        "reason": "왼쪽을 향한 얼굴에서 코끝 아래의 닫힌 입술 경계와 아랫입술이 선명하게 보인다. 입술 양 끝이 드러나 있으며 볼 주름이나 턱선과 구별된다."
+      },
+      {
+        "state": "E04_S16_STATE_02",
+        "speaker": "carter",
+        "reason": "Lip geometry could not be confirmed after one repair: Lip landmarks must lie inside actual face contour and mouth patch"
+      },
+      {
+        "state": "E04_S17_STATE_01",
+        "speaker": "seojin",
+        "reason": "오른쪽을 향한 얼굴에서 코끝 아래의 흰 윗니, 어두운 구강과 피가 묻은 아랫입술이 보인다. 머리카락이나 다른 물체가 입을 가리지 않는다."
+      },
+      {
+        "state": "E04_S17_STATE_01",
+        "speaker": "dogyeom",
+        "reason": "Selective mouth visibility is not confirmed: 황토색 두건 아래 성긴 콧수염과 턱수염이 보인다. 실제 닫힌 입술선은 콧수염 아래에서 화면 오른쪽으로 조금 내려가며 이어지고, 그 아래 짧은 아랫입술 표시와 구분된다. 입을 가리는 물체는 없다."
+      },
+      {
+        "state": "E04_S18_STATE_01",
+        "speaker": "guard",
+        "reason": "오른쪽을 향한 측면 얼굴이다. 돌출한 코 아래에 닫힌 입술의 짧은 경계가 보이며, 입술을 가리는 물체는 없다. 입은 뺨의 음영선보다 아래, 턱보다 위에 있다."
+      },
+      {
+        "state": "E04_S18_STATE_02",
+        "speaker": "carter",
+        "reason": "Lip geometry could not be confirmed after one repair: Lip landmarks must lie inside actual face contour and mouth patch"
+      },
+      {
+        "state": "E04_S19_STATE_01",
+        "speaker": "dogyeom",
+        "reason": "Preserve original from completed source-image eligibility review: 얼굴 높이가 0.20 미만이며 측면 입술이라 전체 입 형태가 보이지 않는다."
+      },
+      {
+        "state": "E04_S19_STATE_02",
+        "speaker": "checkpoint_guard",
+        "reason": "Preserve original from completed source-image eligibility review: 얼굴 높이가 0.20 미만이고 입 너비도 0.014 미만이다."
+      },
+      {
+        "state": "E04_S20_STATE_01",
+        "speaker": "checkpoint_guard",
+        "reason": "Lip geometry could not be confirmed after one repair: The crop shows a right-facing male profile. A small dark mouth opening is visible beneath the projecting nose and above the rounded chin. Only the near-side lip junction and profile lip edge are distinguishable; the far-side corner is concealed by the profile."
+      },
+      {
+        "state": "E04_S20_STATE_01",
+        "speaker": "carter",
+        "reason": "Lip geometry could not be confirmed after one repair: The correct face and mouth are selected, but the drawn lip endpoints still miss the visible corners. The left dot sits slightly inward on the pale opening instead of the dark left lip junction. The right dot sits below and inward from the pointed right corner, where the upper lip terminates. Place both endpoints on those actual junctions and recalculate the center along the slanted lip opening before animation."
+      }
+    ],
+    "zero_eligible_valid": true
+  },
   "actual_browser_verified": false,
   "browser_verification_state": "waiting_for_user_unlock",
-  "ae_render_scope": "episode1-3 separately held for native worker source update; episode4 endpoint is registered episode package"
+  "mouth_pose_count": 6,
+  "readback_verified_at": "2026-11-07T05:00:27.685412+00:00"
 }

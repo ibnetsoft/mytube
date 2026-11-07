@@ -27,3 +27,5 @@
 4화 확정 음성·최종 AE 출력, 관리자 게시 및 YouTube 업로드는 회차 등록 범위와 구분한다.
 
 Git 보관 원문: [읽기용 대본](wuxia-handoff/episode-04/draft.md), [발화·행동·연속성 JSON](wuxia-handoff/episode-04/script-final.json), [등록 확인서](wuxia-handoff/episode-04/registration-receipt.json). 실제 웹 화면 검수는 Mac 잠금 및 Chrome 확장 UI 차단 해제 후 이어간다. 확인서의 브라우저 검증을 완료로 바꾸지 않았다.
+
+최종 입모양 준비·등록: 대사 상태 원화 23개에서 39명의 화자 노출을 확인했고, 실제 세 포즈 합성을 통과한 수레꾼 2컷의 PNG 6장을 게시했다. 서진·서리의 합성 탈락 컷은 원화를 유지했다. 원화 30장 지문과 최종 입모양을 재조회해 일치함을 확인했다. [품질 기록](wuxia-handoff/episode-04/QUALITY_NOTES.md)에 구도·부상 연속성의 불확실성과 실제 합성 탈락 사유를 보존했다.
