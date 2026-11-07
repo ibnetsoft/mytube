@@ -271,5 +271,52 @@
   "web_tests_passed": 17,
   "native_tests_passed": 16,
   "web_build_passed": true,
-  "native_render_complete": false
+  "native_render_complete": false,
+  "production_deployment": {
+    "id": "dpl_5akGh8mCBJyJ59kzeoZtxnHYqDkm",
+    "commit": "aa6498ee923464dbe4a1caff272cb2abac351ab9",
+    "state": "READY",
+    "target": "production",
+    "url": "https://studio.airing.work"
+  },
+  "browser_verification": [
+    {
+      "episode": 1,
+      "scene": 14,
+      "production_commit": "aa6498ee",
+      "sampled_dom_frames": 150,
+      "active_dom_samples": 41,
+      "web_engine_values_match": true,
+      "issues": [],
+      "returns_to_identity": true,
+      "first_active_seconds": 292.821042,
+      "last_active_seconds": 294.794985
+    },
+    {
+      "episode": 2,
+      "scene": 9,
+      "production_commit": "aa6498ee",
+      "sampled_dom_frames": 210,
+      "active_dom_samples": 51,
+      "web_engine_values_match": true,
+      "issues": [],
+      "returns_to_identity": true,
+      "first_active_seconds": 189.413877,
+      "last_active_seconds": 192.376113
+    },
+    {
+      "episode": 3,
+      "scene": 11,
+      "production_commit": "aa6498ee",
+      "sampled_dom_frames": 410,
+      "active_dom_samples": 143,
+      "web_engine_values_match": true,
+      "issues": [],
+      "returns_to_identity": true,
+      "first_active_seconds": 297.552108,
+      "last_active_seconds": 302.384657
+    }
+  ],
+  "native_contract_preflight": true,
+  "native_output_status": "awaiting_worker_update"
 }
