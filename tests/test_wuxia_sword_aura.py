@@ -44,4 +44,4 @@ def test_native_loader_rejects_correctly_hashed_frame_painted_on_blade(tmp_path)
 def test_dark_blue_background_is_not_misclassified_as_sword_energy(tmp_path):
  source=tmp_path/'blue-wall.png';Image.new('RGB',(100,100),(30,65,110)).save(source)
  spec={'source_reviewed':True,'source_sha256':digest(source),'reason':'claimed blue energy','region':[.4,.2,.8,.6],'protected_regions':[[0,0,.2,1]],'protected_polygons':[[[0,0],[.2,0],[.2,1],[0,1]]],'amplitude_px':3,'end_ms':2000}
- with pytest.raises(ValueError,match='No bright blue'):prepare(source,source,spec,tmp_path/'rejected')
+ with pytest.raises(ValueError,match='No luminous energy'):prepare(source,source,spec,tmp_path/'rejected')

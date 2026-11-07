@@ -7,6 +7,7 @@ const finite=(v:any)=>typeof v==='number'&&Number.isFinite(v)
 export function wuxiaEffectFrame(scene:any,state:any,graphics:any[],seconds:number,start:number,end:number,resolve:(g:any)=>any,fps=24){
  const at=Math.floor(Math.max(0,seconds-start)*fps+1e-7)/fps+start
  const frame:any={contract:WUXIA_FX_CONTRACT,dx:0,dy:0,scale:1,overlays:[],active:[],issues:[]}
+ if(state?.energy_only_motion===true)return frame
  const heads=state?.face_exclusion_boxes
  const textBoxes=graphics.filter(g=>g.layout?.center&&g.layout?.size).map(g=>wuxiaGraphicBounds(g).map((v,i)=>v/(i%2?1080:1920)))
  const protectedBoxes=[...(Array.isArray(heads)?heads:[]),...textBoxes]

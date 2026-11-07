@@ -35,7 +35,7 @@ def isolated_script(afterfx,jsx,project,timeout=240):
         raise TimeoutError('Isolated AE probe timed out; no success claimed')
 
 def main():
-    p=argparse.ArgumentParser();p.add_argument('--snapshot',type=Path,required=True);p.add_argument('--output',type=Path,required=True);p.add_argument('--upload-prefix',required=True);a=p.parse_args()
+    p=argparse.ArgumentParser();p.add_argument('--snapshot',type=Path,required=True);p.add_argument('--output',type=Path,required=True);p.add_argument('--upload-prefix',required=True);p.add_argument('--full-scenes',action='store_true',help='Render whole frozen QA scenes, including final state change');a=p.parse_args()
     a.snapshot=a.snapshot.resolve();a.output=a.output.resolve()
     snapshot=json.loads(a.snapshot.read_text(encoding='utf-8-sig'));fps=snapshot['motion']['fps'];a.output.mkdir(parents=True,exist_ok=True)
     receipts=[];ae._run_afterfx_script=isolated_script
@@ -45,16 +45,17 @@ def main():
         if busy!='0':raise RuntimeError('Existing aerender active; retry without disturbing it')
         for scene in snapshot['scenes']:
             timeline=scene.get('wuxia_timeline') or {}
-            for state in timeline.get('states',[]):
-                if not any(l.get('sword_aura') for l in state.get('ambient_loops',[])):continue
+            candidates=[state for state in timeline.get('states',[]) if any(l.get('sword_aura') for l in state.get('ambient_loops',[]))]
+            for state in candidates[:1] if a.full_scenes else candidates:
                 sid=state['asset_id'];directory=a.output/sid;directory.mkdir(parents=True,exist_ok=True)
                 positions=[i for i,s in enumerate(timeline['samples']) if s['state']==sid]
                 start=positions[len(positions)//3];count=min(36,len(positions)-len(positions)//3)
                 bubble=[i for i in positions if any(timeline['graphics'][g['id']]['kind']=='speech_bubble' and g['opacity']>=.99 for g in timeline['samples'][i]['graphics'])]
                 if len(bubble)>=42 and bubble[41]-bubble[0]==41:start=bubble[3];count=36
                 selected=timeline['samples'][start:start+count]
-                if len(selected)<12 or any(s['state']!=sid for s in selected):raise ValueError('Need a continuous same-state actual sample window')
-                t=copy.deepcopy(timeline);t['states']=[copy.deepcopy(state)];t['samples']=[{**copy.deepcopy(s),'at':i/fps} for i,s in enumerate(selected)];t.pop('transition_source',None)
+                if a.full_scenes:selected=timeline['samples'];count=len(selected);start=0
+                if len(selected)<12 or (not a.full_scenes and any(s['state']!=sid for s in selected)):raise ValueError('Need a continuous same-state actual sample window')
+                t=copy.deepcopy(timeline);t['states']=copy.deepcopy(timeline['states']) if a.full_scenes else [copy.deepcopy(state)];t['samples']=[{**copy.deepcopy(s),'at':i/fps} for i,s in enumerate(selected)];t.pop('transition_source',None)
                 duration=count/fps
                 def download(frame,path):_download(frame['gcs_bucket'],frame['gcs_path'],path)
                 runtime=prepare_timeline(t,directory/'sources',lambda:None,download,duration,fps,snapshot.get('audio'))
@@ -68,9 +69,10 @@ def main():
                 info=_video_info(out)
                 if info['frames']!=count or abs(info['fps']-fps)>1e-6:raise ValueError('Actual probe frame count/rate mismatch')
                 bucket,key,_=ae._upload_gcs_file(out,a.upload_prefix+'/'+sid+'/'+digest(out)+'.mp4','video/mp4')
-                receipts.append({'state':sid,'source_sha256':state['sha256'],'frozen_snapshot_sha256':digest(a.snapshot),'original_scene':scene['number'],'original_scene_sample_start':selected[0]['at'],'original_global_start':scene['start']+selected[0]['at'],'frames':count,'fps':fps,'sha256':digest(out),'gcs_bucket':bucket,'gcs_path':key,'renderer':'actual_adobe_afterfx_and_aerender','scope':'short same-state probe, separate from full episode and final narration verification'})
+                receipts.append({'state':sid,'source_sha256':state['sha256'],'frozen_snapshot_sha256':digest(a.snapshot),'original_scene':scene['number'],'original_scene_sample_start':selected[0]['at'],'original_global_start':scene['start']+selected[0]['at'],'frames':count,'fps':fps,'sha256':digest(out),'gcs_bucket':bucket,'gcs_path':key,'renderer':'actual_adobe_afterfx_and_aerender','scope':'full frozen QA scene including terminal state gate' if a.full_scenes else 'short same-state probe, separate from full episode and final narration verification'})
                 (a.output/'receipt.json').write_text(json.dumps({'probes':receipts},ensure_ascii=False,indent=2),encoding='utf-8')
                 ae._upload_gcs_file(a.output/'receipt.json',a.upload_prefix+'/receipt.json','application/json')
                 print('NATIVE_AE_PROBE_SAVED',sid,flush=True)
+    if not receipts:raise ValueError('No actual energy output exists; no AE verification claimed')
     print('NATIVE_AE_PROBES_COMPLETE',len(receipts),flush=True)
 if __name__=='__main__':main()

@@ -12,6 +12,7 @@ export function splitWuxiaMotion(value:string){
 export function joinWuxiaMotion(pan:string,zoom:string,heat:boolean){return (pan==='none'?zoom:zoom==='none'?pan:`${pan}_${zoom}`)+(heat?'+heat':'')}
 export const HEAT_BANDS=48
 export function wuxiaMotionFrame(project:any,scene:any,state:any,number:number,seconds:number,start:number,end:number,fps=24){
+ if(state?.energy_only_motion===true)return {contract:'wuxia_motion_samples/v1',active:false,dx:0,dy:0,scale:1,heat:[],issues:[]}
  const p=project?.project_payload||project||{},saved=(p.structure?.scenes||p.scenes||[]).find((s:any)=>Number(s.scene_number)===number)
  const selection=splitWuxiaMotion(wuxiaMotionValue(saved||scene)),issues:string[]=[]
  if(!selection.valid)issues.push('unsupported_wuxia_motion')

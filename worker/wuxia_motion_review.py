@@ -18,13 +18,17 @@ def review_source(runner,scene,runtime,fresh):
             'Check the selected pan/zoom against action, gaze, composition, all maximum crop positions and face/hand/lettering clearance. If heat is selected, require literally visible flames/high temperature with source-specific protection; metaphor or speech alone is insufficient. If heat is not selected, do not require it. Fixed is valid. Never claim to have seen output or audio. Fail absent/ambiguous visual support and record it without guessing.')
         rows=result.get('states')
         if not isinstance(rows,list) or [s.get('asset_id') for s in rows]!=[s['asset_id'] for s in batch] or any(type(s.get('passed')) is not bool or not str(s.get('evidence') or '').strip() or not isinstance(s.get('issues'),list) or (s['passed'] and s['issues']) for s in rows):raise ValueError('Incomplete actual motion source review')
-        results.extend({**row,'source_sha256':state['sha256']} for row,state in zip(rows,batch))
+        for row,state in zip(rows,batch):
+            energy=state.get('energy_preparation') or {}
+            if energy.get('decision')=='uncertain':
+                row={**row,'passed':False,'issues':row['issues']+[{'energy_preparation':energy}], 'evidence':row['evidence']+' Energy selection retained its actual uncertain quality note.'}
+            results.append({**row,'source_sha256':state['sha256']})
     return {'contract':'wuxia_motion_source_review/v1','passed':all(s['passed'] for s in results),'states':results}
 TASK='''For wuxia_sword_aura_execution, when requested, compare different decoded
-phases of the SAME source state: blue sword energy must visibly ripple/flow, while
+phases of the SAME source state: the selected sword or body-emitted energy, in its actual source color, must visibly ripple/flow through the final visible state frame, while
 people, steel blade, grip, background geometry and lettering remain stationary.
 Check protected polygon edges, detached/duplicate old wisps, clean-plate seams,
-and absence on other states. Source PNGs alone or frame metadata cannot prove it.
+and absence on other states. Confirm repetition beyond the first cycle and presence at the last in-state sample. Source PNGs alone or frame metadata cannot prove it.
 For wuxia_motion_fit compare the scene's planned choice with ACTUAL source and
 rendered pixels. Inspect visible action, gaze, composition and readability; a fixed
 choice is valid and no quota applies. Heat needs actual visible flames/hot-air context,
@@ -85,7 +89,9 @@ def evidence(scene,duration,fps):
         if visible:
             a=visible[len(visible)//3]
             b=next((s for s in visible if s['at']>=a['at']+.2 and s['ambient']!=a['ambient']),visible[-1])
-            times.update((a['at'],b['at']))
+            times.update((visible[0]['at'],a['at'],b['at'],visible[-1]['at']))
+            after=next((s for s in samples if s['at']>visible[-1]['at']),None)
+            if after:times.add(after['at'])
     times=sorted(min(samples[-1]['at'],max(0,at)) for at in times)
     selected=[min(samples,key=lambda s:abs(s['at']-at)) for at in times]
     return {'contract':'wuxia_motion_output_review/v1','required_checks':CHECKS+(('wuxia_sword_aura_execution',) if aura_states else ()),'sample_times':times,

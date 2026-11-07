@@ -21,7 +21,11 @@ export function freezeWuxiaScene(project:any,number:number,rows:any[],start:numb
  if(!first)throw Error(`${number}번 씬의 무협 상태 원화 연출을 확인해 주세요.`)
  const p=project.project_payload||project,pkg=correctedWuxiaPackage(p.structure?.wuxia_ae_package||p.wuxia_ae_package)
  const scene=pkg.scenes.find((s:any)=>Number(String(s.scene_id).match(/S(\d+)$/)?.[1])===number)
- const autoPolicy=p.structure?.wuxia_motion_policy?.enabled===true?p.structure.wuxia_motion_policy:null
+ const energyAuto=p.structure?.wuxia_mouth_policy?.energy_auto
+ if(energyAuto?.enabled===true&&energyAuto?.auto_prepare===true&&scene.states?.some((s:any)=>s.energy_preparation?.source_sha256!==s.sha256))throw Error(`${number}번 씬 기운 검토를 준비 중입니다. 원화 준비 워커 결과를 기다려 주세요.`)
+ if(scene.states?.some((s:any)=>s.energy_preparation?.decision==='present'&&!s.ambient_loops?.some((l:any)=>l.automation==='wuxia_energy_auto/v1'&&validAmbientLoop(l))))throw Error(`${number}번 씬 기운 패치 준비 결과를 확인해 주세요.`)
+ const energyRequired=scene.states?.some((s:any)=>s.energy_preparation?.decision==='uncertain'||s.ambient_loops?.some((l:any)=>l.automation==='wuxia_energy_auto/v1'))
+ const autoPolicy=p.structure?.wuxia_motion_policy?.enabled===true?p.structure.wuxia_motion_policy:energyRequired?{contract:'wuxia_motion_auto/v1',enabled:true,actual_source_review_required:true,actual_output_review_required:true}:null
  const authored=(p.structure?.scenes||p.scenes||[]).find((s:any)=>Number(s.scene_number||s.scene_order)===number)
  const hasMotion=first.motion.active||Boolean(autoPolicy),hasHeat=first.motion.heat.length>0||scene.states?.some((s:any)=>s.heat_shimmer_enabled===true)
  const states=(scene.states||[]).map((s:any)=>{
@@ -30,9 +34,9 @@ export function freezeWuxiaScene(project:any,number:number,rows:any[],start:numb
   const storage=path&&bucket?{gcs_bucket:bucket,gcs_path:path}:s.sha256===source.metadata?.sha256?{gcs_bucket:source.metadata?.gcs_bucket,gcs_path:source.metadata?.gcs_path}:null
   if(!storage?.gcs_path||!storage.gcs_bucket||!/^[a-f0-9]{64}$/.test(s.sha256||''))throw Error(`${number}번 씬 상태 원화의 저장 위치·SHA를 확인해 주세요.`)
   if(!Array.isArray(s.ambient_loops||[])||(s.ambient_loops||[]).length>4||(s.ambient_loops||[]).some((l:any)=>!validAmbientLoop(l)||l.source_sha256!==s.sha256))throw Error(`${number}번 씬 상태의 보조 움직임 원화 연결을 확인해 주세요.`)
-  const mouths=(s.dialogue_mouths||[]).filter((m:any)=>m.enabled)
+  const mouths=(s.energy_only_motion===true?[]:(s.dialogue_mouths||[])).filter((m:any)=>m.enabled)
   if(mouths.length>4||mouths.some((m:any)=>m.source_sha256!==s.sha256||!mouthMatchesRecording(m,project,timedRows)))throw Error(`${number}번 씬 입모양의 원화·음성·대사 시점 연결이 달라졌습니다.`)
-  return {asset_id:s.asset_id,sha256:s.sha256,...storage,ambient_loops:ambientLoopsForState(s).filter(l=>l.enabled),dialogue_mouths:mouths,
+  return {asset_id:s.asset_id,sha256:s.sha256,...(s.energy_preparation?{energy_preparation:{source_sha256:s.energy_preparation.source_sha256,decision:s.energy_preparation.decision,reason:s.energy_preparation.reason,quality_notes:s.energy_preparation.quality_notes}}:{}),...storage,ambient_loops:ambientLoopsForState(s).filter(l=>l.enabled),dialogue_mouths:mouths,
    ...(hasHeat?{heat_face_reviewed:Array.isArray(s.face_exclusion_boxes),heat_protection_boxes:[s.face_exclusion_boxes,s.hand_exclusion_boxes,s.protected_regions].flatMap(b=>Array.isArray(b)?b:[])}:{})}
  })
  const samples:any[]=[],graphics:Record<string,any>={}

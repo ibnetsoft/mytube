@@ -13,6 +13,6 @@ export async function GET(req:Request,{params}:{params:{projectId:string}}) {
  if(structure.wuxia_mouth_policy?.auto_prepare!==true)return NextResponse.json({success:true,states:[]})
  return NextResponse.json({success:true,project_id:p.id,policy:structure.wuxia_mouth_policy,
   audio_id:p.project_payload?.subtitle_source_audio_id,report:pkg?.mouth_timing||pkg?.mouth_preparation,
-  states:(pkg?.scenes||[]).flatMap((sc:any)=>(sc.states||[]).map((st:any)=>({scene_id:sc.scene_id,graphics:sc.graphics,asset_id:st.asset_id,sha256:st.sha256,dialogue_mouths:st.dialogue_mouths||[]})))},
+  states:(pkg?.scenes||[]).flatMap((sc:any)=>(sc.states||[]).map((st:any)=>({scene_id:sc.scene_id,graphics:sc.graphics,asset_id:st.asset_id,sha256:st.sha256,ambient_loops:st.ambient_loops||[],energy_preparation:st.energy_preparation,energy_only_motion:st.energy_only_motion===true,dialogue_mouths:st.dialogue_mouths||[]})))},
   {headers:{'Cache-Control':'private, no-store'}})
 }

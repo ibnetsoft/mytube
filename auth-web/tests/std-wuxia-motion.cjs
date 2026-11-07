@@ -60,3 +60,19 @@ test('source-reviewed camera strength reduces overscan without changing the open
  assert.equal(f.at(1).motion.scale,1.048);assert.equal(f.at(1).motion.dx,-.012);assert.deepEqual(f.at(1).motion,f.at(3).motion);
  f.project.project_payload.structure.wuxia_ae_package.scenes[0].motion_strength=2;assert.match(f.at(.5).motion.issues[0],/invalid_motion_strength/);
 });
+test('energy-only state preserves anatomy and heat/camera holds on every frame through nine seconds',()=>{
+ const f=fixture('pan_right_zoom_in+heat'),sc=f.project.project_payload.structure.wuxia_ae_package.scenes[0];
+ sc.preview_duration_seconds=9;sc.effects=[{type:'impact_shake'}];f.state.energy_only_motion=true;
+ for(const sec of [0,.5,1,4.5,8.99]){
+  const frame=f.at(sec);assert.equal(frame.motion.active,false);assert.equal(frame.motion.dx,0);assert.equal(frame.motion.scale,1);assert.deepEqual(frame.motion.heat,[]);
+  assert.deepEqual(frame.effects.active,[]);assert.deepEqual(frame.mouths,[]);
+ }
+ const native=freezeWuxiaScene(f.project,1,[],0,9,24,{metadata:{}});assert.equal(native.samples.length,216);
+ assert.ok(native.samples.every(s=>!s.motion||!s.motion.active));
+});
+test('new energy automation waits for actual source review before freezing; absent is valid',()=>{
+ const f=fixture('none');f.project.project_payload.structure.wuxia_mouth_policy={energy_auto:{enabled:true,auto_prepare:true}};
+ assert.throws(()=>freezeWuxiaScene(f.project,1,[],0,4,24,{metadata:{}}),/기운 검토/);
+ f.state.energy_preparation={source_sha256:f.state.sha256,decision:'absent'};
+ assert.equal(freezeWuxiaScene(f.project,1,[],0,4,24,{metadata:{}}).states.length,1);
+});

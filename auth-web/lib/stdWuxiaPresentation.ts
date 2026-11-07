@@ -89,7 +89,7 @@ export function wuxiaSceneFrame(project: any, number: number, rows: any[], secon
         return index === null ? [] : [{ loop, index, frame: loop.frames[index] }]
     })
     const ambientSources = (scene.states || []).flatMap((item: any) => ambientLoopsForState(item).filter(loop => loop.enabled).flatMap(loop => loop.frames.map(f=>({...f,region:loop.region,width:loop.width,height:loop.height}))))
-    const mouths=wuxiaMouthFrame(state,graphics,project,rows,seconds)
+    const mouths=state?.energy_only_motion===true?[]:wuxiaMouthFrame(state,graphics,project,rows,seconds)
     const mouthSources=(scene.states||[]).flatMap((item:any)=>stateMouths(item).filter((m:any)=>m?.enabled&&m.source_sha256===item.sha256&&mouthMatchesRecording(m,project,rows)).flatMap((m:any)=>Object.values(m.poses).map((f:any)=>({...f,region:m.mouth_box,width:m.width,height:m.height}))))
     const effects=wuxiaEffectFrame(scene,state,graphics,seconds,start,end,rowRange,fps||p.render_settings?.motion?.fps||24)
     const transition=wuxiaTransitionFrame(project,scene,number,seconds,start,end,fps||p.render_settings?.motion?.fps||24)
