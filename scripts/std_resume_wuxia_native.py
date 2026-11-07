@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 load_dotenv(ROOT/'worker/connection.env')
 from worker.script_worker_store import ScriptStore
 from worker.wuxia_worker_contract import claim_acknowledgement
-JOBS=('a05142f9-e6f6-4a94-b3c1-fd3188bd97e1','29ed803a-ffbd-4cfa-85ac-122bcba8f5e1','59cbfd69-526b-4613-86b0-7ea17be6b1df')
+JOBS=('91c265fe-12cf-4788-ba1d-e3eae9a3b2fe', '13f6e0a5-ab9f-4750-aa3e-0d5b895694dc', '9df7ce21-e660-4553-8577-778fc02b02f9')
 
 def main():
  parser=argparse.ArgumentParser();parser.add_argument('--enqueue',action='store_true');args=parser.parse_args()

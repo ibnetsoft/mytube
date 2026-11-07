@@ -29,3 +29,19 @@ def test_explicit_identity_frame_is_compact_but_executes_as_no_transform():
  t=timeline();t['samples'][0]['effects']={};validate_samples(t)
  source,_=jsx(t,1,24);data=json.loads(source.split('var WT=',1)[1].split(';\n',1)[0]);f=data['effect_samples'][0]
  assert (f['dx'],f['dy'],f['scale'],f['overlays'])==(0,0,1,[])
+
+@pytest.mark.parametrize('duration',[1,3,5])
+@pytest.mark.parametrize('axis',['dx','dy'])
+def test_native_ae_keeps_every_fixed_rate_frame_without_smoothing(duration,axis):
+ t=timeline();frames=[]
+ for i in range(duration*24):
+  f=copy.deepcopy(t['samples'][0]);f['at']=i/24
+  f['effects'].update(dx=0,dy=0,overlays=[])
+  f['effects'][axis]=(1 if (i*20//24)%2==0 else -1)*8
+  frames.append(f)
+ t['samples']=frames;validate_samples(t)
+ source,_=jsx(t,duration,24)
+ data=json.loads(source.split('var WT=',1)[1].split(';\n',1)[0])
+ assert [(f['at'],f[axis]) for f in data['effect_samples']]==[(f['at'],f['effects'][axis]) for f in frames]
+ assert 'whold(pos);whold(sca)' in source
+ assert 'wiggle(' not in source # no AE-side frequency reinterpretation

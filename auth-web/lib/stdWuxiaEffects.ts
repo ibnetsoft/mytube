@@ -1,5 +1,5 @@
 import { wuxiaGraphicBounds } from './stdWuxiaGraphic'
-/** Deterministic short accents. Frozen vector/transform samples are executed verbatim by AE. */
+/** Deterministic accents and fixed-rate shakes; AE executes the same frozen samples. */
 export const WUXIA_FX_CONTRACT='wuxia_effect_samples/v1'
 const types=new Set(['impact_shake','impact_flash','debris_burst','particle_burst','speedline_burst','focus_glow','shock_ring'])
 const overlaps=(a:number[],b:number[])=>a[0]<b[2]&&a[2]>b[0]&&a[1]<b[3]&&a[3]>b[1]
@@ -11,11 +11,16 @@ export function wuxiaEffectFrame(scene:any,state:any,graphics:any[],seconds:numb
  const textBoxes=graphics.filter(g=>g.layout?.center&&g.layout?.size).map(g=>wuxiaGraphicBounds(g).map((v,i)=>v/(i%2?1080:1920)))
  const protectedBoxes=[...(Array.isArray(heads)?heads:[]),...textBoxes]
  for(const [index,e] of (scene.effects||[]).entries()){
-  if(!types.has(e.type)||!finite(e.duration_seconds)||e.duration_seconds<=0||e.duration_seconds>.8||!finite(e.intensity)||e.intensity<=0||e.intensity>1||!Array.isArray(e.center)||e.center.length!==2||e.center.some((n:any)=>!finite(n)||n<0||n>1)||!finite(e.radius)||e.radius<=0||e.radius>1){frame.issues.push(`invalid_effect:${index}`);continue}
+  const rateShake=e.type==='impact_shake'&&e.shake_hz!=null
+  const repeated=e.type==='impact_shake'&&(e.shake_cycles!=null||rateShake)
+  const cycles=rateShake?e.shake_hz*e.duration_seconds:e.shake_cycles
+  if(!types.has(e.type)||!finite(e.duration_seconds)||e.duration_seconds<=0||e.duration_seconds>(rateShake?10:repeated?1.2:.8)||!finite(e.intensity)||e.intensity<=0||e.intensity>1||!Array.isArray(e.center)||e.center.length!==2||e.center.some((n:any)=>!finite(n)||n<0||n>1)||!finite(e.radius)||e.radius<=0||e.radius>1){frame.issues.push(`invalid_effect:${index}`);continue}
+  if((repeated&&((rateShake?(e.shake_hz!==10||e.shake_cycles!=null):(!Number.isInteger(cycles)||cycles<1||cycles>12))||!['vertical','horizontal'].includes(e.shake_axis)||!finite(fps)||fps<cycles/e.duration_seconds*2))||(!repeated&&e.shake_axis!=null)){frame.issues.push(`invalid_shake_repeat:${index}`);continue}
+  if(e.delay_seconds!=null&&(!finite(e.delay_seconds)||e.delay_seconds<0||e.delay_seconds>.3)){frame.issues.push(`invalid_effect_delay:${index}`);continue}
   if(e.amplitude_px!=null&&(!finite(e.amplitude_px)||e.amplitude_px<=0||e.amplitude_px>16)){frame.issues.push(`invalid_amplitude:${index}`);continue}
   const target=e.asset_id||scene.states?.[Math.max(0,(e.state||1)-1)]?.asset_id
   const range=resolve({voice_binding:e.voice_binding,text:e.quote})
-  const from=range?(e.voice_binding?.phase==='after'?range.end:range.start):start+Number(e.preview_at||0)*(end-start)
+  const from=(range?(e.voice_binding?.phase==='after'?range.end:range.start):start+Number(e.preview_at||0)*(end-start))+Number(e.delay_seconds||0)
   if(e.voice_binding?.exact_anchor&&!range){frame.issues.push(`unmatched_effect_anchor:${index}`);continue}
   const t=(at-from)/e.duration_seconds
   if(t<0||t>=1||target!==(state?.parent_asset_id||state?.asset_id))continue
@@ -24,7 +29,13 @@ export function wuxiaEffectFrame(scene:any,state:any,graphics:any[],seconds:numb
   frame.active.push(`${e.type}:${index}`)
   const strength=e.intensity,fade=Math.sin(Math.PI*t),cx=e.center[0],cy=e.center[1],radius=e.radius
   if(e.type==='impact_shake'){
-   const amp=e.amplitude_px??(4+12*strength),dx=Math.sin(t*Math.PI*9)*amp*(1-t),dy=Math.sin(t*Math.PI*13)*amp*.45*(1-t),scale=e.amplitude_px?1+amp/400:1.035
+   const amp=e.amplitude_px??(4+12*strength),scale=e.amplitude_px?1+amp/400:1.035
+   const phase=repeated?Math.floor(t*cycles*2+1e-7):0
+   const elapsed=t*e.duration_seconds
+   const envelope=rateShake?Math.min(1,elapsed*fps,(e.duration_seconds-elapsed)*fps):Math.min(1,elapsed*fps)*(1-.35*Math.pow(t,8))
+   const pulse=(phase%2?-1:1)*envelope
+   const dx=repeated?(e.shake_axis==='horizontal'?pulse*amp:0):Math.sin(t*Math.PI*9)*amp*(1-t)
+   const dy=repeated?(e.shake_axis==='vertical'?pulse*Math.min(amp,12):0):Math.sin(t*Math.PI*13)*amp*.45*(1-t)
    const moved=(e.camera_face_boxes||heads).map((b:number[])=>b.map((v:number,i:number)=>(v-.5)*scale+.5+(i%2?dy/1080:dx/1920)))
    if(moved.some((b:number[])=>b.some((n:number)=>n<0||n>1)||textBoxes.some(r=>overlaps(b,r)))){frame.issues.push(`unsafe_shake:${index}`);continue}
    frame.dx+=dx;frame.dy+=dy;frame.scale=scale;continue

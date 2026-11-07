@@ -1,0 +1,275 @@
+{
+  "rate_hz": 10,
+  "date": "2026-11-07",
+  "plan": [
+    {
+      "episode": 1,
+      "scene": 11,
+      "axis": "vertical",
+      "duration": 3,
+      "shake_hz": 10,
+      "amplitude_px": 9,
+      "active_frames": 72,
+      "signed_half_cycles": 60,
+      "first": 241.58959183673466,
+      "last": 244.547925170068,
+      "issues": []
+    },
+    {
+      "episode": 1,
+      "scene": 14,
+      "axis": "horizontal",
+      "duration": 2,
+      "shake_hz": 10,
+      "amplitude_px": 12,
+      "active_frames": 48,
+      "signed_half_cycles": 40,
+      "first": 292.8114965986394,
+      "last": 294.76982993197277,
+      "issues": []
+    },
+    {
+      "episode": 1,
+      "scene": 19,
+      "axis": "vertical",
+      "duration": 2,
+      "shake_hz": 10,
+      "amplitude_px": 9,
+      "active_frames": 48,
+      "signed_half_cycles": 40,
+      "first": 423.5436734693879,
+      "last": 425.5020068027212,
+      "issues": []
+    },
+    {
+      "episode": 1,
+      "scene": 20,
+      "omitted": true,
+      "reason": "원래 피격 앵커와 대상 원화 노출이 불일치하며 대상 원화의 얼굴이 프레임 상단에 잘려 추가 카메라 흔들림은 제외"
+    },
+    {
+      "episode": 2,
+      "scene": 9,
+      "axis": "vertical",
+      "duration": 3,
+      "shake_hz": 10,
+      "amplitude_px": 8,
+      "active_frames": 72,
+      "signed_half_cycles": 60,
+      "first": 189.39272108843534,
+      "last": 192.35105442176865,
+      "issues": []
+    },
+    {
+      "episode": 2,
+      "scene": 11,
+      "axis": "vertical",
+      "duration": 1,
+      "shake_hz": 10,
+      "amplitude_px": 8,
+      "active_frames": 24,
+      "signed_half_cycles": 20,
+      "first": 257.300850340136,
+      "last": 258.2591836734693,
+      "issues": []
+    },
+    {
+      "episode": 2,
+      "scene": 21,
+      "axis": "vertical",
+      "duration": 2,
+      "shake_hz": 10,
+      "amplitude_px": 7,
+      "active_frames": 48,
+      "signed_half_cycles": 40,
+      "first": 475.67323129251696,
+      "last": 477.63156462585033,
+      "issues": []
+    },
+    {
+      "episode": 3,
+      "scene": 11,
+      "axis": "vertical",
+      "duration": 5,
+      "shake_hz": 10,
+      "amplitude_px": 10,
+      "active_frames": 120,
+      "signed_half_cycles": 100,
+      "first": 297.4090476190477,
+      "last": 302.3673809523811,
+      "issues": []
+    },
+    {
+      "episode": 3,
+      "scene": 14,
+      "axis": "horizontal",
+      "duration": 1,
+      "shake_hz": 10,
+      "amplitude_px": 7,
+      "active_frames": 24,
+      "signed_half_cycles": 20,
+      "first": 417.47261904761916,
+      "last": 418.43095238095253,
+      "issues": []
+    }
+  ],
+  "parity": [
+    {
+      "episode": 1,
+      "web_native_effect_samples_equal": true,
+      "checked_frames": 14406,
+      "scenes": [
+        {
+          "scene": 11,
+          "axis": "vertical",
+          "seconds": 3,
+          "full_round_trips": 30
+        },
+        {
+          "scene": 14,
+          "axis": "horizontal",
+          "seconds": 2,
+          "full_round_trips": 20
+        },
+        {
+          "scene": 19,
+          "axis": "vertical",
+          "seconds": 2,
+          "full_round_trips": 20
+        }
+      ]
+    },
+    {
+      "episode": 2,
+      "web_native_effect_samples_equal": true,
+      "checked_frames": 13656,
+      "scenes": [
+        {
+          "scene": 9,
+          "axis": "vertical",
+          "seconds": 3,
+          "full_round_trips": 30
+        },
+        {
+          "scene": 11,
+          "axis": "vertical",
+          "seconds": 1,
+          "full_round_trips": 10
+        },
+        {
+          "scene": 21,
+          "axis": "vertical",
+          "seconds": 2,
+          "full_round_trips": 20
+        }
+      ]
+    },
+    {
+      "episode": 3,
+      "web_native_effect_samples_equal": true,
+      "checked_frames": 15954,
+      "scenes": [
+        {
+          "scene": 11,
+          "axis": "vertical",
+          "seconds": 5,
+          "full_round_trips": 50
+        },
+        {
+          "scene": 14,
+          "axis": "horizontal",
+          "seconds": 1,
+          "full_round_trips": 10
+        }
+      ]
+    }
+  ],
+  "native_jobs": [
+    {
+      "project_id": "b45f00f7-fc8b-4d1a-9b72-f27c84fb0a02",
+      "job_id": "91c265fe-12cf-4788-ba1d-e3eae9a3b2fe",
+      "run_id": "9354e164-c662-4679-ade0-7f568ff4d83d",
+      "submitted_at": "2026-11-07T08:27:54.692992+00:00",
+      "submission_id": "000fd4b4-9544-4cb3-b0db-08af50666ac8",
+      "previous_job_id": "a05142f9-e6f6-4a94-b3c1-fd3188bd97e1",
+      "state": "awaiting_worker_update",
+      "enabled": false,
+      "render_complete": false,
+      "final_audio_unchanged": true,
+      "effects": [
+        {
+          "scene": 11,
+          "frames": 72,
+          "seconds": 3
+        },
+        {
+          "scene": 14,
+          "frames": 48,
+          "seconds": 2
+        },
+        {
+          "scene": 19,
+          "frames": 48,
+          "seconds": 2
+        }
+      ]
+    },
+    {
+      "project_id": "3d4b5aa9-4b3d-44c9-b6b1-eefa96219a39",
+      "job_id": "13f6e0a5-ab9f-4750-aa3e-0d5b895694dc",
+      "run_id": "897c4469-2b88-4005-88c5-ea84b453d95c",
+      "submitted_at": "2026-11-07T08:28:04.603604+00:00",
+      "submission_id": "a1a7e99f-f51d-46cd-bece-f9f7417a7120",
+      "previous_job_id": "29ed803a-ffbd-4cfa-85ac-122bcba8f5e1",
+      "state": "awaiting_worker_update",
+      "enabled": false,
+      "render_complete": false,
+      "final_audio_unchanged": true,
+      "effects": [
+        {
+          "scene": 9,
+          "frames": 72,
+          "seconds": 3
+        },
+        {
+          "scene": 11,
+          "frames": 24,
+          "seconds": 1
+        },
+        {
+          "scene": 21,
+          "frames": 48,
+          "seconds": 2
+        }
+      ]
+    },
+    {
+      "project_id": "6d45f1b9-a794-4fe9-86f2-b8ac60902e51",
+      "job_id": "9df7ce21-e660-4553-8577-778fc02b02f9",
+      "run_id": "484fa391-1cb8-4ddd-b096-cb70d3bdebf3",
+      "submitted_at": "2026-11-07T08:28:16.384003+00:00",
+      "submission_id": "e5cceb62-b711-497c-b38f-6f6a41ea7b4c",
+      "previous_job_id": "c2dd33e5-5920-4261-b372-106d3815efaa",
+      "state": "awaiting_worker_update",
+      "enabled": false,
+      "render_complete": false,
+      "final_audio_unchanged": true,
+      "effects": [
+        {
+          "scene": 11,
+          "frames": 120,
+          "seconds": 5
+        },
+        {
+          "scene": 14,
+          "frames": 24,
+          "seconds": 1
+        }
+      ]
+    }
+  ],
+  "web_tests_passed": 17,
+  "native_tests_passed": 16,
+  "web_build_passed": true,
+  "native_render_complete": false
+}
