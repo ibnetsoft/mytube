@@ -412,6 +412,9 @@ def render_base(snapshot,scene,plan,source,preview,runner,directory,fresh):
         validate_purpose_native(scene,prepared['plan'])
         native=_render_native(prepared,directory,duration)
         run([ffmpeg(),'-v','error','-y','-i',str(native),'-an','-t',str(duration),'-r',str(snapshot['motion']['fps']),'-c:v','libx264','-pix_fmt','yuv420p',str(output)])
+    if scene.get('wuxia_timeline'):
+        from wuxia_render_cache import release_temporary_movie
+        release_temporary_movie(native,output,directory)
     fresh();return output
 
 
@@ -878,6 +881,9 @@ def process_one(engine='ae', job_id=None):
                 last=previews[number]
             else:
                 last=work/'reviewed-last-frame.png';run([ffmpeg(),'-v','error','-y','-ss',str(max(0,scene['end']-scene['start']-2/snapshot['motion']['fps'])),'-i',str(output),'-frames:v','1',str(last)])
+            if scene.get('wuxia_timeline') and visual!=output:
+                from wuxia_render_cache import release_temporary_movie
+                release_temporary_movie(visual,output,attempt_dir)
             previous=last;record={'purpose_policy':scene.get('purpose_policy'),'purpose_repair':plan.get('purpose_repair'),'speech_bubble_layout':scene.get('_bubble_layout'),'number':number,'input_fingerprint':meta['fingerprint'],'path':str(output),'sha256':digest(output),'last_frame':str(last),'review':review}
             from services.video_playback_policy import POLICY
             record['video_playback_policy']=POLICY
