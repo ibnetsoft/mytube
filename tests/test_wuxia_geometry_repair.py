@@ -40,3 +40,30 @@ def test_successful_repair_uses_the_actual_locator_result_without_relabelling(tm
   raise ValueError('Original face crop must pass independent geometry review')
  monkeypatch.setattr(ae_mouth,'locate_speakers',locate)
  assert locate_selective_speakers(Runner(),'id',{},source,[{'speaker':'hero'}],{}) is expected
+
+def test_invalid_lip_contour_retries_once_then_preserves_source(tmp_path,monkeypatch):
+ source=tmp_path/'source.png';source.write_bytes(b'source');calls=[]
+ class NumericRunner(Runner):
+  def _stage(self,job,name,context,task):
+   self.contexts.append(context)
+   return {'speaker':'hero','status':'visible','mouth_geometry':{}}
+ def locate(proxy,*args):
+  calls.append(1)
+  proxy._stage('job','03_ae_mouth_crop_localization',{'_local_image_paths':[str(source)]},'locate')
+  raise ValueError('Lip landmarks must lie inside actual face contour and mouth patch')
+ monkeypatch.setattr(ae_mouth,'locate_speakers',locate)
+ runner=NumericRunner();result=locate_selective_speakers(runner,'id',{},source,[{'speaker':'hero'}],{})
+ assert len(calls)==2 and runner.contexts[1]['previous_geometry_rejection']['validation_error'].startswith('Lip landmarks')
+ assert result[0]['status']=='uncertain' and result[0]['mouth_geometry']['render_policy']=='preserve_original'
+ assert result[0]['mouth_geometry']['review']['passed'] is False
+
+def test_malformed_review_is_an_error_not_a_visibility_exclusion(tmp_path,monkeypatch):
+ source=tmp_path/'source.png';source.write_bytes(b'source')
+ class BadRunner(Runner):
+  def _stage(self,*args):return {'speakers':[{'speaker':'hero','passed':None,'reason':'no verdict'}]}
+ def locate(proxy,*args):
+  proxy._stage('job','03_ae_mouth_geometry_review',{'speakers':[{'speaker':'hero'}]},'review')
+  raise ValueError('Original face crop must pass independent geometry review')
+ monkeypatch.setattr(ae_mouth,'locate_speakers',locate)
+ with pytest.raises(ValueError,match='independent geometry review'):
+  locate_selective_speakers(BadRunner(),'id',{},source,[{'speaker':'hero'}],{})

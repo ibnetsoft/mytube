@@ -664,7 +664,9 @@ def process_one(engine='ae'):
     meta=job['metadata'];token=uuid.uuid4().hex
     frozen=json.loads(meta.get('snapshot_json') or meta.get('input',{}).get('snapshot_json') or '{}')
     require_engine(engine, (frozen.get('final_renderer') or {}).get('engine','python'))
-    rows=ae._request('PATCH',url,{**headers,'Prefer':'return=representation'},params={'id':'eq.'+job['id'],'updated_at':'eq.'+job['updated_at']},json={'metadata':{**meta,'state':'processing','worker_token':token,'heartbeat_at':ae._now()},'updated_at':ae._now()}).json()
+    from wuxia_worker_contract import claim_acknowledgement
+    acknowledgement=claim_acknowledgement(frozen,meta,token)
+    rows=ae._request('PATCH',url,{**headers,'Prefer':'return=representation'},params={'id':'eq.'+job['id'],'updated_at':'eq.'+job['updated_at']},json={'metadata':{**meta,'state':'processing','worker_token':token,'heartbeat_at':ae._now(),**acknowledgement},'updated_at':ae._now()}).json()
     if not rows:return False
     meta=rows[0]['metadata'];stopped=threading.Event();lost=threading.Event();lock=threading.Lock()
     def save(**changes):

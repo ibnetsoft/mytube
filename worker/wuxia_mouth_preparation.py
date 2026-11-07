@@ -45,6 +45,7 @@ def locate_selective_speakers(runner, identity, scene, image, rows, cast):
                 self.context = None
                 self.result = None
                 self.refined = {}
+                self.attachments = []
             def _stage(self, job, name, context, task):
                 if feedback:
                     context = {**context, 'previous_geometry_rejection': feedback}
@@ -52,6 +53,7 @@ def locate_selective_speakers(runner, identity, scene, image, rows, cast):
                 result = runner._stage(job, name, context, task)
                 if name == '03_ae_mouth_crop_localization':
                     self.refined[result['speaker']] = result
+                    self.attachments.extend(context.get('_local_image_paths', []))
                 if name == '03_ae_mouth_geometry_review':
                     self.context, self.result = context, result
                 return result
@@ -60,20 +62,37 @@ def locate_selective_speakers(runner, identity, scene, image, rows, cast):
             return locate_speakers(proxy, identity, scene, image, rows, cast)
         except ValueError as error:
             # Do not hide execution errors, missing files or malformed contracts.
-            if str(error) != 'Original face crop must pass independent geometry review' or not proxy.context or not proxy.result:
+            numeric_rejection = (str(error) in {
+                'Lip landmarks must lie inside actual face contour and mouth patch',
+                'Lip center disagrees with lip endpoints',
+                'Lip endpoints must describe a visible mouth',
+                'Nose/chin geometry degenerate',
+                'Mouth must lie anatomically between nose and chin, not on cheek',
+                'Proposed lip points lack visible lip-line pixels; possible cheek placement'}
+                                 and bool(proxy.refined))
+            if not numeric_rejection and (str(error) != 'Original face crop must pass independent geometry review' or not proxy.context or not proxy.result):
                 raise
-            feedback = {'source_sha256': source_sha, 'reviews': proxy.result.get('speakers', [])}
-            if not feedback['reviews'] or not any(r.get('passed') is not True for r in feedback['reviews']):
-                raise
+            feedback = {'source_sha256': source_sha, 'reviews': (proxy.result or {}).get('speakers', [])}
+            if numeric_rejection:
+                feedback.update(validation_error=str(error), proposed_speakers=copy.deepcopy(list(proxy.refined.values())))
+            else:
+                reviews = feedback['reviews']
+                expected = [s['speaker'] for s in proxy.context['speakers']]
+                if (not isinstance(reviews, list) or not reviews
+                    or [r.get('speaker') for r in reviews] != expected
+                    or any(type(r.get('passed')) is not bool or not r.get('reason') for r in reviews)
+                    or not any(r['passed'] is False for r in reviews)):
+                    raise
             evidence = image.parent / 'rejected-geometry' / str(attempt + 1)
             evidence.mkdir(parents=True, exist_ok=True)
-            for number, attachment in enumerate(proxy.context.get('_local_image_paths', [])):
+            attachments = (proxy.context or {}).get('_local_image_paths', []) or [str(image), *proxy.attachments]
+            for number, attachment in enumerate(attachments):
                 src = Path(attachment)
                 shutil.copy2(src, evidence / (str(number) + '-' + src.name))
             (evidence / 'review.json').write_text(json.dumps(feedback, ensure_ascii=False), encoding='utf-8')
             if attempt == 0:
                 continue
-            candidates = {s['speaker']: copy.deepcopy(s) for s in proxy.context['speakers']}
+            candidates = {s['speaker']: copy.deepcopy(s) for s in (proxy.context or {}).get('speakers', [])}
             decisions = {r['speaker']: r for r in feedback['reviews']}
             result = []
             for name in requested:
@@ -85,9 +104,9 @@ def locate_selective_speakers(runner, identity, scene, image, rows, cast):
                     validate(speaker, source_sha)
                 else:
                     speaker.update(status='uncertain', confidence=0,
-                        reason='Independent annotated geometry review could not confirm the lips after one repair: ' + str(decision.get('reason') or speaker.get('reason') or 'unconfirmed face geometry'))
+                        reason='Lip geometry could not be confirmed after one repair: ' + str(feedback.get('validation_error') or decision.get('reason') or speaker.get('reason') or 'unconfirmed face geometry'))
                     speaker['geometry_review_excluded'] = True
-                    if speaker.get('mouth_geometry'):
+                    if isinstance(speaker.get('mouth_geometry'), dict):
                         speaker['mouth_geometry'].update(render_policy='preserve_original',
                             review={'passed': False, 'reason': speaker['reason'], 'proof': 'annotated-face-crop-v4'})
                 result.append(speaker)
