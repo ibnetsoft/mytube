@@ -17,7 +17,7 @@ function fixture() {
   '@/lib/stdWeb':{requireStdUser:async()=>({ok:true,requester:{email:'owner@test'}})},
   '@/lib/supabaseAdmin':{supabaseAdmin:db}, '@/lib/stdTopicTitle':titles,
   '@/lib/stdProjectTitleTranslations':store,
-  '@/lib/stdTitleTranslation':{generateStdTitleTranslation:async(_db,prompt)=>{state.calls++;const rows=JSON.parse(prompt.slice(prompt.indexOf('Titles: ')+8));return JSON.stringify({translations:rows.map(row=>({id:row.id,title:row.title==='原題'?'원제':'새 제목'}))})}},
+  '@/lib/stdTitleTranslation':{generateStdTitleTranslation:async(_db,prompt)=>{state.calls++;if(state.failModel)throw Error('model unavailable');const rows=JSON.parse(prompt.slice(prompt.indexOf('Titles: ')+8));return JSON.stringify({translations:rows.map(row=>({id:row.id,title:row.title==='原題'?'원제':'새 제목'}))})}},
  })
  const post=(locale='ko',ids=[a])=>route.POST(new Request('https://test/api',{method:'POST',body:JSON.stringify({locale,ids})}))
  return {state,db,post}
@@ -45,4 +45,11 @@ test('ownership/deletion restrictions and failed persistence never return unsave
  state.failSave=true;const old=console.error;console.error=()=>{};try{assert.equal((await post()).status,503)}finally{console.error=old}
  state.projects[0].list_deleted_at='deleted';assert.deepEqual((await (await post()).json()).translations,[])
  assert.equal((await post('invalid')).status,400)
+})
+
+test('model outage preserves saved translations in a mixed request',async()=>{
+ const {state,post}=fixture();await post();state.failModel=true
+ state.projects.push({id:'33333333-3333-4333-8333-333333333333',title:'新題',employee_email:'owner@test',list_deleted_at:null})
+ const old=console.warn;console.warn=()=>{}
+ try {const response=await post('ko',[a,state.projects[2].id]);assert.equal(response.status,200);assert.deepEqual((await response.json()).translations,[{id:a,source:'原題',title:'원제'}])} finally {console.warn=old}
 })
