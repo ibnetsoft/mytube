@@ -93,6 +93,7 @@ export default function StdWuxiaScenePreview({ project, sceneNumber, subtitles, 
     }, [sourcesKey, headers])
     if (!frame) return null
     return <div className="absolute inset-0 pointer-events-none" data-wuxia-presentation="authored-graphics" aria-label="무협 말풍선·타이포 미리보기">
+        <div className="absolute inset-0" data-wuxia-effect-clock="editor" data-wuxia-effect-active={frame.effects.active.join(',')} data-wuxia-effect-issues={frame.effects.issues.join(',')} style={{transform:`translate(${frame.effects.dx/19.2}%, ${frame.effects.dy/10.8}%) scale(${frame.effects.scale})`,transformOrigin:'50% 50%'}}>
         {images[source] && <img src={images[source]} alt="" className="absolute inset-0 h-full w-full object-cover" />}
         {images[source] && frame.ambient.map(({ loop, index, frame: patch }, i) => patches[`${patch.sha256}:${loop.region.join(',')}`] &&
             <img key={i} src={patches[`${patch.sha256}:${loop.region.join(',')}`]} alt="" data-ambient-frame={index} data-ambient-clock="editor"
@@ -100,6 +101,10 @@ export default function StdWuxiaScenePreview({ project, sceneNumber, subtitles, 
         {images[source] && frame.mouths.map(({ mouth, pose, frame: patch }:any,i:number)=>patches[`${patch.sha256}:${mouth.mouth_box.join(',')}`]&&
             <img key={`mouth-${i}`} src={patches[`${patch.sha256}:${mouth.mouth_box.join(',')}`]} alt="" data-wuxia-mouth-pose={pose} data-wuxia-mouth-speaker={mouth.speaker}
                 className="absolute inset-0 h-full w-full object-cover" />)}
+        {images[source] && <svg className="absolute inset-0 h-full w-full" viewBox="0 0 1920 1080" data-wuxia-effect-overlay="protected">
+            {frame.effects.overlays.map((s:any,i:number)=>s.kind==='ellipse'?<ellipse key={i} cx={s.cx} cy={s.cy} rx={s.rx} ry={s.ry} fill={s.stroke?'none':s.color} stroke={s.stroke?s.color:undefined} strokeWidth={s.stroke} opacity={s.opacity}/>:s.kind==='line'?<polyline key={i} points={s.points.map((p:number[])=>p.join(',')).join(' ')} fill="none" stroke={s.color} strokeWidth={s.width} opacity={s.opacity}/>:<polygon key={i} points={s.points.map((p:number[])=>p.join(',')).join(' ')} fill={s.color} opacity={s.opacity}/>)}
+        </svg>}
+        </div>
         {(!source || images[source]) && <StdWuxiaGraphics graphics={frame.graphics} animate={playing} />}
     </div>
 }

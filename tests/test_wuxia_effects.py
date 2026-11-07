@@ -1,0 +1,31 @@
+import copy,sys,json
+from pathlib import Path
+import pytest
+sys.path[:0]=[str(Path(__file__).resolve().parents[1]/'worker')]
+from wuxia_effects import validate_samples
+from wuxia_native_timeline import jsx
+
+def timeline():
+ f={'contract':'wuxia_effect_samples/v1','dx':8,'dy':-3,'scale':1.035,'overlays':[{'kind':'polygon','points':[[100,100],[104,102],[101,106]],'color':'#b7a38a','opacity':.2,'stroke':0}],'active':['debris_burst:0'],'issues':[]}
+ return {'contract':'wuxia_native_timeline/v3','states':[{'asset_id':'a','file':'image.png','ambient_runtime':[],'mouth_runtime':[]}],'graphics':{},'samples':[{'at':0,'state':'a','graphics':[],'effects':f}]}
+
+def test_frozen_vectors_and_rig_are_shared_by_art_and_patches_below_lettering():
+ t=timeline();validate_samples(t);source,graphics=jsx(t,1,24);data=json.loads(source.split('var WT=',1)[1].split(';\n',1)[0]);assert data['effect_samples'][0]['dx']==8
+ assert 'wuxia_art_impact_rig' in source and 'l.parent=wrig' in source and "wuxia_impact_vector_" in source
+ assert 'wrig' not in graphics # lettering remains stable
+
+@pytest.mark.parametrize('change',[{'dx':21},{'scale':1.1},{'issues':['unsafe_shake']},{'overlays':[{'kind':'javascript'}]}])
+def test_invalid_frozen_frames_do_not_render(change):
+ t=timeline();t['samples'][0]['effects'].update(change)
+ with pytest.raises(ValueError):validate_samples(t)
+
+def test_old_workers_cannot_silently_skip_new_effects_and_missing_samples_fail():
+ t=timeline();t['contract']='wuxia_native_timeline/v2'
+ with pytest.raises(ValueError,match='v3'):validate_samples(t)
+ t=timeline();t['samples'][0].pop('effects')
+ with pytest.raises(ValueError,match='Missing'):validate_samples(t)
+
+def test_explicit_identity_frame_is_compact_but_executes_as_no_transform():
+ t=timeline();t['samples'][0]['effects']={};validate_samples(t)
+ source,_=jsx(t,1,24);data=json.loads(source.split('var WT=',1)[1].split(';\n',1)[0]);f=data['effect_samples'][0]
+ assert (f['dx'],f['dy'],f['scale'],f['overlays'])==(0,0,1,[])

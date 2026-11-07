@@ -1,3 +1,4 @@
+import { wuxiaEffectFrame } from './stdWuxiaEffects'
 import { ambientFrameIndex, ambientLoopsForState } from './stdAmbientLoop'
 import { mouthMatchesRecording, wuxiaMouthFrame, stateMouths } from './stdWuxiaMouth'
 /** Wuxia voice rows are speech input, never the on-screen caption track. */
@@ -24,7 +25,7 @@ export function correctedWuxiaPackage(pkg: any) {
         }) }
     }) }
 }
-export function wuxiaSceneFrame(project: any, number: number, rows: any[], seconds: number) {
+export function wuxiaSceneFrame(project: any, number: number, rows: any[], seconds: number, fps?: number) {
     const p = project?.project_payload || project || {}
     if (!isWuxiaMovingtoon(project)) return null
     const pkg = correctedWuxiaPackage(p.structure?.wuxia_ae_package || p.wuxia_ae_package)
@@ -86,5 +87,6 @@ export function wuxiaSceneFrame(project: any, number: number, rows: any[], secon
     const ambientSources = (scene.states || []).flatMap((item: any) => ambientLoopsForState(item).filter(loop => loop.enabled).flatMap(loop => loop.frames.map(f=>({...f,region:loop.region,width:loop.width,height:loop.height}))))
     const mouths=wuxiaMouthFrame(state,graphics,project,rows,seconds)
     const mouthSources=(scene.states||[]).flatMap((item:any)=>stateMouths(item).filter((m:any)=>m?.enabled&&m.source_sha256===item.sha256&&mouthMatchesRecording(m,project,rows)).flatMap((m:any)=>Object.values(m.poses).map((f:any)=>({...f,region:m.mouth_box,width:m.width,height:m.height}))))
-    return { state, graphics, fraction, ambient, ambientSources, mouths, mouthSources, sources: (scene.states || []).map((item: any) => String(item.media_url || item.image_url || '')).filter(Boolean), timingBasis: 'subtitle_row_bound_or_authored_preview' }
+    const effects=wuxiaEffectFrame(scene,state,graphics,seconds,start,end,rowRange,fps||p.render_settings?.motion?.fps||24)
+    return { state, graphics, fraction, effects, ambient, ambientSources, mouths, mouthSources, sources: (scene.states || []).map((item: any) => String(item.media_url || item.image_url || '')).filter(Boolean), timingBasis: 'subtitle_row_bound_or_authored_preview' }
 }

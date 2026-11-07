@@ -155,3 +155,10 @@ test('wuxia ambient frames enter the integrated AE snapshot and retain immutable
  assert.deepEqual(s.scenes[0].ambient_loops,[loop]);assert.equal(s.scenes[0].start,0);assert.equal(s.scenes[0].end,20);
  assert.equal(s.settings.subtitles_enabled,false);assert.equal(s.motion.production_method,'ae');assert.equal(f.calls.models,0);
 });
+test('wuxia with zero mouths and no ambient still freezes short impacts through native AE',async()=>{
+ const f=fixture();f.project.project_payload.render_settings.motion.enabled=false;f.project.project_payload.render_settings.motion.aspect='16:9';const hash='a'.repeat(64);f.image.metadata={...f.image.metadata,gcs_bucket:'bucket',gcs_path:'source.png',sha256:hash};
+ f.project.project_payload.subtitles[0].text='Final voice';
+ f.project.project_payload.structure={wuxia_ae_package:{contract:'wuxia_still_ae_episode/v1',scenes:[{scene_id:'S001',states:[{asset_id:'state',sha256:hash,start:0,end:1,face_exclusion_boxes:[[.1,.1,.2,.3]]}],effects:[{type:'impact_shake',asset_id:'state',center:[.7,.7],radius:.05,intensity:.3,duration_seconds:.24,voice_binding:{exact_anchor:'Final voice'}}]}]}};
+ await f.run();const s=JSON.parse(f.calls.rpc[0].args.p_manifest.automation.snapshot_json),t=s.scenes[0].wuxia_timeline;
+ assert.equal(t.contract,'wuxia_native_timeline/v3');assert.ok(t.samples.some(f=>f.effects.active?.length));assert.equal(t.samples.at(-1).effects.dx,undefined);assert.equal(s.settings.subtitles_enabled,false);assert.equal(s.motion.production_method,'ae');assert.equal(f.calls.models,0);
+});

@@ -30,7 +30,7 @@ import { horizontalWebtoon, webtoonInputs, readyWebtoonPlan } from './stdHorizon
 
 export function nativeVideoEligible(asset:any) { const m=asset?.metadata||{};return !['repaired_source_clip','motion_source_repair'].includes(m.kind)&&!m.source_repair&&(['original_speed_no_freeze_no_loop_v1','original_speed_no_freeze_no_loop/v1'].includes(String(m.video_tail_policy||m.tail_policy))||!/(hold|freeze|loop)/i.test(String(m.video_tail_policy||m.tail_policy||''))) }
 
-export function motionAutomationEnabled(project:any) { const m=motionForProject(project);return Boolean(m?.enabled && m.automation)||hasScriptSpeechBubbles(project)||hasSavedSceneExecution(project)||hasAmbientLoops(project)||hasWuxiaMouths(project) }
+export function motionAutomationEnabled(project:any) { const m=motionForProject(project);return Boolean(m?.enabled && m.automation)||hasScriptSpeechBubbles(project)||hasSavedSceneExecution(project)||isWuxiaMovingtoon(project)||hasAmbientLoops(project)||hasWuxiaMouths(project) }
 export async function registerMotionAutomation(project:any,scenes:any[],assets:any[],userId:string,resubmission=false) {
     const engineError=productionEngineError(project)
     if(engineError)throw new Error(engineError)
@@ -38,7 +38,7 @@ export async function registerMotionAutomation(project:any,scenes:any[],assets:a
     const videoPostwork=hasSubmittedVideoPostwork(project,scenes,assets)
     const postworkNumbers=new Set(videoPostwork?assets.filter(a=>originalPostworkVideo(a)&&Number(a.scene_number)>=1&&Number(a.scene_number)<=18).map(a=>Number(a.scene_number)):[])
     assertPreparationFinished(assets.filter(a=>!postworkNumbers.has(Number(a.scene_number))))
-    const motion=videoPostwork||allParallax||hasScriptSpeechBubbles(project)||hasSavedSceneExecution(project)||hasAmbientLoops(project)||hasWuxiaMouths(project)?postworkMotion(project):motionForProject(project)!
+    const motion=videoPostwork||allParallax||hasScriptSpeechBubbles(project)||hasSavedSceneExecution(project)||isWuxiaMovingtoon(project)||hasAmbientLoops(project)||hasWuxiaMouths(project)?postworkMotion(project):motionForProject(project)!
     if(allParallax)motion.edit_mode=undefined
     const horizontal=!allParallax&&horizontalWebtoon(project)
     const horizontalInputs=horizontal?webtoonInputs(project,scenes,assets):[]
@@ -66,7 +66,7 @@ export async function registerMotionAutomation(project:any,scenes:any[],assets:a
         const webtoonInput=horizontalInputs.find(item=>item.number===n)
         const webtoon=webtoonInput?readyWebtoonPlan(webtoonInput,assets):null
         const uploadedPostwork=videoPostwork&&n>=1&&n<=18?candidates.find(a=>originalPostworkVideo(a)):null
-        const source=allParallax?psds.get(n):uploadedPostwork||webtoonInput?.asset||lipSync.get(n)||selected||((hasAmbientLoops(project)||hasWuxiaMouths(project))&&!horizontal&&!effectcraft&&!filmcraft&&choice==='auto'?wuxiaStateSource(project,n):null)
+        const source=allParallax?psds.get(n):uploadedPostwork||webtoonInput?.asset||lipSync.get(n)||selected||((isWuxiaMovingtoon(project)||hasAmbientLoops(project)||hasWuxiaMouths(project))&&!horizontal&&!effectcraft&&!filmcraft&&choice==='auto'?wuxiaStateSource(project,n):null)
         if(filmcraft&&source?.asset_type==='original')throw new Error(`${n}번 씬: FilmCraft는 이미지·영상 소스를 사용합니다. PSD는 준비된 영상으로 저장한 뒤 선택해 주세요.`)
         if(!source||!storageSourceForAsset(source))throw new Error(`${n}번 씬의 이미지·영상 또는 원본 PSD가 필요합니다.`)
         const start=index===0?0:starts[index],end=starts[index+1]??total
@@ -93,7 +93,7 @@ export async function registerMotionAutomation(project:any,scenes:any[],assets:a
         const stillMouth=!allParallax&&videoPostwork&&!postwork?freezePreparedStillMouth(project,n,source,recordedRows,assets,scenes):null
         const savedBinding=horizontal||postwork?null:bindSavedSceneExecution(planned,sourceKind,start,end,preparation)
         const explicit=project.project_payload?.render_settings?.motion?.scenes?.[String(n)]
-        const wuxiaTimeline=hasAmbientLoops(project)||hasWuxiaMouths(project)?freezeWuxiaScene(project,n,recordedRows,start,end,motion.fps,source):null
+        const wuxiaTimeline=isWuxiaMovingtoon(project)||hasAmbientLoops(project)||hasWuxiaMouths(project)?freezeWuxiaScene(project,n,recordedRows,start,end,motion.fps,source):null
         if(wuxiaTimeline?.states.some((s:any)=>s.dialogue_mouths.some((m:any)=>m.audio_asset_id!==audio.id||m.audio_sha256!==audio.metadata?.sha256)))throw new Error(`${n}번 씬 입모양의 확정 음성 파일이 변경되었습니다.`)
         const ambientLoops=wuxiaTimeline?wuxiaTimeline.states.flatMap((s:any)=>s.ambient_loops):freezeAmbientLoops(project,n,source)
         if((ambientLoops.length||wuxiaTimeline)&&(sourceKind!=='image'||horizontal||effectcraft||filmcraft||postwork))throw new Error(`${n}번 씬의 보조 움직임은 PNG 원화와 기본 AE 제작 방식을 사용해 주세요.`)

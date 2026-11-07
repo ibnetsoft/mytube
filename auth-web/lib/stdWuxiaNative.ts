@@ -33,7 +33,7 @@ export function freezeWuxiaScene(project:any,number:number,rows:any[],start:numb
  })
  const samples:any[]=[],graphics:Record<string,any>={}
  for(let i=0;i<Math.ceil((end-start)*fps);i++){
-  const local=i/fps,frame=wuxiaSceneFrame(project,number,timedRows,start+local)!
+  const local=i/fps,frame=wuxiaSceneFrame(project,number,timedRows,start+local,fps)!
   const visible:any[]=[]
   for(const g of frame.graphics){
    const id=String((scene.graphics||[]).findIndex((item:any)=>item.block_id===g.block_id&&item.state_asset_id===g.state_asset_id&&item.kind===g.kind&&item.text===g.text))
@@ -46,9 +46,10 @@ export function freezeWuxiaScene(project:any,number:number,rows:any[],start:numb
    visible.push({id,...wuxiaGraphicPose(g,g.progress)})
   }
   const current=states.find((s:any)=>s.asset_id===frame.state?.asset_id)
-  samples.push({at:local,state:frame.state?.asset_id,graphics:visible,
+  if(frame.effects.issues.length)throw Error(`${number}번 씬 충격 연출 검증 실패: ${frame.effects.issues.join(', ')}`)
+  samples.push({at:local,effects:frame.effects.active.length?frame.effects:{},state:frame.state?.asset_id,graphics:visible,
    mouths:frame.mouths.map((m:any)=>({mouth:current.dialogue_mouths.indexOf(m.mouth),pose:m.pose})),
    ambient:frame.ambient.map(a=>({loop:current.ambient_loops.indexOf(a.loop),frame:a.index}))})
  }
- return {contract:hasWuxiaMouths(project)?'wuxia_native_timeline/v2':'wuxia_native_timeline/v1',states,graphics,samples}
+ return {contract:scene.effects?.length?'wuxia_native_timeline/v3':hasWuxiaMouths(project)?'wuxia_native_timeline/v2':'wuxia_native_timeline/v1',states,graphics,samples}
 }
