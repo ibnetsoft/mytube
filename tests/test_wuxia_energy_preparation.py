@@ -65,3 +65,18 @@ def test_uncertain_actual_selection_is_a_quality_note_not_absence(tmp_path,monke
  monkeypatch.setattr(w,'ROOT',tmp_path/'cache')
  result=w.prepare_state(dict(sha256=sha,gcs_bucket='qa',gcs_path='s'),{},'uncertain',lambda _,p:p.write_bytes(source.read_bytes()),lambda *_:(_ for _ in ()).throw(AssertionError('Uncertain must not publish')),runner=Runner(),generator=object())
  assert result['decision']=='uncertain' and result['quality_notes'] and result['loops']==[]
+
+def test_energy_auto_runs_without_mouth_animation(tmp_path,monkeypatch):
+ import sys
+ from worker import wuxia_mouth_preparation as m
+ from worker import wuxia_energy_preparation as e
+ sys.path.insert(0,str(Path('worker').resolve()))
+ structure={'wuxia_mouth_policy':{'enabled':False,'auto_prepare':False,'energy_auto':{'enabled':True,'auto_prepare':True}},'wuxia_ae_package':{'scenes':[{'scene_id':'S','graphics':[{'kind':'speech_bubble','state_asset_id':'A','speaker':'hero','text':'대사'}],'states':[{'asset_id':'A','sha256':'a'*64}]}]}}
+ seen=[]
+ def prepare(state,*args):
+  seen.append(state['asset_id']);return {'contract':'wuxia_energy_auto/v1','source_sha256':state['sha256'],'decision':'absent','reason':'No emitted energy','loops':[]}
+ monkeypatch.setattr(e,'prepare_state',prepare)
+ monkeypatch.setattr(m,'locate_selective_speakers',lambda *_:(_ for _ in ()).throw(AssertionError('Mouth disabled')))
+ result=m.prepare_art(structure,'qa',None,None,runner=object())
+ assert seen==['A'] and result['states'][0]['energy']['decision']=='absent'
+ assert result['states'][0]['art']==[] and result['report']['selection_complete']

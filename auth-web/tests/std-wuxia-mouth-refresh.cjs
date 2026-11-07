@@ -15,3 +15,12 @@ test('worker energy survives refresh and stale saves, and is invalidated on sour
  const stale=structuredClone(p.project_payload.structure),saved=preserveWuxiaMouthPreparation(merged,stale);assert.equal(saved.wuxia_ae_package.scenes[0].states[0].ambient_loops[0].repeat,true);
  stale.wuxia_ae_package.scenes[0].states[0].sha256='b'.repeat(64);const changed=preserveWuxiaMouthPreparation(merged,stale).wuxia_ae_package.scenes[0].states[0];assert.equal(changed.energy_preparation,undefined);assert.equal(changed.energy_only_motion,undefined);
 });
+test('energy refresh and stale-save protection work with mouth automation disabled',()=>{
+ const {p,u}=fixture(),policy={enabled:false,auto_prepare:false,energy_auto:{enabled:true,auto_prepare:true}};
+ p.project_payload.structure.wuxia_mouth_policy=policy;
+ u.states[0].energy_preparation={source_sha256:'a',decision:'absent',reason:'Actual artwork reviewed'};
+ const merged=mergeWuxiaMouthRefresh(p,u).project_payload.structure;
+ assert.equal(merged.wuxia_ae_package.scenes[0].states[0].energy_preparation.decision,'absent');
+ const saved=preserveWuxiaMouthPreparation(merged,p.project_payload.structure);
+ assert.equal(saved.wuxia_ae_package.scenes[0].states[0].energy_preparation.decision,'absent');
+});

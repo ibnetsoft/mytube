@@ -65,7 +65,9 @@ def process_one():
         # Source-keyed, visually reviewed local caches survive retries and lease recovery.
         prepared = {a['asset_id']: a['art'] for a in inp.get('prepared_art') or []}
         states = [(sc, st) for sc in source['package']['scenes'] for st in sc['states']]
-        if inp['task'] == 'timing' and all(st['asset_id'] in prepared for _, st in states):
+        energy_policy=(source.get('policy') or {}).get('energy_auto') or {}
+        if (inp['task'] == 'timing' and not (energy_policy.get('enabled') is True and energy_policy.get('auto_prepare') is True)
+                and all(st['asset_id'] in prepared for _, st in states)):
             patches = [{'scene_id':sc['scene_id'], 'asset_id':st['asset_id'], 'sha256':st['sha256'], 'art':prepared[st['asset_id']]} for sc,st in states]
             count = sum(len(p['art']) for p in patches)
             result = {'states':patches, 'report':{'state':'prepared' if count else 'not_required', 'selection_complete':True, 'eligible_count':count, 'zero_eligible_valid':True}}
@@ -112,7 +114,9 @@ def prepare_topic(topic_id, structure, store):
     """Image publication before user assignment. Missing originals wait for publication."""
     from worker.wuxia_mouth_preparation import prepare_art
     policy = structure.get('wuxia_mouth_policy') or {}
-    if policy.get('auto_prepare') is not True or policy.get('enabled') is False:
+    energy = policy.get('energy_auto') or {}
+    if not ((policy.get('auto_prepare') is True and policy.get('enabled') is not False)
+            or (energy.get('auto_prepare') is True and energy.get('enabled') is True)):
         return {'state':'disabled'}
     import ae_highlight_worker as ae
     package = structure.get('wuxia_ae_package') or {}

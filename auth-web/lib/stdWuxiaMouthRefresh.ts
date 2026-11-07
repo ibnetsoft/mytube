@@ -1,5 +1,6 @@
 import { validAmbientLoop } from './stdAmbientLoop'
 const ENERGY='wuxia_energy_auto/v1'
+function enabled(policy:any){return (policy?.auto_prepare===true&&policy?.enabled!==false)||(policy?.energy_auto?.auto_prepare===true&&policy?.energy_auto?.enabled===true)}
 function energyFields(local:any,remote:any){
  if(remote?.energy_preparation?.source_sha256!==local.sha256)return {}
  const raw=(remote.ambient_loops||[]).filter((l:any)=>l.automation===ENERGY)
@@ -12,7 +13,7 @@ function energyFields(local:any,remote:any){
 export function mergeWuxiaMouthRefresh(project:any,update:any):any {
  const p=project?.project_payload||project
  if(!update?.success||!p?.structure?.wuxia_ae_package||update.project_id!==project.id
-  ||p.structure.wuxia_mouth_policy?.auto_prepare!==true)return project
+  ||!enabled(p.structure.wuxia_mouth_policy))return project
  const voiceMatches=update.audio_id===p.subtitle_source_audio_id
  if(!voiceMatches&&!update.states?.some((s:any)=>s.energy_preparation))return project
  const pkg=p.structure.wuxia_ae_package
@@ -28,7 +29,7 @@ export function mergeWuxiaMouthRefresh(project:any,update:any):any {
 
 /** A stale editor save must not erase results published by the preparation worker. */
 export function preserveWuxiaMouthPreparation(current:any,next:any):any {
- if(current?.wuxia_mouth_policy?.auto_prepare!==true||!current?.wuxia_ae_package||!next?.wuxia_ae_package)return next
+ if(!enabled(current?.wuxia_mouth_policy)||!current?.wuxia_ae_package||!next?.wuxia_ae_package)return next
  const previous=current.wuxia_ae_package
  let unchanged=true
  const scenes=next.wuxia_ae_package.scenes.map((sc:any)=>{

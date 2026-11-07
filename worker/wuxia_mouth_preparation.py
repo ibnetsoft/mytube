@@ -175,6 +175,9 @@ def prepare_art(structure, identity, download, upload, check=lambda: None, runne
                 patch['energy']=prepare_state(state,scene,identity,download,upload,check,runner)
                 if patch['energy']['loops']:
                     continue  # Energy-only cuts keep the entire person fixed, including mouth.
+            mouth_policy=structure.get('wuxia_mouth_policy') or {}
+            if mouth_policy.get('enabled') is False or mouth_policy.get('auto_prepare') is False:
+                continue
             if state.get('energy_only_motion') is True:
                 continue
             if not graphs:

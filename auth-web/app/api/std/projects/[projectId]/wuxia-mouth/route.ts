@@ -10,7 +10,8 @@ export async function GET(req:Request,{params}:{params:{projectId:string}}) {
  const email=String(auth.requester.email||'').toLowerCase()
  if(error||!p||(!email.startsWith('admin')&&!email.startsWith('worker')&&email!==String(p.employee_email||'').toLowerCase()))return NextResponse.json({success:false},{status:404})
  const structure=p.project_payload?.structure||{},pkg=structure.wuxia_ae_package
- if(structure.wuxia_mouth_policy?.auto_prepare!==true)return NextResponse.json({success:true,states:[]})
+ const policy=structure.wuxia_mouth_policy,energy=policy?.energy_auto
+ if(!((policy?.auto_prepare===true&&policy?.enabled!==false)||(energy?.auto_prepare===true&&energy?.enabled===true)))return NextResponse.json({success:true,states:[]})
  return NextResponse.json({success:true,project_id:p.id,policy:structure.wuxia_mouth_policy,
   audio_id:p.project_payload?.subtitle_source_audio_id,report:pkg?.mouth_timing||pkg?.mouth_preparation,
   states:(pkg?.scenes||[]).flatMap((sc:any)=>(sc.states||[]).map((st:any)=>({scene_id:sc.scene_id,graphics:sc.graphics,asset_id:st.asset_id,sha256:st.sha256,ambient_loops:st.ambient_loops||[],energy_preparation:st.energy_preparation,energy_only_motion:st.energy_only_motion===true,dialogue_mouths:st.dialogue_mouths||[]})))},
