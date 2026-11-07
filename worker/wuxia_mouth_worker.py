@@ -122,10 +122,15 @@ def prepare_topic(topic_id, structure, store):
         g.get('kind')=='speech_bubble' and g.get('state_asset_id')==s.get('asset_id') for g in sc.get('graphics',[]))]
     if any(not all(s.get(k) for k in ('sha256','gcs_bucket','gcs_path')) for s in required):
         return {'state':'waiting_images'}
+    initial,_ = store.request('GET','topics_queue',params={'id':'eq.'+str(topic_id),'select':'id,status,assigned_at,assigned_employee_email','limit':1})
+    if not initial:raise RuntimeError('Topic no longer exists during mouth preparation')
+    expected_owner = initial[0].get('assigned_employee_email') or ''
     def check():
-        rows,_ = store.request('GET','topics_queue',params={'id':'eq.'+str(topic_id),'select':'id,status,assigned_at','limit':1})
+        rows,_ = store.request('GET','topics_queue',params={'id':'eq.'+str(topic_id),'select':'id,status,assigned_at,assigned_employee_email','limit':1})
         if not rows or rows[0].get('status') != 'pending' or rows[0].get('assigned_at'):
             raise RuntimeError('Topic ownership changed during mouth preparation')
+        if (rows[0].get('assigned_employee_email') or '') != expected_owner:
+            raise RuntimeError('Topic reservation owner changed during mouth preparation')
     def download(ref,path):
         check()
         ae._download_gcs_file(ae.GcsRef(ref['gcs_bucket'],ref['gcs_path']),path)
@@ -135,7 +140,7 @@ def prepare_topic(topic_id, structure, store):
         return verified_upload(ae, path, sha, bucket, key, url, check)
     result = prepare_art(structure,'topic-'+str(topic_id),download,upload,check)
     saved,_ = store.request('POST','rpc/publish_wuxia_topic_mouth_art',body={
-        'p_topic_id':topic_id,'p_expected_package':package,'p_result':result})
+        'p_topic_id':topic_id,'p_expected_package':package,'p_result':result,'p_expected_owner_email':expected_owner})
     if not saved.get('applied'):
         raise RuntimeError('Topic mouth source changed before publication')
     return result['report']
