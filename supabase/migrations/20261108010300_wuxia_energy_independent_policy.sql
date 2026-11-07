@@ -119,4 +119,3 @@ begin
 end $$;
 revoke all on function public.publish_wuxia_topic_mouth_art(bigint,jsonb,jsonb,text) from public,anon,authenticated;
 grant execute on function public.publish_wuxia_topic_mouth_art(bigint,jsonb,jsonb,text) to service_role;
-

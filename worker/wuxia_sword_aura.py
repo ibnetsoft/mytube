@@ -53,12 +53,17 @@ def prepare(source,clean_plate,spec,directory):
     strength=np.minimum.reduce((np.clip((blue-red-55)/55,0,1),np.clip((green-red-15)/40,0,1),np.clip((blue-160)/40,0,1)))
     if spec.get('energy_polygons'):
         islands=protection_mask(size,spec['energy_polygons'],guard=0)
-        if spec.get('kind')=='body':
+        emission_islands=islands
+        if spec.get('kind') in ('body','sword'):
             margin=math.ceil(spec['amplitude_px'])+8
             islands=islands.filter(ImageFilter.MaxFilter(2*margin+1)).filter(ImageFilter.GaussianBlur(2))
         allowed=ImageChops.multiply(allowed,islands)
         hi=rgb.max(axis=2);lo=rgb.min(axis=2)
         strength=np.maximum(np.minimum(np.clip((hi-150)/65,0,1),np.clip((hi-lo-25)/65,0,1)),np.clip((lo-220)/35,0,1))
+    if spec.get('energy_polygons') and spec.get('kind')=='sword':
+        # Extract only traced source energy. The wider envelope permits travel,
+        # but must never turn bright background objects into moving emission.
+        strength=strength*np.asarray(emission_islands)/255
     matte=Image.fromarray(np.uint8(strength*255)).filter(ImageFilter.GaussianBlur(1.1))
     matte=ImageChops.multiply(matte,allowed)
     if not matte.getbbox():raise ValueError('No luminous energy in the reviewed region')
@@ -75,6 +80,11 @@ def prepare(source,clean_plate,spec,directory):
         region=spec['region'],protected_regions=spec['protected_regions'],start_ms=0,end_ms=spec['end_ms'],phase_ms=0,repeat=True,sword_aura=aura,frames=[dummy,dummy])
     validate(loop);validate_contract(loop)
     yy,xx=np.mgrid[0:h,0:w];amplitude=spec['amplitude_px']
+    isolated_sword=bool(spec.get('energy_polygons') and spec.get('kind')=='sword')
+    if isolated_sword:
+        # Signed emission replacement moves light, never sampled background RGB.
+        # Keep the original as the static plate and remove/add only positive glow.
+        emission=np.maximum(rgb-np.asarray(plate).astype(float),0)*(np.asarray(matte)[:,:,None]/255)
     # Periodic, spatially varying refraction: no camera/body transform and no seam.
     frames=[]
     for i in range(16):
@@ -84,6 +94,15 @@ def prepare(source,clean_plate,spec,directory):
         sx=np.clip(np.rint(xx+dx).astype(int),0,w-1);sy=np.clip(np.rint(yy+dy).astype(int),0,h-1)
         warped=energy[sy,sx].copy();wave=.8+.2*np.sin(xx/55+yy/71-2*phase)
         warped[:,:,3]=np.uint8(warped[:,:,3]*wave*np.asarray(allowed)/255)
+        if isolated_sword:
+            delta=(emission[sy,sx]*wave[:,:,None]-emission)*(np.asarray(allowed)[:,:,None]/255)
+            value=np.uint8(np.clip(rgb+delta,0,255))
+            alpha=np.uint8(np.any(value!=np.uint8(rgb),axis=2))*255
+            patch=Image.fromarray(np.dstack((value,alpha)))
+            validate_alpha(loop,patch.getchannel('A'))
+            path=directory/f'aura-{i:02d}.png';patch.save(path)
+            frames.append({**dummy,'sha256':digest(path),'local_path':str(path.resolve())})
+            continue
         moving=Image.fromarray(warped)
         composite=cleaned.convert('RGBA');composite.alpha_composite(moving)
         alpha=ImageChops.lighter(removal,moving.getchannel('A'));alpha=ImageChops.multiply(alpha,allowed)

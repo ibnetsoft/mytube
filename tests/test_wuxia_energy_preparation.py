@@ -80,3 +80,7 @@ def test_energy_auto_runs_without_mouth_animation(tmp_path,monkeypatch):
  result=m.prepare_art(structure,'qa',None,None,runner=object())
  assert seen==['A'] and result['states'][0]['energy']['decision']=='absent'
  assert result['states'][0]['art']==[] and result['report']['selection_complete']
+
+def test_subpixel_energy_cannot_claim_readable_motion():
+ raw={'source_sha256':'a'*64,'decision':'present','reason':'Actual detached energy','regions':[{'kind':'sword','region':[.6,.3,.9,.6],'energy_polygons':[[[.6,.3],[.9,.3],[.9,.6]]],'protected_polygons':[[[.1,.1],[.4,.1],[.4,.9]]],'amplitude_px':.5,'reason':'Exterior energy'}]}
+ with __import__('pytest').raises(ValueError,match='Incomplete energy isolation'):selection(raw,'a'*64)
