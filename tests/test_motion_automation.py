@@ -101,3 +101,22 @@ def test_local_psd_preparation_supplies_native_layer_paths_and_rejects_changes(t
     assert native['layers']=={'bg':background,'person':character}
     Image.new('RGBA',(32,32),'black').save(character)
     pytest.raises(NeedsReview,native_preparation,prepared)
+
+
+def test_supervised_job_scope_keeps_normal_queue_guards(monkeypatch):
+    import ae_highlight_worker as ae
+    from motion_automation_worker import process_one
+    seen={}
+    class Empty:
+        def json(self):return []
+    def request(method,url,headers,**kwargs):
+        seen.update(kwargs['params']);return Empty()
+    monkeypatch.setattr(ae,'_supabase',lambda:('https://example.invalid',{}))
+    monkeypatch.setattr(ae,'_request',request)
+    target='91c265fe-12cf-4788-ba1d-e3eae9a3b2fe'
+    assert process_one('ae',target) is False
+    assert seen['id']=='eq.'+target
+    assert seen['metadata->>enabled']=='eq.true'
+    assert seen['workflow_project.submitted_at']=='not.is.null'
+    assert 'or' in seen and 'retry_after' in seen['and']
+    with pytest.raises(ValueError):process_one('ae','not-a-uuid')

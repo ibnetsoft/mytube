@@ -646,7 +646,9 @@ def publish_supplemental(package,job,number,ae,base,headers,fresh):
     return dict(number=number,asset_id=identity,fingerprint=package['fingerprint'],file_count=len(files),reviewed=True)
 
 
-def process_one(engine='ae'):
+def process_one(engine='ae', job_id=None):
+    # A supervised recovery can target one job without claiming another user's queue.
+    scoped_id=str(uuid.UUID(str(job_id))) if job_id is not None else None
     from worker.production_engine_policy import require_engine
     require_engine(engine)
     import worker_config
@@ -657,7 +659,7 @@ def process_one(engine='ae'):
     base,headers=ae._supabase();url=base+'/rest/v1/std_project_assets'
     from worker.workflow_roles import POSTPRODUCTION, asset_query, belongs
     kind={'webtoon':'horizontal_webtoon_automation','ae':'motion_automation','effectcraft':'effectcraft_automation','filmcraft':'filmcraft_automation'}[engine]
-    jobs=ae._request('GET',url,headers,params=asset_query(POSTPRODUCTION, {'select':'*','metadata->>kind':'eq.'+kind,'metadata->>enabled':'eq.true','or':claimable_filter(),'order':'created_at.asc','limit':1,'and':'(or(metadata->>retry_after.is.null,metadata->>retry_after.lte.'+ae._now()+'))'})).json()
+    jobs=ae._request('GET',url,headers,params=asset_query(POSTPRODUCTION, {**({'id':'eq.'+scoped_id} if scoped_id else {}),'select':'*','metadata->>kind':'eq.'+kind,'metadata->>enabled':'eq.true','or':claimable_filter(),'order':'created_at.asc','limit':1,'and':'(or(metadata->>retry_after.is.null,metadata->>retry_after.lte.'+ae._now()+'))'})).json()
     if not jobs:return False
     job=jobs[0]
     if not belongs(job,POSTPRODUCTION):return False
@@ -1084,9 +1086,9 @@ def process_one(engine='ae'):
 if __name__=='__main__':
     import worker_config
     from ae_mouth_runtime import instance_lock
-    parser=argparse.ArgumentParser();parser.add_argument('--once',action='store_true');parser.add_argument('--engine',choices=('ae','effectcraft','filmcraft','webtoon'),default='ae');args=parser.parse_args()
+    parser=argparse.ArgumentParser();parser.add_argument('--once',action='store_true');parser.add_argument('--engine',choices=('ae','effectcraft','filmcraft','webtoon'),default='ae');parser.add_argument('--job-id',type=uuid.UUID,help='Only claim this existing motion job, preserving all normal lease and ownership checks');args=parser.parse_args()
     with instance_lock(worker_config.STATE_DIR/'motion_automation_worker.lock'):
         while True:
-            worked=process_one(args.engine)
+            worked=process_one(args.engine,args.job_id)
             if args.once:break
             time.sleep(1 if worked else 10)
