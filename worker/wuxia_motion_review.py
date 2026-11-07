@@ -25,8 +25,8 @@ def review_source(runner,scene,runtime,fresh):
             results.append({**row,'source_sha256':state['sha256']})
     return {'contract':'wuxia_motion_source_review/v1','passed':all(s['passed'] for s in results),'states':results}
 TASK='''For wuxia_sword_aura_execution, when requested, compare different decoded
-phases of the SAME source state: the selected sword or body-emitted energy, in its actual source color, must visibly ripple/flow through the final visible state frame, while
-people, steel blade, grip, background geometry and lettering remain stationary.
+phases of the SAME source state: the selected sword or body-emitted energy, in its actual source color, must visibly shimmer, flicker or ripple through the final visible state frame. Traveling displacement is optional.
+People, steel blade, grip, background geometry and lettering remain stationary.
 Check protected polygon edges, detached/duplicate old wisps, clean-plate seams,
 and absence on other states. Confirm repetition beyond the first cycle and presence at the last in-state sample. Source PNGs alone or frame metadata cannot prove it.
 For wuxia_motion_fit compare the scene's planned choice with ACTUAL source and
@@ -90,6 +90,8 @@ def evidence(scene,duration,fps):
             a=visible[len(visible)//3]
             b=next((s for s in visible if s['at']>=a['at']+.2 and s['ambient']!=a['ambient']),visible[-1])
             times.update((visible[0]['at'],a['at'],b['at'],visible[-1]['at']))
+            same_phase=[s for s in visible if s['ambient']==visible[0]['ambient'] and s['at']>=visible[0]['at']+.9]
+            if same_phase:times.update((same_phase[0]['at'],same_phase[-1]['at']))
             after=next((s for s in samples if s['at']>visible[-1]['at']),None)
             if after:times.add(after['at'])
     times=sorted(min(samples[-1]['at'],max(0,at)) for at in times)
@@ -99,3 +101,35 @@ def evidence(scene,duration,fps):
         'frozen_samples':[{'at':s['at'],'state':s['state'],'motion':s['motion'],'transition':s.get('transition'),'ambient':s.get('ambient',[])} for s in selected],
         'source_states':[{'asset_id':s['asset_id'],'sha256':s['sha256'],'heat_protection_boxes':s.get('heat_protection_boxes',[]),'sword_aura':[l['sword_aura'] for l in s.get('ambient_loops',[]) if l.get('sword_aura')]} for s in t.get('states',[])],
         'proof_scope':'actual decoded samples plus source comparison; not exhaustive full-frame approval'}
+
+
+def energy_detail_sheets(scene, frames, times, directory):
+    """Actual decoded pixels at native resolution; retain full frames for protection review."""
+    from pathlib import Path
+    import hashlib
+    from PIL import Image,ImageDraw
+    timeline=scene.get('wuxia_timeline') or {};samples=timeline.get('samples') or []
+    if not samples:return []
+    groups={}
+    for frame,at in zip(frames,times):
+        sample=min(samples,key=lambda s:abs(s['at']-at))
+        state=next((s for s in timeline.get('states',[]) if s['asset_id']==sample['state']),{})
+        for index,loop in enumerate(state.get('ambient_loops',[])):
+            if not loop.get('sword_aura') or not any(a.get('loop')==index for a in sample.get('ambient',[])):continue
+            key=(state['asset_id'],index)
+            with Image.open(frame) as original:
+                w,h=original.size;box=loop['region'];pad=12
+                rect=(max(0,int(box[0]*w)-pad),max(0,int(box[1]*h)-pad),min(w,int(box[2]*w)+pad+1),min(h,int(box[3]*h)+pad+1))
+                crop=original.convert('RGB').crop(rect)
+            groups.setdefault(key,[]).append((at,crop,rect))
+    result=[]
+    for index,((state,loop),items) in enumerate(groups.items()):
+        if len(items)<2:continue
+        width=max(c.width for _,c,_ in items);height=max(c.height for _,c,_ in items)+24
+        sheet=Image.new('RGB',(width*2,height*((len(items)+1)//2)),(12,12,12));draw=ImageDraw.Draw(sheet)
+        for n,(at,crop,rect) in enumerate(items):
+            x=(n%2)*width;y=(n//2)*height;sheet.paste(crop,(x,y+24));draw.text((x+5,y+5),f'actual AE {at:.6f}s / {state}',fill='white')
+        path=Path(directory)/f'actual-energy-detail-{hashlib.sha256(state.encode()).hexdigest()[:12]}-{loop}-{items[0][0]:.6f}.png';sheet.save(path)
+        result.append({'path':str(path.resolve()),'state':state,'loop':loop,'times':[at for at,_,_ in items],
+                       'decoded_pixel_boxes':[list(r) for _,_,r in items],'method':'native-resolution crops of supplied decoded frames; no synthesized motion'})
+    return result

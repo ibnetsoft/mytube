@@ -121,3 +121,17 @@ def test_actual_output_review_captures_brief_flash_and_intentional_closing_black
   assert 'wuxia_transition_execution' in r['required_checks']
   assert any(0<t<.125 for t in r['sample_times']) if kind=='flash' else 47/24 in r['sample_times']
   assert all(s['transition']['kind']==kind for s in r['frozen_samples'])
+
+def test_energy_detail_review_uses_exact_decoded_pixels_and_stops_at_state_cut(tmp_path):
+ from PIL import Image
+ from worker.wuxia_motion_review import energy_detail_sheets
+ source=tmp_path/'decoded.png';Image.new('RGB',(200,100),(17,83,149)).save(source)
+ scene={'wuxia_timeline':{'states':[{'asset_id':'energy/a','ambient_loops':[{'sword_aura':{'source_reviewed':True},'region':[.5,.2,.8,.8]}]},{'asset_id':'plain'}],
+  'samples':[{'at':0,'state':'energy/a','ambient':[{'loop':0,'frame':0}]},{'at':1,'state':'energy/a','ambient':[{'loop':0,'frame':1}]},{'at':2,'state':'plain','ambient':[]}]}}
+ details=energy_detail_sheets(scene,[source]*3,[0,1,2],tmp_path)
+ assert len(details)==1 and details[0]['times']==[0,1]
+ assert details[0]['decoded_pixel_boxes']==[[88,8,173,93]]*2
+ with Image.open(details[0]['path']) as sheet:
+  assert sheet.getpixel((20,40))==(17,83,149)
+ assert Path(details[0]['path']).parent==tmp_path
+ assert energy_detail_sheets(scene,[source],[2],tmp_path)==[]

@@ -610,8 +610,10 @@ def review_output(runner,output,reference,voice,scene,plan,directory,fresh,previ
         if (video_postwork_enabled(scene) or scene.get('still_mouth') or scene.get('parallax_mouth')) and source_frames:
             from submitted_video_postwork import mouth_review_crops
             source_crops.extend(mouth_review_crops(scene,frames,source_frames,paired_times,directory))
+        from wuxia_motion_review import energy_detail_sheets
+        energy_details=energy_detail_sheets(scene,frames,actual_times,directory) if wuxia_evidence else []
         next_preview=(scene.get('_sequence_context') or {}).get('next_source_preview')
-        paths=[reference,*([previous] if previous else []),*frames,*source_frames,*source_crops,*([Path(f['path']) for f in package['files']] if package else [])]
+        paths=[reference,*([previous] if previous else []),*frames,*[Path(d['path']) for d in energy_details],*source_frames,*source_crops,*([Path(f['path']) for f in package['files']] if package else [])]
         context={'_local_image_paths':[str(p.resolve()) for p in paths],'image_labels':['saved scene reference (identity/style/action)',*(['previous rendered scene end'] if previous else []),*([f'actual output at {t:.6f}s' for t in paired_times] if source_frames else ['actual output samples'])],
             'plan':plan,'reviewed_depth_effects':scene.get('reviewed_depth_effects',[]),'submitted_video_postwork':scene.get('postwork'),'mouth_postwork_evidence':scene.get('_postwork_receipt'),'recorded_mouth_reuse':reuse,'recorded_mouth_pcm_verification':scene.get('_recorded_reuse_verification'),'scene_interval':{'number':scene['number'],'start':scene['start'],'end':scene['end'],'previous_scene':'actual previous end supplied' if previous else 'first scene; no predecessor',
                 'next_boundary':'reviewed on the next scene entry and final assembly; do not infer unseen next frames'},
@@ -620,6 +622,10 @@ def review_output(runner,output,reference,voice,scene,plan,directory,fresh,previ
                 'output_duration':len(out_pcm)/8000,'method':'decoded_pcm_not_listening'},'required_checks':required_checks,'speech_bubble_plan':scene.get('speech_bubble_plan'),'bubble_layout':scene.get('_bubble_layout')}
         context['webtoon_reference_crops']=[str(p) for p in source_crops]
         context['image_labels']=['saved source reference',*(['previous rendered end'] if previous else []),*([f'actual output {t:.6f}s' for t in paired_times] if paired_times else ['actual output sample']*len(frames)),*[f'actual input video {t:.6f}s' for t in paired_times],*['source/output tracked mouth or panel detail' for _ in source_crops],*(['approved supplemental asset']*len(package['files']) if package else [])]
+        context['energy_detail_sheets']=energy_details
+        if energy_details:
+            insertion=1+int(previous is not None)+len(frames)
+            context['image_labels'][insertion:insertion]=['actual energy detail sheet at native decoded resolution']*len(energy_details)
         context['purpose_policy']=scene.get('purpose_policy') or (scene.get('creative_reference') or {}).get('purpose_policy')
         context['sequence_story']=scene.get('_sequence_context')
         if next_preview:
