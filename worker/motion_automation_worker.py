@@ -683,6 +683,8 @@ def process_one(engine='ae', job_id=None):
     rows=ae._request('PATCH',url,{**headers,'Prefer':'return=representation'},params={'id':'eq.'+job['id'],'updated_at':'eq.'+job['updated_at']},json={'metadata':{**meta,'state':'processing','worker_token':token,'heartbeat_at':ae._now(),**acknowledgement},'updated_at':ae._now()}).json()
     if not rows:return False
     meta=rows[0]['metadata'];stopped=threading.Event();lost=threading.Event();lock=threading.Lock()
+    from render_input_pins import RenderInputPins
+    input_pins=RenderInputPins()
     def save(**changes):
         with lock:
             if lost.is_set():raise LeaseLost('Worker lease lost')
@@ -733,6 +735,7 @@ def process_one(engine='ae', job_id=None):
         def download(asset,name):
             bucket,key=ref(asset);suffix=Path(asset.get('file_name') or key).suffix or '.bin';target=directory/(name+suffix)
             if not target.exists():ae._download_gcs_file(ae.GcsRef(bucket,key),target)
+            input_pins.pin(target)
             expected=(asset.get('metadata') or {}).get('sha256')
             if expected and digest(target)!=expected:raise NeedsReview('Source checksum differs from submitted asset')
             receipt=target.with_suffix(target.suffix+'.sha256')
@@ -1104,7 +1107,8 @@ def process_one(engine='ae', job_id=None):
                 retry_at=(datetime.now(timezone.utc)+timedelta(seconds=min(900,30*2**min(attempts-1,5)))).isoformat()
                 save(state='queued',phase='retry_wait',technical_attempts=attempts,retry_after=retry_at,blocked_scene=meta.get('current_scene'),error=str(error)[:2200],quality_notes=snapshot.get('_quality_notes',[]) if 'snapshot' in locals() else meta.get('quality_notes',[]),progress='실행 오류 자동 복구 대기 · 기존 원본·음성·완료 씬을 보존하고 이어서 재시도합니다.')
             except Exception:pass
-    finally:stopped.set();thread.join(timeout=2)
+    finally:
+        stopped.set();thread.join(timeout=2);input_pins.close()
     return True
 
 
