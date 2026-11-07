@@ -179,9 +179,11 @@ def _render_native(prepared, directory, duration):
     afterfx, aerender = find_afterfx(), find_aerender()
     if not afterfx or not aerender:
         raise ValueError('After Effects and aerender are required on the render worker; no substitute video was generated')
-    project, native, jsx = directory / 'scene.aep', directory / 'native.avi', directory / 'scene.jsx'
+    from motion_media_storage import media_directory
+    native_directory = media_directory(directory)
+    project, native, jsx = directory / 'scene.aep', native_directory / 'native.avi', directory / 'scene.jsx'
     # A native extension may be rewritten by the installed output-module template.
-    for old in directory.glob('native.*'):
+    for old in native_directory.glob('native.*'):
         if old.suffix.lower() in ('.avi', '.mov', '.mp4', '.mxf'):
             old.unlink()
     writer = write_scene_jsx
@@ -195,10 +197,13 @@ def _render_native(prepared, directory, duration):
         # Observed AE MFR memory failure produced black bubble frames despite exit 0.
         render_args+=['-mfr','OFF','100','-mem_usage','10','70']
     ae._run_checked(render_args, timeout=1200)
-    candidates = [path for path in directory.glob('native.*')
+    candidates = [path for path in native_directory.glob('native.*')
                   if path.suffix.lower() in ('.avi', '.mov', '.mp4', '.mxf') and path.stat().st_size > 0]
     if len(candidates) != 1:
         raise ValueError('AE did not produce exactly one scene render')
+    info = _video_info(candidates[0])
+    if abs(info['duration'] - duration) > 1 / prepared.get('fps', 24) + .01:
+        raise ValueError('Native AE output does not cover the approved scene duration')
     return candidates[0]
 
 
