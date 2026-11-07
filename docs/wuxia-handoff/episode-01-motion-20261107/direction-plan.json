@@ -1,0 +1,158 @@
+[
+  {
+    "scene": 1,
+    "image_effect": "pan_right",
+    "transition_effect": "dissolve",
+    "reason": "산문에서 나오는 일행과 짐꾼을 좌→우로 읽는 도입"
+  },
+  {
+    "scene": 2,
+    "image_effect": "none",
+    "transition_effect": "none",
+    "reason": "장부·동전과 두 화자의 대사를 고정 구도로 읽음"
+  },
+  {
+    "scene": 3,
+    "image_effect": "zoom_out",
+    "transition_effect": "wipe_right",
+    "reason": "골목의 동료 관계를 넓혀 보여 주며 공간을 바꿈"
+  },
+  {
+    "scene": 4,
+    "image_effect": "none",
+    "transition_effect": "dissolve",
+    "reason": "밤으로 시간 경과; 보폭·손·발이 잘리지 않도록 고정"
+  },
+  {
+    "scene": 5,
+    "image_effect": "none",
+    "transition_effect": "none",
+    "reason": "사흘 뒤 아침 모집 장면으로 명확한 하드 컷"
+  },
+  {
+    "scene": 6,
+    "image_effect": "pan_left",
+    "transition_effect": "wipe_up",
+    "reason": "오르막 산길의 전진과 일행 간 간격을 읽음"
+  },
+  {
+    "scene": 7,
+    "image_effect": "pan_down",
+    "transition_effect": "none",
+    "reason": "벽화의 위쪽에서 아래쪽으로 시선을 내리며 상단 말풍선 보호"
+  },
+  {
+    "scene": 8,
+    "image_effect": "none+heat",
+    "transition_effect": "none",
+    "reason": "실제 횃불이 가까운 손 접사 상태에만 상단 열기; 손·끈은 고정"
+  },
+  {
+    "scene": 9,
+    "image_effect": "zoom_in",
+    "transition_effect": "none",
+    "reason": "제단의 봉함과 우두머리 석상으로 주의를 모음"
+  },
+  {
+    "scene": 10,
+    "image_effect": "none",
+    "transition_effect": "flash",
+    "reason": "봉인 발동과 긴박한 전환; 손 짚는 자세는 고정"
+  },
+  {
+    "scene": 11,
+    "image_effect": "none",
+    "transition_effect": "none",
+    "reason": "기존 실제 타격 앵커의 10Hz 흔들림을 보존"
+  },
+  {
+    "scene": 12,
+    "image_effect": "none",
+    "transition_effect": "none",
+    "reason": "격한 움직임에서 관찰자로 하드 컷해 시선을 고정"
+  },
+  {
+    "scene": 13,
+    "image_effect": "none",
+    "transition_effect": "none",
+    "reason": "경고 대사와 상대의 반응을 빠른 컷으로 연결"
+  },
+  {
+    "scene": 14,
+    "image_effect": "none",
+    "transition_effect": "flash",
+    "reason": "무너진 측벽의 충돌 결과로 진입; 기존 충격 연출 보존"
+  },
+  {
+    "scene": 15,
+    "image_effect": "none",
+    "transition_effect": "none",
+    "reason": "깔린 다리·손·옷깃 대치와 대사를 고정으로 읽음"
+  },
+  {
+    "scene": 16,
+    "image_effect": "none",
+    "transition_effect": "wipe_left",
+    "reason": "도망치는 무사들에서 닫힌 철문·걸쇠로 공간 전환"
+  },
+  {
+    "scene": 17,
+    "image_effect": "none",
+    "transition_effect": "none",
+    "reason": "철문이 닫힌 뒤 중앙 석실의 갑작스러운 정적을 하드 컷으로 대비"
+  },
+  {
+    "scene": 18,
+    "image_effect": "none",
+    "transition_effect": "none",
+    "reason": "구조 결심과 손·지게·동료의 위치를 고정으로 읽음"
+  },
+  {
+    "scene": 19,
+    "image_effect": "none",
+    "transition_effect": "none",
+    "reason": "수레와 돌검의 실제 충돌 및 기존 흔들림을 보존"
+  },
+  {
+    "scene": 20,
+    "image_effect": "none",
+    "transition_effect": "snap_shake",
+    "reason": "직전 수레 충돌 뒤 피격·낙하 결과 컷의 짧은 충격 잔여"
+  },
+  {
+    "scene": 21,
+    "image_effect": "none",
+    "transition_effect": "wipe_up",
+    "reason": "바닥에서 석상 관절·발끝으로 관찰 시선 상승"
+  },
+  {
+    "scene": 22,
+    "image_effect": "none",
+    "transition_effect": "punch",
+    "reason": "눈 접사와 첫 접속의 깨달음을 짧게 강조"
+  },
+  {
+    "scene": 23,
+    "image_effect": "none",
+    "transition_effect": "none",
+    "reason": "실패한 손목 접촉을 읽도록 하드 컷과 손 형태 유지"
+  },
+  {
+    "scene": 24,
+    "image_effect": "none",
+    "transition_effect": "none",
+    "reason": "피격 이후 호흡과 타이밍 계산은 하드 컷으로 이어 가독 시간 유지"
+  },
+  {
+    "scene": 25,
+    "image_effect": "none",
+    "transition_effect": "wipe_down",
+    "reason": "공격 유도 시선이 내려가 바닥·단도·발을 읽음"
+  },
+  {
+    "scene": 26,
+    "image_effect": "none",
+    "transition_effect": "fade_out",
+    "reason": "접촉 직전의 클리프행어를 암전으로 마감"
+  }
+]
