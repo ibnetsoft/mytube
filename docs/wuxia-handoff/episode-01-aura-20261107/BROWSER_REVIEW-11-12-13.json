@@ -1,0 +1,871 @@
+{
+  "passed": true,
+  "scope": "real web component with SHA-verified current episode sources, canonical saved voice clock and candidate direction; separate from live registration and AE output",
+  "frames": [
+    {
+      "scene": 11,
+      "at": 0,
+      "state": "E01_S11_STATE_01",
+      "graphics": [
+        "돌덩이 따위가! 물러서라!"
+      ],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 11,
+      "at": 0.08333333333333333,
+      "state": "E01_S11_STATE_01",
+      "graphics": [
+        "돌덩이 따위가! 물러서라!"
+      ],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 11,
+      "at": 0.125,
+      "state": "E01_S11_STATE_01",
+      "graphics": [
+        "돌덩이 따위가! 물러서라!"
+      ],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 11,
+      "at": 0.16666666666666666,
+      "state": "E01_S11_STATE_01",
+      "graphics": [
+        "돌덩이 따위가! 물러서라!"
+      ],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 11,
+      "at": 0.20833333333333334,
+      "state": "E01_S11_STATE_01",
+      "graphics": [
+        "돌덩이 따위가! 물러서라!"
+      ],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 11,
+      "at": 0.25,
+      "state": "E01_S11_STATE_01",
+      "graphics": [
+        "돌덩이 따위가! 물러서라!"
+      ],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 11,
+      "at": 0.3333333333333333,
+      "state": "E01_S11_STATE_01",
+      "graphics": [
+        "돌덩이 따위가! 물러서라!"
+      ],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 11,
+      "at": 0.375,
+      "state": "E01_S11_STATE_01",
+      "graphics": [
+        "돌덩이 따위가! 물러서라!"
+      ],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 11,
+      "at": 0.4583333333333333,
+      "state": "E01_S11_STATE_01",
+      "graphics": [
+        "돌덩이 따위가! 물러서라!"
+      ],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 11,
+      "at": 0.5,
+      "state": "E01_S11_STATE_01",
+      "graphics": [
+        "돌덩이 따위가! 물러서라!"
+      ],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 11,
+      "at": 0.5416666666666666,
+      "state": "E01_S11_STATE_01",
+      "graphics": [
+        "돌덩이 따위가! 물러서라!"
+      ],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 11,
+      "at": 0.625,
+      "state": "E01_S11_STATE_01",
+      "graphics": [
+        "돌덩이 따위가! 물러서라!"
+      ],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 11,
+      "at": 0.6666666666666666,
+      "state": "E01_S11_STATE_01",
+      "graphics": [
+        "돌덩이 따위가! 물러서라!"
+      ],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 11,
+      "at": 0.75,
+      "state": "E01_S11_STATE_01",
+      "graphics": [
+        "돌덩이 따위가! 물러서라!"
+      ],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 11,
+      "at": 0.7916666666666666,
+      "state": "E01_S11_STATE_01",
+      "graphics": [
+        "돌덩이 따위가! 물러서라!"
+      ],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 11,
+      "at": 0.875,
+      "state": "E01_S11_STATE_01",
+      "graphics": [
+        "돌덩이 따위가! 물러서라!"
+      ],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 11,
+      "at": 0.9166666666666666,
+      "state": "E01_S11_STATE_01",
+      "graphics": [
+        "돌덩이 따위가! 물러서라!"
+      ],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 11,
+      "at": 1,
+      "state": "E01_S11_STATE_01",
+      "graphics": [
+        "돌덩이 따위가! 물러서라!"
+      ],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 11,
+      "at": 2.1666666666666665,
+      "state": "E01_S11_STATE_01_ACTING_01",
+      "graphics": [],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 11,
+      "at": 2.25,
+      "state": "E01_S11_STATE_01_ACTING_01",
+      "graphics": [],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 11,
+      "at": 2.2916666666666665,
+      "state": "E01_S11_STATE_01_ACTING_01",
+      "graphics": [],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 11,
+      "at": 2.3333333333333335,
+      "state": "E01_S11_STATE_01_ACTING_01",
+      "graphics": [],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 11,
+      "at": 2.375,
+      "state": "E01_S11_STATE_01_ACTING_01",
+      "graphics": [],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 11,
+      "at": 2.4166666666666665,
+      "state": "E01_S11_STATE_01_ACTING_01",
+      "graphics": [],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 11,
+      "at": 2.5,
+      "state": "E01_S11_STATE_01_ACTING_01",
+      "graphics": [],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 11,
+      "at": 2.5416666666666665,
+      "state": "E01_S11_STATE_01_ACTING_01",
+      "graphics": [],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 11,
+      "at": 2.5833333333333335,
+      "state": "E01_S11_STATE_01_ACTING_01",
+      "graphics": [],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 11,
+      "at": 2.6666666666666665,
+      "state": "E01_S11_STATE_01_ACTING_01",
+      "graphics": [],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 11,
+      "at": 2.7083333333333335,
+      "state": "E01_S11_STATE_01_ACTING_01",
+      "graphics": [],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 11,
+      "at": 2.7916666666666665,
+      "state": "E01_S11_STATE_01_ACTING_01",
+      "graphics": [],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 11,
+      "at": 2.8333333333333335,
+      "state": "E01_S11_STATE_01_ACTING_01",
+      "graphics": [],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 11,
+      "at": 2.9166666666666665,
+      "state": "E01_S11_STATE_01_ACTING_01",
+      "graphics": [],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 11,
+      "at": 2.9583333333333335,
+      "state": "E01_S11_STATE_01_ACTING_01",
+      "graphics": [],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 11,
+      "at": 3,
+      "state": "E01_S11_STATE_01_ACTING_01",
+      "graphics": [],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 11,
+      "at": 3.0833333333333335,
+      "state": "E01_S11_STATE_01_ACTING_01",
+      "graphics": [],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 11,
+      "at": 6.666666666666667,
+      "state": "E01_S11_STATE_02",
+      "graphics": [],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 11,
+      "at": 13.583333333333334,
+      "state": "E01_S11_STATE_03",
+      "graphics": [],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 11,
+      "at": 15.708333333333334,
+      "state": "E01_S11_STATE_03",
+      "graphics": [
+        "왜 잡아당겨!"
+      ],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 11,
+      "at": 17.333333333333332,
+      "state": "E01_S11_STATE_03",
+      "graphics": [
+        "쾅!!"
+      ],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 11,
+      "at": 22.916666666666668,
+      "state": "E01_S11_STATE_03",
+      "graphics": [],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 11,
+      "at": 23.083333333333332,
+      "state": "E01_S11_STATE_03",
+      "graphics": [],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 12,
+      "at": 0,
+      "state": "E01_S12_STATE_01",
+      "graphics": [],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 12,
+      "at": 0.16666666666666666,
+      "state": "E01_S12_STATE_01",
+      "graphics": [],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 12,
+      "at": 0.5,
+      "state": "E01_S12_STATE_01",
+      "graphics": [],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 12,
+      "at": 1,
+      "state": "E01_S12_STATE_01",
+      "graphics": [],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 12,
+      "at": 3.4583333333333335,
+      "state": "E01_S12_STATE_01_ACTING_01",
+      "graphics": [],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 12,
+      "at": 7.75,
+      "state": "E01_S12_STATE_02",
+      "graphics": [],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 12,
+      "at": 7.833333333333333,
+      "state": "E01_S12_STATE_02",
+      "graphics": [],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 12,
+      "at": 7.875,
+      "state": "E01_S12_STATE_02",
+      "graphics": [],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 12,
+      "at": 7.916666666666667,
+      "state": "E01_S12_STATE_02",
+      "graphics": [],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 12,
+      "at": 7.958333333333333,
+      "state": "E01_S12_STATE_02",
+      "graphics": [],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 12,
+      "at": 8,
+      "state": "E01_S12_STATE_02",
+      "graphics": [],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 12,
+      "at": 8.041666666666666,
+      "state": "E01_S12_STATE_02",
+      "graphics": [],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 12,
+      "at": 8.125,
+      "state": "E01_S12_STATE_02",
+      "graphics": [],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 12,
+      "at": 8.166666666666666,
+      "state": "E01_S12_STATE_02",
+      "graphics": [],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 12,
+      "at": 8.25,
+      "state": "E01_S12_STATE_02",
+      "graphics": [],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 12,
+      "at": 8.291666666666666,
+      "state": "E01_S12_STATE_02",
+      "graphics": [],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 12,
+      "at": 8.375,
+      "state": "E01_S12_STATE_02",
+      "graphics": [],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 12,
+      "at": 8.416666666666666,
+      "state": "E01_S12_STATE_02",
+      "graphics": [],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 12,
+      "at": 8.5,
+      "state": "E01_S12_STATE_02",
+      "graphics": [],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 12,
+      "at": 8.541666666666666,
+      "state": "E01_S12_STATE_02",
+      "graphics": [],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 12,
+      "at": 8.583333333333334,
+      "state": "E01_S12_STATE_02",
+      "graphics": [],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 12,
+      "at": 8.666666666666666,
+      "state": "E01_S12_STATE_02",
+      "graphics": [],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 12,
+      "at": 17.125,
+      "state": "E01_S12_STATE_03",
+      "graphics": [],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 12,
+      "at": 24.75,
+      "state": "E01_S12_STATE_03",
+      "graphics": [],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 12,
+      "at": 24.916666666666668,
+      "state": "E01_S12_STATE_03",
+      "graphics": [],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 13,
+      "at": 0,
+      "state": "E01_S13_STATE_01",
+      "graphics": [
+        "내공을 거두세요! 기운을 쓸수록 그쪽으로 몰립니다!"
+      ],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 13,
+      "at": 0.16666666666666666,
+      "state": "E01_S13_STATE_01",
+      "graphics": [
+        "내공을 거두세요! 기운을 쓸수록 그쪽으로 몰립니다!"
+      ],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 13,
+      "at": 0.5,
+      "state": "E01_S13_STATE_01",
+      "graphics": [
+        "내공을 거두세요! 기운을 쓸수록 그쪽으로 몰립니다!"
+      ],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 13,
+      "at": 1,
+      "state": "E01_S13_STATE_01",
+      "graphics": [
+        "내공을 거두세요! 기운을 쓸수록 그쪽으로 몰립니다!"
+      ],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 13,
+      "at": 1.5416666666666667,
+      "state": "E01_S13_STATE_01_ACTING_01",
+      "graphics": [
+        "내공을 거두세요! 기운을 쓸수록 그쪽으로 몰립니다!"
+      ],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 13,
+      "at": 3.6666666666666665,
+      "state": "E01_S13_STATE_01",
+      "graphics": [
+        "내공을 거두세요! 기운을 쓸수록 그쪽으로 몰립니다!"
+      ],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 13,
+      "at": 3.75,
+      "state": "E01_S13_STATE_02",
+      "graphics": [
+        "닥쳐! 네가 무공을 알아?"
+      ],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 13,
+      "at": 3.7916666666666665,
+      "state": "E01_S13_STATE_02",
+      "graphics": [
+        "닥쳐! 네가 무공을 알아?"
+      ],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 13,
+      "at": 3.875,
+      "state": "E01_S13_STATE_02",
+      "graphics": [
+        "닥쳐! 네가 무공을 알아?"
+      ],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 13,
+      "at": 3.9166666666666665,
+      "state": "E01_S13_STATE_02",
+      "graphics": [
+        "닥쳐! 네가 무공을 알아?"
+      ],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 13,
+      "at": 4,
+      "state": "E01_S13_STATE_02",
+      "graphics": [
+        "닥쳐! 네가 무공을 알아?"
+      ],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 13,
+      "at": 4.041666666666667,
+      "state": "E01_S13_STATE_02",
+      "graphics": [
+        "닥쳐! 네가 무공을 알아?"
+      ],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 13,
+      "at": 4.083333333333333,
+      "state": "E01_S13_STATE_02",
+      "graphics": [
+        "닥쳐! 네가 무공을 알아?"
+      ],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 13,
+      "at": 4.166666666666667,
+      "state": "E01_S13_STATE_02",
+      "graphics": [
+        "닥쳐! 네가 무공을 알아?"
+      ],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 13,
+      "at": 4.208333333333333,
+      "state": "E01_S13_STATE_02",
+      "graphics": [
+        "닥쳐! 네가 무공을 알아?"
+      ],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 13,
+      "at": 4.291666666666667,
+      "state": "E01_S13_STATE_02",
+      "graphics": [
+        "닥쳐! 네가 무공을 알아?"
+      ],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 13,
+      "at": 4.333333333333333,
+      "state": "E01_S13_STATE_02",
+      "graphics": [
+        "닥쳐! 네가 무공을 알아?"
+      ],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 13,
+      "at": 4.416666666666667,
+      "state": "E01_S13_STATE_02",
+      "graphics": [
+        "닥쳐! 네가 무공을 알아?"
+      ],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 13,
+      "at": 4.458333333333333,
+      "state": "E01_S13_STATE_02",
+      "graphics": [
+        "닥쳐! 네가 무공을 알아?"
+      ],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 13,
+      "at": 4.5,
+      "state": "E01_S13_STATE_02",
+      "graphics": [
+        "닥쳐! 네가 무공을 알아?"
+      ],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 13,
+      "at": 4.583333333333333,
+      "state": "E01_S13_STATE_02",
+      "graphics": [
+        "닥쳐! 네가 무공을 알아?"
+      ],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 13,
+      "at": 4.625,
+      "state": "E01_S13_STATE_02",
+      "graphics": [
+        "닥쳐! 네가 무공을 알아?"
+      ],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 13,
+      "at": 13.416666666666666,
+      "state": "E01_S13_STATE_03",
+      "graphics": [],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 13,
+      "at": 18.291666666666668,
+      "state": "E01_S13_STATE_03",
+      "graphics": [
+        "안 돼…"
+      ],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 13,
+      "at": 20.208333333333332,
+      "state": "E01_S13_STATE_03",
+      "graphics": [
+        "안 돼…"
+      ],
+      "camera": {},
+      "transition": "none"
+    },
+    {
+      "scene": 13,
+      "at": 20.375,
+      "state": "E01_S13_STATE_03",
+      "graphics": [
+        "안 돼…"
+      ],
+      "camera": {},
+      "transition": "none"
+    }
+  ],
+  "aura": [
+    {
+      "state": "E01_S11_STATE_01",
+      "a": 0.7083333333333334,
+      "b": 0.9166666666666666,
+      "patch_phases_differ": true,
+      "identical_graphic_and_mouth_poses": true,
+      "outside_aura_changed_pixels": 0,
+      "inside_aura_changed_pixels": 5994
+    },
+    {
+      "state": "E01_S11_STATE_01_ACTING_01",
+      "a": 3.5833333333333335,
+      "b": 3.7916666666666665,
+      "patch_phases_differ": true,
+      "identical_graphic_and_mouth_poses": true,
+      "outside_aura_changed_pixels": 0,
+      "inside_aura_changed_pixels": 4445
+    },
+    {
+      "state": "E01_S12_STATE_02",
+      "a": 10.791666666666666,
+      "b": 11,
+      "patch_phases_differ": true,
+      "identical_graphic_and_mouth_poses": true,
+      "outside_aura_changed_pixels": 0,
+      "inside_aura_changed_pixels": 1202
+    },
+    {
+      "state": "E01_S13_STATE_02",
+      "a": 6.916666666666667,
+      "b": 7.125,
+      "patch_phases_differ": true,
+      "identical_graphic_and_mouth_poses": true,
+      "outside_aura_changed_pixels": 0,
+      "inside_aura_changed_pixels": 43486
+    }
+  ],
+  "page_errors": []
+}

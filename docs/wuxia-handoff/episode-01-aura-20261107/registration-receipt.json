@@ -1,0 +1,12 @@
+{
+  "result": {
+    "job_id": "61ee2c8e-4d85-4523-ba24-30b77b2bfc45",
+    "run_id": "6c1274f0-5186-4658-bc4a-6611973568e5",
+    "submitted_at": "2026-11-07T14:40:49.521314+00:00",
+    "submission_id": "cdbff6ab-9ef7-4f1d-b1d0-98a3f12d2039"
+  },
+  "fingerprint": "d5e0ff9eb0e945f7186b62f69de7e2b39c819b7293a6549c289d13cc2c789790",
+  "snapshot_bytes": 3888316,
+  "script_subtitle_voice_unchanged": true,
+  "scene_effect_readback": 26
+}
