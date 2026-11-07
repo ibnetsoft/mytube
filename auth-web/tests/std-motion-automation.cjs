@@ -7,6 +7,7 @@ function fixture(mode='ae_only', alternativesEnabled=false) {
  if(name.includes('stdAmbientLoop'))return require('./load-ts-module.cjs')('lib/stdAmbientLoop.ts');
  if(name.includes('stdWuxiaPresentation'))return require('./load-ts-module.cjs')('lib/stdWuxiaPresentation.ts');
  if(name.includes('stdWuxiaNative'))return require('./load-ts-module.cjs')('lib/stdWuxiaNative.ts');
+ if(name.includes('stdWuxiaMouth'))return require('./load-ts-module.cjs')('lib/stdWuxiaMouth.ts');
  if(name.includes('stdProductionEnginePolicy'))return alternativesEnabled?{productionEngineError:()=>null}:require('./load-ts-module.cjs')('lib/stdProductionEnginePolicy.ts');
   if(name.includes('stdSavedSceneExecution'))return require('./load-ts-module.cjs')('lib/stdSavedSceneExecution.ts')
   if(name.includes('stdSubmittedVideoPostwork'))return require('./load-ts-module.cjs')('lib/stdSubmittedVideoPostwork.ts')

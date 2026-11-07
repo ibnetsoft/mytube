@@ -1,4 +1,5 @@
 import { ambientFrameIndex, ambientLoopsForState } from './stdAmbientLoop'
+import { mouthMatchesRecording, wuxiaMouthFrame, stateMouths } from './stdWuxiaMouth'
 /** Wuxia voice rows are speech input, never the on-screen caption track. */
 export function isWuxiaMovingtoon(project: any): boolean {
     const p = project?.project_payload || project || {}, s = p.structure || {}
@@ -83,5 +84,7 @@ export function wuxiaSceneFrame(project: any, number: number, rows: any[], secon
         return index === null ? [] : [{ loop, index, frame: loop.frames[index] }]
     })
     const ambientSources = (scene.states || []).flatMap((item: any) => ambientLoopsForState(item).filter(loop => loop.enabled).flatMap(loop => loop.frames.map(f=>({...f,region:loop.region,width:loop.width,height:loop.height}))))
-    return { state, graphics, fraction, ambient, ambientSources, sources: (scene.states || []).map((item: any) => String(item.media_url || item.image_url || '')).filter(Boolean), timingBasis: 'subtitle_row_bound_or_authored_preview' }
+    const mouths=wuxiaMouthFrame(state,graphics,project,rows,seconds)
+    const mouthSources=(scene.states||[]).flatMap((item:any)=>stateMouths(item).filter((m:any)=>m?.enabled&&m.source_sha256===item.sha256&&mouthMatchesRecording(m,project,rows)).flatMap((m:any)=>Object.values(m.poses).map((f:any)=>({...f,region:m.mouth_box,width:m.width,height:m.height}))))
+    return { state, graphics, fraction, ambient, ambientSources, mouths, mouthSources, sources: (scene.states || []).map((item: any) => String(item.media_url || item.image_url || '')).filter(Boolean), timingBasis: 'subtitle_row_bound_or_authored_preview' }
 }

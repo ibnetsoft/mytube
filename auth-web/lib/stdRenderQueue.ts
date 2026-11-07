@@ -1,5 +1,6 @@
 import { correctedWuxiaPackage, isWuxiaMovingtoon, usesStandardSubtitles } from './stdWuxiaPresentation'
 import { hasAmbientLoops } from './stdAmbientLoop'
+import { hasWuxiaMouths } from './stdWuxiaMouth'
 import { productionEngineError } from './stdProductionEnginePolicy'
 import { assetMatchesContentRevision, projectContentIdentity, selectNarrationAsset, assertNarrationIdentity, renderAssetIdentity, assetContentIdentity, persistContentRevision, finalizeRecordedRenderConfig } from './stdContentIdentity'
 import { isNonverbalProject, hasReadyNonverbalPlan, nonverbalStructure } from './stdNonverbal'
@@ -945,7 +946,7 @@ async function buildGcsRenderConfig(project: any, scenes: any[], assets: any[], 
 
 export async function enqueueStdProjectRender(projectId: string, automatic?: { jobId: string; taskId: string }) {
     const { project, scenes, assets } = (automatic && await frozenRenderBundle(projectId, automatic.jobId)) || await loadBundle(projectId)
-    if(hasAmbientLoops(project))throw new Error('보조 움직임은 통합워커의 AE 제출 경로에서 제작해 주세요. 일반 슬라이드 렌더로 생략하지 않습니다.')
+    if(hasAmbientLoops(project)||hasWuxiaMouths(project))throw new Error('보조 움직임·입모양은 통합워커의 AE 제출 경로에서 제작해 주세요. 일반 슬라이드 렌더로 생략하지 않습니다.')
     const engineError=productionEngineError(project)
     if(engineError)throw new Error(engineError)
     if (!project.topic_queue_id) throw new Error('Project has no topic_queue_id')

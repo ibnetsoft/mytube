@@ -35,7 +35,7 @@ export default function StdWuxiaScenePreview({ project, sceneNumber, subtitles, 
     // leave the previous state visible over the next spoken segment.
     const sourcesKey = JSON.stringify(frame?.sources || [])
     const [images, setImages] = useState<Record<string, string>>({})
-    const ambientKey = JSON.stringify(frame?.ambientSources || [])
+    const ambientKey = JSON.stringify([...(frame?.ambientSources || []),...(frame?.mouthSources || [])])
     const [patches, setPatches] = useState<Record<string, string>>({})
     useEffect(() => {
         const sources = JSON.parse(ambientKey) as { media_url: string; sha256: string; region: number[]; width: number; height: number }[]
@@ -84,6 +84,9 @@ export default function StdWuxiaScenePreview({ project, sceneNumber, subtitles, 
         {images[source] && <img src={images[source]} alt="" className="absolute inset-0 h-full w-full object-cover" />}
         {images[source] && frame.ambient.map(({ loop, index, frame: patch }, i) => patches[`${patch.sha256}:${loop.region.join(',')}`] &&
             <img key={i} src={patches[`${patch.sha256}:${loop.region.join(',')}`]} alt="" data-ambient-frame={index} data-ambient-clock="editor"
+                className="absolute inset-0 h-full w-full object-cover" />)}
+        {images[source] && frame.mouths.map(({ mouth, pose, frame: patch }:any,i:number)=>patches[`${patch.sha256}:${mouth.mouth_box.join(',')}`]&&
+            <img key={`mouth-${i}`} src={patches[`${patch.sha256}:${mouth.mouth_box.join(',')}`]} alt="" data-wuxia-mouth-pose={pose} data-wuxia-mouth-speaker={mouth.speaker}
                 className="absolute inset-0 h-full w-full object-cover" />)}
         {(!source || images[source]) && <StdWuxiaGraphics graphics={frame.graphics} animate={playing} />}
     </div>

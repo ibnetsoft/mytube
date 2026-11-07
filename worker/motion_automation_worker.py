@@ -397,7 +397,7 @@ def render_base(snapshot,scene,plan,source,preview,runner,directory,fresh):
             from wuxia_native_timeline import prepare as prepare_wuxia
             from ae_scene_production import _download
             def download_wuxia(frame,path):_download(frame['gcs_bucket'],frame['gcs_path'],path)
-            prepared['plan']['wuxia_runtime']=prepare_wuxia(scene['wuxia_timeline'],directory/'wuxia',fresh,download_wuxia,duration,snapshot['motion']['fps'])
+            prepared['plan']['wuxia_runtime']=prepare_wuxia(scene['wuxia_timeline'],directory/'wuxia',fresh,download_wuxia,duration,snapshot['motion']['fps'],snapshot.get('audio'))
             runtime=prepared['plan']['wuxia_runtime']
             prepared['plan']['width'],prepared['plan']['height']=runtime['size']
             prepared['layers']['original']=Path(runtime['states'][0]['file'])

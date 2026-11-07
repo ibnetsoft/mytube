@@ -4,8 +4,9 @@ from pathlib import Path
 from PIL import Image
 from ambient_loop import digest,prepare_runtime,frame_index
 
-def prepare(timeline,directory,fresh,download,duration,fps):
- if timeline.get('contract')!='wuxia_native_timeline/v1':raise ValueError('Invalid wuxia timeline')
+def prepare(timeline,directory,fresh,download,duration,fps,audio=None):
+ if timeline.get('contract') not in ('wuxia_native_timeline/v1','wuxia_native_timeline/v2'):raise ValueError('Invalid wuxia timeline')
+ if any(s.get('dialogue_mouths') for s in timeline.get('states',[])) and timeline['contract']!='wuxia_native_timeline/v2':raise ValueError('Mouth patches require the updated native timeline contract')
  result=copy.deepcopy(timeline);directory=Path(directory);directory.mkdir(parents=True,exist_ok=True)
  states=result.get('states') or [];samples=result.get('samples') or []
  if not 1<=len(states)<=100 or len(samples)!=__import__('math').ceil(duration*fps):raise ValueError('Wuxia schedule does not match finalized timing')
@@ -24,6 +25,8 @@ def prepare(timeline,directory,fresh,download,duration,fps):
    size=image.size
   state['file']=str(path.resolve())
   state['ambient_runtime']=prepare_runtime(path,state.get('ambient_loops',[]),directory/'ambient',fresh,download)
+  from wuxia_mouth import prepare as prepare_mouths
+  state['mouth_runtime']=prepare_mouths(path,state.get('dialogue_mouths',[]),directory/'mouths',fresh,download,audio)
  result['size']=list(size)
  return result
 
@@ -46,6 +49,17 @@ def jsx(timeline,duration,fps):
      if current is not None:frame_keys[current].append([sample['at'],100])
      previous=current
    patches.extend({'file':file,'keys':k} for file,k in zip(loop['files'],frame_keys))
+  for mouth_id,mouth in enumerate(state.get('mouth_runtime',[])):
+   pose_keys={p:[] for p in ('closed','half','open')};previous=None
+   for sample in timeline['samples']:
+    visible=next((m for m in sample.get('mouths',[]) if m['mouth']==mouth_id),None)
+    current=visible['pose'] if sample['state']==state['asset_id'] and visible else None
+    if current is not None and current not in pose_keys:raise ValueError('Invalid frozen mouth pose')
+    if current!=previous:
+     if previous is not None:pose_keys[previous].append([sample['at'],0])
+     if current is not None:pose_keys[current].append([sample['at'],100])
+     previous=current
+   patches.extend({'file':mouth['files'][p],'keys':k} for p,k in pose_keys.items())
   states.append({'file':state['file'],'keys':keys,'patches':patches})
  graphics=[]
  for identity,g in timeline['graphics'].items():
