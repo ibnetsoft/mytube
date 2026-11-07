@@ -192,9 +192,9 @@
       "submitted_at": "2026-11-07T08:27:54.692992+00:00",
       "submission_id": "000fd4b4-9544-4cb3-b0db-08af50666ac8",
       "previous_job_id": "a05142f9-e6f6-4a94-b3c1-fd3188bd97e1",
-      "state": "awaiting_worker_update",
-      "enabled": false,
-      "render_complete": false,
+      "state": "complete",
+      "enabled": true,
+      "render_complete": true,
       "final_audio_unchanged": true,
       "effects": [
         {
@@ -212,7 +212,27 @@
           "frames": 48,
           "seconds": 2
         }
-      ]
+      ],
+      "final": {
+        "sha256": "2a0e75afd31a651e13d0f1f417748251a3d4ce03662d08b359659a10c478494c",
+        "asset_id": "0e5a0eaf-e3ac-5dbf-b0f0-b90bba918f39",
+        "gcs_path": "std-motion/91c265fe-12cf-4788-ba1d-e3eae9a3b2fe/final/2a0e75afd31a651e13d0f1f417748251a3d4ce03662d08b359659a10c478494c.mp4",
+        "gcs_bucket": "air-studio-prod",
+        "review_path": "std-motion/91c265fe-12cf-4788-ba1d-e3eae9a3b2fe/final/2a0e75afd31a651e13d0f1f417748251a3d4ce03662d08b359659a10c478494c-review.json",
+        "review_bucket": "air-studio-prod",
+        "render_queue_id": "0e5a0eaf-e3ac-5dbf-b0f0-b90bba918f39"
+      },
+      "actual_motion_verified": true,
+      "clock": {
+        "fps": 24.0,
+        "width": 1920,
+        "frames": 14393,
+        "height": 1080,
+        "duration": 599.7083333333334,
+        "verified": true,
+        "expected_frames": 14393
+      },
+      "review_status": "completed_with_notes"
     },
     {
       "project_id": "3d4b5aa9-4b3d-44c9-b6b1-eefa96219a39",
@@ -221,9 +241,9 @@
       "submitted_at": "2026-11-07T08:28:04.603604+00:00",
       "submission_id": "a1a7e99f-f51d-46cd-bece-f9f7417a7120",
       "previous_job_id": "29ed803a-ffbd-4cfa-85ac-122bcba8f5e1",
-      "state": "awaiting_worker_update",
-      "enabled": false,
-      "render_complete": false,
+      "state": "complete",
+      "enabled": true,
+      "render_complete": true,
       "final_audio_unchanged": true,
       "effects": [
         {
@@ -241,7 +261,27 @@
           "frames": 48,
           "seconds": 2
         }
-      ]
+      ],
+      "final": {
+        "sha256": "aedaf05ac6686299b155ec80e1baf59db0a0e609926f6884e6b23ca2eada6295",
+        "asset_id": "809bce04-05db-5866-9ef1-1704b6f97bab",
+        "gcs_path": "std-motion/13f6e0a5-ab9f-4750-aa3e-0d5b895694dc/final/aedaf05ac6686299b155ec80e1baf59db0a0e609926f6884e6b23ca2eada6295.mp4",
+        "gcs_bucket": "air-studio-prod",
+        "review_path": "std-motion/13f6e0a5-ab9f-4750-aa3e-0d5b895694dc/final/aedaf05ac6686299b155ec80e1baf59db0a0e609926f6884e6b23ca2eada6295-review.json",
+        "review_bucket": "air-studio-prod",
+        "render_queue_id": "13f6e0a5-ab9f-4750-aa3e-0d5b895694dc"
+      },
+      "actual_motion_verified": true,
+      "clock": {
+        "fps": 24.0,
+        "width": 1920,
+        "frames": 13645,
+        "height": 1080,
+        "duration": 568.5416666666666,
+        "verified": true,
+        "expected_frames": 13645
+      },
+      "review_status": "completed_with_notes"
     },
     {
       "project_id": "6d45f1b9-a794-4fe9-86f2-b8ac60902e51",
@@ -250,9 +290,9 @@
       "submitted_at": "2026-11-07T08:28:16.384003+00:00",
       "submission_id": "e5cceb62-b711-497c-b38f-6f6a41ea7b4c",
       "previous_job_id": "c2dd33e5-5920-4261-b372-106d3815efaa",
-      "state": "awaiting_worker_update",
-      "enabled": false,
-      "render_complete": false,
+      "state": "complete",
+      "enabled": true,
+      "render_complete": true,
       "final_audio_unchanged": true,
       "effects": [
         {
@@ -265,13 +305,33 @@
           "frames": 24,
           "seconds": 1
         }
-      ]
+      ],
+      "final": {
+        "sha256": "966d49041c84f63b9a9c7a4376744291ac8d453a0ec9c15992bf07c05b1e7c33",
+        "asset_id": "4b185c47-fb2c-5ef3-9f62-877c5e62ec0b",
+        "gcs_path": "std-motion/9df7ce21-e660-4553-8577-778fc02b02f9/final/966d49041c84f63b9a9c7a4376744291ac8d453a0ec9c15992bf07c05b1e7c33.mp4",
+        "gcs_bucket": "air-studio-prod",
+        "review_path": "std-motion/9df7ce21-e660-4553-8577-778fc02b02f9/final/966d49041c84f63b9a9c7a4376744291ac8d453a0ec9c15992bf07c05b1e7c33-review.json",
+        "review_bucket": "air-studio-prod",
+        "render_queue_id": "9df7ce21-e660-4553-8577-778fc02b02f9"
+      },
+      "actual_motion_verified": true,
+      "clock": {
+        "fps": 24.0,
+        "width": 1920,
+        "frames": 15944,
+        "height": 1080,
+        "duration": 664.3333333333334,
+        "verified": true,
+        "expected_frames": 15944
+      },
+      "review_status": "completed_with_notes"
     }
   ],
   "web_tests_passed": 17,
   "native_tests_passed": 16,
   "web_build_passed": true,
-  "native_render_complete": false,
+  "native_render_complete": true,
   "production_deployment": {
     "id": "dpl_5akGh8mCBJyJ59kzeoZtxnHYqDkm",
     "commit": "aa6498ee923464dbe4a1caff272cb2abac351ab9",
@@ -318,5 +378,9 @@
     }
   ],
   "native_contract_preflight": true,
-  "native_output_status": "awaiting_worker_update"
+  "native_output_status": "complete_with_quality_notes",
+  "quality_notes": "EPISODES01-03_NATIVE_10HZ_QUALITY_NOTES.md",
+  "native_actual_output_verified": true,
+  "native_verification": "EPISODES01-03_NATIVE_10HZ_VERIFICATION.json",
+  "native_verified_at": "2026-11-07T15:07:37.240047+00:00"
 }

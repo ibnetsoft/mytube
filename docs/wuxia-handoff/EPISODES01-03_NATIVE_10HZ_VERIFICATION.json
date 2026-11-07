@@ -1,0 +1,249 @@
+{
+  "checked_at": "2026-11-07T15:07:37.240047+00:00",
+  "scope": "actual native rendered shake, frame clock, file integrity, registration and unchanged final audio",
+  "all_three_registered": true,
+  "all_eight_motion_windows_passed": true,
+  "total_checked_active_frames": 456,
+  "quality_review_separate": true,
+  "episodes": [
+    {
+      "episode": 1,
+      "job_id": "91c265fe-12cf-4788-ba1d-e3eae9a3b2fe",
+      "project_id": "b45f00f7-fc8b-4d1a-9b72-f27c84fb0a02",
+      "state": "complete",
+      "contract": "wuxia_native_timeline/v3",
+      "final": {
+        "sha256": "2a0e75afd31a651e13d0f1f417748251a3d4ce03662d08b359659a10c478494c",
+        "asset_id": "0e5a0eaf-e3ac-5dbf-b0f0-b90bba918f39",
+        "gcs_path": "std-motion/91c265fe-12cf-4788-ba1d-e3eae9a3b2fe/final/2a0e75afd31a651e13d0f1f417748251a3d4ce03662d08b359659a10c478494c.mp4",
+        "gcs_bucket": "air-studio-prod",
+        "review_path": "std-motion/91c265fe-12cf-4788-ba1d-e3eae9a3b2fe/final/2a0e75afd31a651e13d0f1f417748251a3d4ce03662d08b359659a10c478494c-review.json",
+        "review_bucket": "air-studio-prod",
+        "render_queue_id": "0e5a0eaf-e3ac-5dbf-b0f0-b90bba918f39"
+      },
+      "clock": {
+        "fps": 24.0,
+        "width": 1920,
+        "frames": 14393,
+        "height": 1080,
+        "duration": 599.7083333333334,
+        "verified": true,
+        "expected_frames": 14393
+      },
+      "final_voice_sha256": "d227758d29c85d3faa53d767a50e235c2144a47327bda7db1ff0f3aeb9be6cd9",
+      "voice_unchanged": true,
+      "decode": {
+        "sha256": "2a0e75afd31a651e13d0f1f417748251a3d4ce03662d08b359659a10c478494c",
+        "bytes": 126896592,
+        "returncode": 0,
+        "stderr": ""
+      },
+      "motion": [
+        {
+          "scene": 11,
+          "fps": 24.0,
+          "measured_shake_seconds": 3.0,
+          "measured_round_trips": 30.0,
+          "measured_hz": 10.0,
+          "axis": "vertical",
+          "max_position_error_px": 0.09972724897380658,
+          "mean_position_error_px": 0.004582764080927702,
+          "mean_correlation_response": 0.9128766031327942,
+          "checked_active_frames": 72,
+          "master_start_frame": 5385,
+          "quiet_boundary_frames": 4,
+          "quiet_boundary_max_error_px": 0.010615193132707645,
+          "passed": true
+        },
+        {
+          "scene": 14,
+          "fps": 24.0,
+          "measured_shake_seconds": 2.0,
+          "measured_round_trips": 20.0,
+          "measured_hz": 10.0,
+          "axis": "horizontal",
+          "max_position_error_px": 0.0663296512557281,
+          "mean_position_error_px": 0.00521514943125112,
+          "mean_correlation_response": 0.9666379666355821,
+          "checked_active_frames": 48,
+          "master_start_frame": 7026,
+          "quiet_boundary_frames": 4,
+          "quiet_boundary_max_error_px": 0.011811082651092875,
+          "passed": true
+        },
+        {
+          "scene": 19,
+          "fps": 24.0,
+          "measured_shake_seconds": 2.0,
+          "measured_round_trips": 20.0,
+          "measured_hz": 10.0,
+          "axis": "vertical",
+          "max_position_error_px": 0.07383983328116983,
+          "mean_position_error_px": 0.014657499444040193,
+          "mean_correlation_response": 0.9196616275418851,
+          "checked_active_frames": 48,
+          "master_start_frame": 9758,
+          "quiet_boundary_frames": 4,
+          "quiet_boundary_max_error_px": 0.014872389472088798,
+          "passed": true
+        }
+      ],
+      "visual_review_status": "completed_with_notes",
+      "quality_note_entries_including_retries": 112
+    },
+    {
+      "episode": 2,
+      "job_id": "13f6e0a5-ab9f-4750-aa3e-0d5b895694dc",
+      "project_id": "3d4b5aa9-4b3d-44c9-b6b1-eefa96219a39",
+      "state": "complete",
+      "contract": "wuxia_native_timeline/v3",
+      "final": {
+        "sha256": "aedaf05ac6686299b155ec80e1baf59db0a0e609926f6884e6b23ca2eada6295",
+        "asset_id": "809bce04-05db-5866-9ef1-1704b6f97bab",
+        "gcs_path": "std-motion/13f6e0a5-ab9f-4750-aa3e-0d5b895694dc/final/aedaf05ac6686299b155ec80e1baf59db0a0e609926f6884e6b23ca2eada6295.mp4",
+        "gcs_bucket": "air-studio-prod",
+        "review_path": "std-motion/13f6e0a5-ab9f-4750-aa3e-0d5b895694dc/final/aedaf05ac6686299b155ec80e1baf59db0a0e609926f6884e6b23ca2eada6295-review.json",
+        "review_bucket": "air-studio-prod",
+        "render_queue_id": "13f6e0a5-ab9f-4750-aa3e-0d5b895694dc"
+      },
+      "clock": {
+        "fps": 24.0,
+        "width": 1920,
+        "frames": 13645,
+        "height": 1080,
+        "duration": 568.5416666666666,
+        "verified": true,
+        "expected_frames": 13645
+      },
+      "final_voice_sha256": "e95d1eaa53f799464213918f998a436b114f088b42ee0cb612b84e9799314b96",
+      "voice_unchanged": true,
+      "decode": {
+        "sha256": "aedaf05ac6686299b155ec80e1baf59db0a0e609926f6884e6b23ca2eada6295",
+        "bytes": 102538125,
+        "returncode": 0,
+        "stderr": ""
+      },
+      "motion": [
+        {
+          "scene": 9,
+          "fps": 24.0,
+          "measured_shake_seconds": 3.0,
+          "measured_round_trips": 30.0,
+          "measured_hz": 10.0,
+          "axis": "vertical",
+          "max_position_error_px": 0.20718607075258433,
+          "mean_position_error_px": 0.010361527037864625,
+          "mean_correlation_response": 0.8847291306179846,
+          "checked_active_frames": 72,
+          "master_start_frame": 4544,
+          "quiet_boundary_frames": 4,
+          "quiet_boundary_max_error_px": 0.023823800957870844,
+          "passed": true
+        },
+        {
+          "scene": 11,
+          "fps": 24.0,
+          "measured_shake_seconds": 1.0,
+          "measured_round_trips": 10.0,
+          "measured_hz": 10.0,
+          "axis": "vertical",
+          "max_position_error_px": 0.031577758509627074,
+          "mean_position_error_px": 0.004929819887858382,
+          "mean_correlation_response": 0.9564887350609599,
+          "checked_active_frames": 24,
+          "master_start_frame": 5731,
+          "quiet_boundary_frames": 4,
+          "quiet_boundary_max_error_px": 0.004169861950856557,
+          "passed": true
+        },
+        {
+          "scene": 21,
+          "fps": 24.0,
+          "measured_shake_seconds": 2.0,
+          "measured_round_trips": 20.0,
+          "measured_hz": 10.0,
+          "axis": "vertical",
+          "max_position_error_px": 0.04479884145331425,
+          "mean_position_error_px": 0.006815348441149875,
+          "mean_correlation_response": 0.9543272723631194,
+          "checked_active_frames": 48,
+          "master_start_frame": 11208,
+          "quiet_boundary_frames": 3,
+          "quiet_boundary_max_error_px": 0.004844217474783363,
+          "passed": true
+        }
+      ],
+      "visual_review_status": "completed_with_notes",
+      "quality_note_entries_including_retries": 99
+    },
+    {
+      "episode": 3,
+      "job_id": "9df7ce21-e660-4553-8577-778fc02b02f9",
+      "project_id": "6d45f1b9-a794-4fe9-86f2-b8ac60902e51",
+      "state": "complete",
+      "contract": "wuxia_native_timeline/v3",
+      "final": {
+        "sha256": "966d49041c84f63b9a9c7a4376744291ac8d453a0ec9c15992bf07c05b1e7c33",
+        "asset_id": "4b185c47-fb2c-5ef3-9f62-877c5e62ec0b",
+        "gcs_path": "std-motion/9df7ce21-e660-4553-8577-778fc02b02f9/final/966d49041c84f63b9a9c7a4376744291ac8d453a0ec9c15992bf07c05b1e7c33.mp4",
+        "gcs_bucket": "air-studio-prod",
+        "review_path": "std-motion/9df7ce21-e660-4553-8577-778fc02b02f9/final/966d49041c84f63b9a9c7a4376744291ac8d453a0ec9c15992bf07c05b1e7c33-review.json",
+        "review_bucket": "air-studio-prod",
+        "render_queue_id": "9df7ce21-e660-4553-8577-778fc02b02f9"
+      },
+      "clock": {
+        "fps": 24.0,
+        "width": 1920,
+        "frames": 15944,
+        "height": 1080,
+        "duration": 664.3333333333334,
+        "verified": true,
+        "expected_frames": 15944
+      },
+      "final_voice_sha256": "818c22f7193ab0e79060ce03cc6bb4b417e987006800ce4f0c6dc917ec32bc30",
+      "voice_unchanged": true,
+      "decode": {
+        "sha256": "966d49041c84f63b9a9c7a4376744291ac8d453a0ec9c15992bf07c05b1e7c33",
+        "bytes": 109875180,
+        "returncode": 0,
+        "stderr": ""
+      },
+      "motion": [
+        {
+          "scene": 11,
+          "fps": 24.0,
+          "measured_shake_seconds": 5.0,
+          "measured_round_trips": 50.0,
+          "measured_hz": 10.0,
+          "axis": "vertical",
+          "max_position_error_px": 0.1509536507421103,
+          "mean_position_error_px": 0.00889974681677946,
+          "mean_correlation_response": 0.9231443685141775,
+          "checked_active_frames": 120,
+          "master_start_frame": 7136,
+          "quiet_boundary_frames": 4,
+          "quiet_boundary_max_error_px": 0.01164747504526531,
+          "passed": true
+        },
+        {
+          "scene": 14,
+          "fps": 24.0,
+          "measured_shake_seconds": 1.0,
+          "measured_round_trips": 10.0,
+          "measured_hz": 10.0,
+          "axis": "horizontal",
+          "max_position_error_px": 0.01902632719088615,
+          "mean_position_error_px": 0.004264712677558198,
+          "mean_correlation_response": 0.9657000153015671,
+          "checked_active_frames": 24,
+          "master_start_frame": 9853,
+          "quiet_boundary_frames": 4,
+          "quiet_boundary_max_error_px": 0.002776149919100135,
+          "passed": true
+        }
+      ],
+      "visual_review_status": "completed_with_notes",
+      "quality_note_entries_including_retries": 60
+    }
+  ]
+}
