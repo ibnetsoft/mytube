@@ -100,3 +100,13 @@ test('zero-duration scenes are removed without changing the original narration c
  assert.deepEqual(normalized.render_settings.timing_locked_indices,[0,1])
  assert.throws(()=>lib.finalizeRecordedRenderConfig({...config,image_timing_starts:[0,7,0]}),/시작 시간/)
 })
+test('wuxia omitted nonverbal ellipses preserve birth identity and the exact recorded rows',()=>{
+ const f=fixture();f.project.project_payload.structure={image_style:'wuxia_webtoon'};f.project.project_payload.script='最初。……\n最後。';
+ f.audio.metadata.content_identity=lib.assetContentIdentity(f.project,{type:'audio',timeline:f.rows});const before=JSON.stringify(f.audio);
+ assert.doesNotThrow(()=>lib.assertNarrationIdentity(f.project,f.audio,f.rows));assert.equal(JSON.stringify(f.audio),before);
+ f.rows[0].voice_id='changed';assert.throws(()=>lib.assertNarrationIdentity(f.project,f.audio,f.rows),/성우/);
+});
+test('ellipsis compatibility never allows other text changes or changes in another category',()=>{
+ const f=fixture();f.project.project_payload.script='最初。……\n最後。';assert.throws(()=>lib.assertNarrationIdentity(f.project,f.audio,f.rows),/대본/);
+ f.project.project_payload.structure={image_style:'wuxia_webtoon'};f.project.project_payload.script+='추가';assert.throws(()=>lib.assertNarrationIdentity(f.project,f.audio,f.rows),/대본/);
+});

@@ -105,7 +105,13 @@ export function assertNarrationIdentity(project: any, audio: any, subtitles: any
         mismatch('자막이 다른 음성 파일에 연결돼 있습니다.')
     const script = speechText(project.project_payload?.script)
     const spoken = subtitles.map(row => speechText(row.text)).join('')
-    if (script && script !== spoken) mismatch('현재 대본과 자막의 내용이 다릅니다. 확장 대본과 이전 녹음을 섞을 수 없습니다.')
+    const structure=project.project_payload?.structure||{}
+    const wuxia=structure.wuxia_ae_package?.contract==='wuxia_still_ae_episode/v1'||structure.image_style==='wuxia_webtoon'
+    // A legacy splitter omitted standalone nonverbal ellipses. Preserve the
+    // birth script/hash and the exact recorded rows; never relabel the audio.
+    const ellipsisOnly=wuxia && speechText(String(project.project_payload?.script||'').replace(/…/gu,''))
+        === speechText(subtitles.map(row=>String(row.text||'').replace(/…/gu,'')).join(''))
+    if (script && script !== spoken && !ellipsisOnly) mismatch('현재 대본과 자막의 내용이 다릅니다. 확장 대본과 이전 녹음을 섞을 수 없습니다.')
     if (stored?.script_sha256 && stored.script_sha256 !== identity.script_sha256) mismatch('음성이 다른 대본 버전에서 생성됐습니다.')
     const timeline = audio.metadata?.subtitle_timeline
     if (!Array.isArray(timeline) || !timeline.length) {

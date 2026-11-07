@@ -18,3 +18,8 @@ test('unified closed contour has a short tail and clearance before its anchor',(
  assert.equal(wuxiaBubbleContour([100,100],[160,80],[100,100]).tip,null);
  assert.equal(wuxiaBubbleContour([100,100],[160,80],[100,155]).tip,null);
 });
+test('silent visual scenes retain authored cut timing without invented speech rows',()=>{
+ const scene={scene_id:'E04_S08',preview_start_seconds:30,preview_duration_seconds:4,states:[{asset_id:'a',start:0,end:.5},{asset_id:'b',start:.5,end:1}],graphics:[],effects:[]};
+ const p={project_payload:{structure:{wuxia_ae_package:{contract:'wuxia_still_ae_episode/v1',scenes:[scene]}}}};
+ assert.equal(wuxiaSceneFrame(p,8,[],30.5).state.asset_id,'a');assert.equal(wuxiaSceneFrame(p,8,[],32.1).state.asset_id,'b');assert.equal(wuxiaSceneFrame(p,8,[],32.1).timingBasis,'authored_silent_scene_clock');
+});

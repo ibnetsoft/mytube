@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { mergeWuxiaMouthRefresh } from '@/lib/stdWuxiaMouthRefresh'
 import { wuxiaSceneFrame } from '@/lib/stdWuxiaPresentation'
 import { wuxiaBubbleContour } from '@/lib/stdWuxiaBubble'
@@ -49,12 +49,21 @@ export default function StdWuxiaScenePreview({ project, sceneNumber, subtitles, 
         void poll();const timer=setInterval(poll,10000)
         return()=>{controller.abort();clearInterval(timer)}
     },[autoMouth,project?.id,headers])
-    const frame = wuxiaSceneFrame(mergeWuxiaMouthRefresh(project,mouthUpdate), sceneNumber, subtitles, playing && preciseSeconds!==null ? preciseSeconds : seconds)
+    const previewSeconds=playing && preciseSeconds!==null ? preciseSeconds : seconds
+    const audibleRow=playing?subtitles.find(r=>previewSeconds>=Number(r.start_num??r.start_time??r.start)&&previewSeconds<Number(r.end_num??r.end_time??r.end)):null
+    const previewScene=Number(audibleRow?.scene_number)||sceneNumber
+    const frame = wuxiaSceneFrame(mergeWuxiaMouthRefresh(project,mouthUpdate), previewScene, subtitles, previewSeconds)
     const source = String(frame?.state?.media_url || frame?.state?.image_url || '')
     // Fetch each authored still ahead of the cut, so a slow download does not
     // leave the previous state visible over the next spoken segment.
-    const sourcesKey = JSON.stringify(frame?.sources || [])
+    const nextScene=payload?.structure?.wuxia_ae_package?.scenes?.find((s:any)=>Number(String(s.scene_id).match(/S(\d+)$/)?.[1])===previewScene+1)
+    const sourcesKey = JSON.stringify([...new Set([...(frame?.sources||[]),...(nextScene?.states||[]).map((s:any)=>s.media_url||s.image_url).filter(Boolean)])])
     const [images, setImages] = useState<Record<string, string>>({})
+    const imageUrls=useRef<Record<string,string>>({})
+    useEffect(()=>{
+        setImages({});imageUrls.current={}
+        return()=>{Object.values(imageUrls.current).forEach(url=>URL.revokeObjectURL(url));imageUrls.current={}}
+    },[project?.id])
     const ambientKey = JSON.stringify([...(frame?.ambientSources || []),...(frame?.mouthSources || [])])
     const [patches, setPatches] = useState<Record<string, string>>({})
     useEffect(() => {
@@ -90,18 +99,18 @@ export default function StdWuxiaScenePreview({ project, sceneNumber, subtitles, 
     useEffect(() => {
         const sources: string[] = JSON.parse(sourcesKey)
         let live = true
-        const controller = new AbortController(), urls: string[] = []
-        setImages({})
+        const controller = new AbortController()
         for (const item of sources) {
+            if(imageUrls.current[item])continue
             fetch(item, { headers: item.startsWith('/') ? headers : undefined, signal: controller.signal }).then(r => { if (!r.ok) throw Error('source unavailable'); return r.blob() })
-                .then(blob => { if (live) { const url = URL.createObjectURL(blob); urls.push(url); setImages(prev => ({ ...prev, [item]: url })) } })
+                .then(blob => { if (live) { const url = URL.createObjectURL(blob); imageUrls.current[item]=url; setImages(prev => ({ ...prev, [item]: url })) } })
                 .catch(() => {})
         }
-        return () => { live = false; controller.abort(); urls.forEach(url => URL.revokeObjectURL(url)) }
+        return () => { live = false; controller.abort() }
     }, [sourcesKey, headers])
     if (!frame) return null
     return <div className="absolute inset-0 pointer-events-none" data-wuxia-presentation="authored-graphics" aria-label="무협 말풍선·타이포 미리보기">
-        <div className="absolute inset-0" data-wuxia-effect-clock="editor" data-wuxia-audio-seconds={playing && preciseSeconds!==null ? preciseSeconds : seconds} data-wuxia-effect-active={frame.effects.active.join(',')} data-wuxia-effect-issues={frame.effects.issues.join(',')} style={{transform:`translate(${frame.effects.dx/19.2}%, ${frame.effects.dy/10.8}%) scale(${frame.effects.scale})`,transformOrigin:'50% 50%'}}>
+        <div className="absolute inset-0" data-wuxia-effect-clock="editor" data-wuxia-audio-seconds={previewSeconds} data-wuxia-effect-active={frame.effects.active.join(',')} data-wuxia-effect-issues={frame.effects.issues.join(',')} style={{transform:`translate(${frame.effects.dx/19.2}%, ${frame.effects.dy/10.8}%) scale(${frame.effects.scale})`,transformOrigin:'50% 50%'}}>
         {images[source] && <img src={images[source]} alt="" className="absolute inset-0 h-full w-full object-cover" />}
         {images[source] && frame.ambient.map(({ loop, index, frame: patch }, i) => patches[`${patch.sha256}:${loop.region.join(',')}`] &&
             <img key={i} src={patches[`${patch.sha256}:${loop.region.join(',')}`]} alt="" data-ambient-frame={index} data-ambient-clock="editor"

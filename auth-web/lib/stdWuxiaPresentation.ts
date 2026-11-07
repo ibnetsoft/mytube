@@ -32,8 +32,10 @@ export function wuxiaSceneFrame(project: any, number: number, rows: any[], secon
     const scene = pkg?.scenes?.find((s: any) => Number(String(s.scene_id).match(/S(\d+)$/)?.[1]) === number)
     if (!scene) return null
     const timing = rows.filter(r => Number(r.scene_number) === number)
-    const start = Math.min(...timing.map(r => Number(r.start_num ?? r.start_time)))
-    const end = Math.max(...timing.map(r => Number(r.end_num ?? r.end_time)))
+    const voiced=timing.length>0
+    const authoredStart=Number(scene.preview_start_seconds??pkg.scenes.slice(0,pkg.scenes.indexOf(scene)).reduce((sum:number,s:any)=>sum+Number(s.preview_duration_seconds||0),0))
+    const start = voiced?Math.min(...timing.map(r => Number(r.start_num ?? r.start_time))):authoredStart
+    const end = voiced?Math.max(...timing.map(r => Number(r.end_num ?? r.end_time))):start+Number(scene.preview_duration_seconds||0)
     const fraction = Number.isFinite(start) && end > start ? Math.max(0, Math.min(.999999, (seconds - start) / (end - start))) : 0
     const normalize = (value: any) => String(value || '').replace(/[\s\p{P}\p{S}]/gu, '')
     // Match a frozen sentence across any number of split voice rows.
@@ -88,5 +90,5 @@ export function wuxiaSceneFrame(project: any, number: number, rows: any[], secon
     const mouths=wuxiaMouthFrame(state,graphics,project,rows,seconds)
     const mouthSources=(scene.states||[]).flatMap((item:any)=>stateMouths(item).filter((m:any)=>m?.enabled&&m.source_sha256===item.sha256&&mouthMatchesRecording(m,project,rows)).flatMap((m:any)=>Object.values(m.poses).map((f:any)=>({...f,region:m.mouth_box,width:m.width,height:m.height}))))
     const effects=wuxiaEffectFrame(scene,state,graphics,seconds,start,end,rowRange,fps||p.render_settings?.motion?.fps||24)
-    return { state, graphics, fraction, effects, ambient, ambientSources, mouths, mouthSources, sources: (scene.states || []).map((item: any) => String(item.media_url || item.image_url || '')).filter(Boolean), timingBasis: 'subtitle_row_bound_or_authored_preview' }
+    return { state, graphics, fraction, effects, ambient, ambientSources, mouths, mouthSources, sources: (scene.states || []).map((item: any) => String(item.media_url || item.image_url || '')).filter(Boolean), timingBasis: voiced?'subtitle_row_bound_or_authored_preview':'authored_silent_scene_clock' }
 }

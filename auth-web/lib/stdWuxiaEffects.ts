@@ -1,3 +1,4 @@
+import { wuxiaGraphicBounds } from './stdWuxiaGraphic'
 /** Deterministic short accents. Frozen vector/transform samples are executed verbatim by AE. */
 export const WUXIA_FX_CONTRACT='wuxia_effect_samples/v1'
 const types=new Set(['impact_shake','impact_flash','debris_burst','particle_burst','speedline_burst','focus_glow','shock_ring'])
@@ -7,10 +8,11 @@ export function wuxiaEffectFrame(scene:any,state:any,graphics:any[],seconds:numb
  const at=Math.floor(Math.max(0,seconds-start)*fps+1e-7)/fps+start
  const frame:any={contract:WUXIA_FX_CONTRACT,dx:0,dy:0,scale:1,overlays:[],active:[],issues:[]}
  const heads=state?.face_exclusion_boxes
- const textBoxes=graphics.filter(g=>g.layout?.center&&g.layout?.size).map(g=>{const l=g.layout,pad=.008,scale=Math.max(1,(g.style?.scale_peak||100)/100),angle=(Math.abs(g.style?.rotation||0))*Math.PI/180;const rx=(l.size[0]*Math.cos(angle)+l.size[1]*Math.sin(angle))*scale/2,ry=(l.size[1]*Math.cos(angle)+l.size[0]*Math.sin(angle))*scale/2;return [l.center[0]-rx-pad,l.center[1]-ry-pad,l.center[0]+rx+pad,l.center[1]+ry+pad]})
+ const textBoxes=graphics.filter(g=>g.layout?.center&&g.layout?.size).map(g=>wuxiaGraphicBounds(g).map((v,i)=>v/(i%2?1080:1920)))
  const protectedBoxes=[...(Array.isArray(heads)?heads:[]),...textBoxes]
  for(const [index,e] of (scene.effects||[]).entries()){
   if(!types.has(e.type)||!finite(e.duration_seconds)||e.duration_seconds<=0||e.duration_seconds>.8||!finite(e.intensity)||e.intensity<=0||e.intensity>1||!Array.isArray(e.center)||e.center.length!==2||e.center.some((n:any)=>!finite(n)||n<0||n>1)||!finite(e.radius)||e.radius<=0||e.radius>1){frame.issues.push(`invalid_effect:${index}`);continue}
+  if(e.amplitude_px!=null&&(!finite(e.amplitude_px)||e.amplitude_px<=0||e.amplitude_px>16)){frame.issues.push(`invalid_amplitude:${index}`);continue}
   const target=e.asset_id||scene.states?.[Math.max(0,(e.state||1)-1)]?.asset_id
   const range=resolve({voice_binding:e.voice_binding,text:e.quote})
   const from=range?(e.voice_binding?.phase==='after'?range.end:range.start):start+Number(e.preview_at||0)*(end-start)
@@ -22,7 +24,7 @@ export function wuxiaEffectFrame(scene:any,state:any,graphics:any[],seconds:numb
   frame.active.push(`${e.type}:${index}`)
   const strength=e.intensity,fade=Math.sin(Math.PI*t),cx=e.center[0],cy=e.center[1],radius=e.radius
   if(e.type==='impact_shake'){
-   const amp=4+12*strength,dx=Math.sin(t*Math.PI*9)*amp*(1-t),dy=Math.sin(t*Math.PI*13)*amp*.45*(1-t),scale=1.035
+   const amp=e.amplitude_px??(4+12*strength),dx=Math.sin(t*Math.PI*9)*amp*(1-t),dy=Math.sin(t*Math.PI*13)*amp*.45*(1-t),scale=e.amplitude_px?1+amp/400:1.035
    const moved=(e.camera_face_boxes||heads).map((b:number[])=>b.map((v:number,i:number)=>(v-.5)*scale+.5+(i%2?dy/1080:dx/1920)))
    if(moved.some((b:number[])=>b.some((n:number)=>n<0||n>1)||textBoxes.some(r=>overlaps(b,r)))){frame.issues.push(`unsafe_shake:${index}`);continue}
    frame.dx+=dx;frame.dy+=dy;frame.scale=scale;continue
