@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
+import { mergeWuxiaMouthRefresh } from '@/lib/stdWuxiaMouthRefresh'
 import { wuxiaSceneFrame } from '@/lib/stdWuxiaPresentation'
 import { wuxiaBubbleContour } from '@/lib/stdWuxiaBubble'
 
@@ -29,7 +30,18 @@ export function StdWuxiaGraphics({ graphics, animate = true }: { graphics: any[]
 export default function StdWuxiaScenePreview({ project, sceneNumber, subtitles, seconds, headers, playing = false }: {
     project: any; sceneNumber: number; subtitles: any[]; seconds: number; headers: Record<string, string>; playing?: boolean
 }) {
-    const frame = wuxiaSceneFrame(project, sceneNumber, subtitles, seconds)
+    const [mouthUpdate,setMouthUpdate]=useState<any>(null)
+    const payload=project?.project_payload||project
+    const autoMouth=payload?.structure?.wuxia_mouth_policy?.auto_prepare===true
+    useEffect(()=>{
+        if(!autoMouth||!project?.id)return
+        const controller=new AbortController()
+        const poll=()=>fetch(`/api/std/projects/${project.id}/wuxia-mouth`,{headers,signal:controller.signal,cache:'no-store'})
+            .then(r=>r.ok?r.json():null).then(value=>{if(!controller.signal.aborted&&value?.success)setMouthUpdate(value)}).catch(()=>{})
+        void poll();const timer=setInterval(poll,10000)
+        return()=>{controller.abort();clearInterval(timer)}
+    },[autoMouth,project?.id,headers])
+    const frame = wuxiaSceneFrame(mergeWuxiaMouthRefresh(project,mouthUpdate), sceneNumber, subtitles, seconds)
     const source = String(frame?.state?.media_url || frame?.state?.image_url || '')
     // Fetch each authored still ahead of the cut, so a slow download does not
     // leave the previous state visible over the next spoken segment.

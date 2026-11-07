@@ -377,4 +377,11 @@ def publish_topic(identity, package, request, store, directory):
                'script_sha256': hashlib.sha256(package['script'].encode()).hexdigest(),
                'scene_count': len(package['structure']['scenes']), 'existing_topics_modified': False}
     write(directory/'registration-receipt.json', receipt)
+    if not owned and (verified['pregenerated_structure'].get('wuxia_mouth_policy') or {}).get('auto_prepare') is True:
+        from worker.wuxia_mouth_worker import prepare_topic
+        receipt['mouth_preparation'] = prepare_topic(verified['id'], verified['pregenerated_structure'], store)
+        write(directory/'registration-receipt.json', receipt)
+    elif acknowledged and prior.get('mouth_preparation'):
+        receipt['mouth_preparation'] = prior['mouth_preparation']
+        write(directory/'registration-receipt.json', receipt)
     return receipt

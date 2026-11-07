@@ -1,3 +1,4 @@
+import { preserveWuxiaMouthPreparation } from '@/lib/stdWuxiaMouthRefresh'
 import { preserveAudioAnchors } from '@/lib/stdAudioAnchors'
 import { assetMatchesContentRevision, bindProjectContent, persistContentRevision, projectContentIdentity, contentHash, speechText } from '@/lib/stdContentIdentity'
 import { projectReadCacheKey, readProjectResponse, cacheProjectResponse } from '@/lib/stdProjectReadCache'
@@ -743,12 +744,13 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
     }
     if (Object.keys(projectPayloadPatch).length > 0 || normalizedScenes.length > 0) {
         const currentStructure = project.project_payload?.structure || {}
-        const nextStructure = projectPayloadPatch.structure
+        let nextStructure = projectPayloadPatch.structure
             ? {
                 ...currentStructure,
                 ...projectPayloadPatch.structure,
             }
             : currentStructure
+        nextStructure = preserveWuxiaMouthPreparation(currentStructure,nextStructure)
         // Character references are worker-owned high-resolution assets. Never
         // persist the protected browser thumbnail URL over the canonical URL.
         if (currentStructure.character_anchors) {

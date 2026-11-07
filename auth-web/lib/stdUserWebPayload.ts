@@ -10,6 +10,10 @@ const postworkKeys = new Set([
 export function stripPostworkDirection(value: any): any {
     if (Array.isArray(value)) return value.filter(item => item?.metadata?.kind !== 'content_revision').map(stripPostworkDirection)
     if (!value || typeof value !== 'object') return value
+    if (value.metadata?.kind === 'wuxia_mouth_preparation') return { ...value, metadata: {
+        kind: value.metadata.kind, state: value.metadata.state, phase: value.metadata.phase,
+        report: value.metadata.result?.report,
+    } }
     return Object.fromEntries(Object.entries(value).flatMap(([key, item]) =>
         postworkKeys.has(key) ? [] : [[key, stripPostworkDirection(item)]]))
 }

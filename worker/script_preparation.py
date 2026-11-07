@@ -3,6 +3,9 @@ import threading
 from worker.workflow_roles import PREPARATION, asset_query, belongs
 
 def process_one():
+    from worker.wuxia_mouth_worker import process_one as mouths
+    if mouths():
+        return True
     import ae_highlight_worker as ae
     base, headers = ae._supabase()
     rows = ae._request('GET',base+'/rest/v1/std_project_assets',headers,params=asset_query(PREPARATION,{

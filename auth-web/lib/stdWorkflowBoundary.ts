@@ -1,4 +1,4 @@
-const PREPARATION = new Set(['ae_scene_preparation','ae_speaker_coordinates','region_layer_package'])
+const PREPARATION = new Set(['ae_scene_preparation','ae_speaker_coordinates','region_layer_package','wuxia_mouth_preparation'])
 
 /** A user submission freezes a prepared package; it must not race preparation. */
 export function assertPreparationFinished(assets:any[]) {

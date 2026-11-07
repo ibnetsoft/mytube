@@ -926,13 +926,19 @@ def publish(manifest_path: Path, images_dir: Path, create_bucket: bool,
         "asset_patch": _scene_asset_patch(published_scenes[number]),
     } for number in sorted(scene_urls)]
     _patch_topic_scene_assets(topic_id, updates, base_url, headers)
-    # Final cropped pixels, not grid prompts, are the source of face/mouth boxes.
-    try:
-        from .generated_speaker_coordinates import analyze_published_scenes
-    except ImportError:
-        from generated_speaker_coordinates import analyze_published_scenes
-    analyze_published_scenes(topic_id, structure, published_scenes, images_dir,
-                             base_url, headers, sys.modules[__name__], manifest.get("mouth_work_selection"))
+    if (structure.get('wuxia_mouth_policy') or {}).get('auto_prepare') is True:
+        from worker.wuxia_mouth_worker import prepare_topic
+        from worker.script_worker_store import ScriptStore
+        rows, _ = ScriptStore().request('GET', 'topics_queue', params={'id':'eq.'+str(topic_id),'select':'pregenerated_structure','limit':1})
+        prepare_topic(topic_id, rows[0]['pregenerated_structure'], ScriptStore())
+    else:
+        # Final cropped pixels, not grid prompts, are the source of face/mouth boxes.
+        try:
+            from .generated_speaker_coordinates import analyze_published_scenes
+        except ImportError:
+            from generated_speaker_coordinates import analyze_published_scenes
+        analyze_published_scenes(topic_id, structure, published_scenes, images_dir,
+                                 base_url, headers, sys.modules[__name__], manifest.get("mouth_work_selection"))
     if manifest_layer_specs and not defer_layers and not post_submission_layers:
         _propagate_published_template_assets(topic_id, base_url, headers)
     return [scene_urls[number] for number in sorted(scene_urls)]

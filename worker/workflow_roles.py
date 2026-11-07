@@ -13,7 +13,7 @@ def asset_stage(row):
     kind = meta.get('kind')
     if kind == 'region_layer_package' and meta.get('workflow_stage') == POSTPRODUCTION:
         return POSTPRODUCTION
-    if kind in ('ae_scene_preparation', 'ae_speaker_coordinates', 'region_layer_package'):
+    if kind in ('ae_scene_preparation', 'ae_speaker_coordinates', 'region_layer_package', 'wuxia_mouth_preparation'):
         return PREPARATION
     if kind == 'motion_preview':
         return PREPARATION if (meta.get('input') or {}).get('task') == 'direction' else POSTPRODUCTION

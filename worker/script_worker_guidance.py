@@ -16,4 +16,7 @@ def load_production_guidance():
     delivery = WUXIA_DELIVERY_PATH.read_text(encoding='utf-8').strip()
     if not delivery:
         raise ValueError('무협 연작 납품 지침이 비어 있습니다.')
-    return f'{text}\n\n{japanese_guide}\n\n{delivery}'
+    wuxia = GUIDE_PATH.with_name('wuxia-webtoon-production-defaults.md').read_text(encoding='utf-8').strip()
+    if not wuxia:
+        raise ValueError('무협 웹툰 제작 기본 지침이 비어 있습니다.')
+    return f'{text}\n\n{japanese_guide}\n\n{delivery}\n\n{wuxia}'
