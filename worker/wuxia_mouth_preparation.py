@@ -113,10 +113,48 @@ def locate_selective_speakers(runner, identity, scene, image, rows, cast):
             return result
 
 
+def prepare_selected_poses(image, chosen, runner):
+    """A rejected composite preserves that face, without blocking other speakers."""
+    import uuid
+    import prepared_mouth_layers as cache
+    kept, entries, rejected = [], [], []
+    prefix = 'Generated mouth layers need review:'
+    for speaker in chosen:
+        if cache.is_excluded(image, speaker):
+            rejected.append({'speaker':speaker['speaker'],'reason':'user_excluded','source_preserved':True})
+            continue
+        directory = cache.ROOT / cache.cache_key(image, speaker)
+        try:
+            if not (directory/'reviewed.json').exists():
+                prior = sorted(cache.ROOT.glob(directory.name+'.invalid-*/quality-note.txt'))
+                if prior and prior[-1].read_text(encoding='utf-8').startswith(prefix):
+                    raise ValueError(prior[-1].read_text(encoding='utf-8'))
+            art = cache.prepare_scene(image, {'state':'ready','source_sha256':speaker['mouth_geometry'].get('source_sha256'),
+                                             'speakers':[speaker]}, runner=runner)
+        except ValueError as error:
+            if not str(error).startswith(prefix):
+                raise
+            evidence = None
+            if directory.exists() and not (directory/'reviewed.json').exists():
+                (directory/'quality-note.txt').write_text(str(error), encoding='utf-8')
+                evidence = directory.with_name(directory.name+'.invalid-'+uuid.uuid4().hex[:8])
+                directory.rename(evidence)
+            if evidence is None:
+                notes = sorted(cache.ROOT.glob(directory.name+'.invalid-*/quality-note.txt'))
+                evidence = notes[-1].parent if notes else None
+            rejected.append({'speaker':speaker['speaker'],'reason':str(error),
+                             'source_preserved':True,'rejected_pose_evidence':str(evidence) if evidence else None})
+            continue
+        if len(art.get('entries', [])) != 1:
+            raise RuntimeError('Eligible mouth art was not fully prepared')
+        kept.append(speaker);entries.extend(art['entries'])
+    return kept, {'entries':entries}, rejected
+
+
 def prepare_art(structure, identity, download, upload, check=lambda: None, runner=None):
     from PIL import Image
     from ae_mouth import digest, POSES
-    from prepared_mouth_layers import prepare_scene, reuse_prepared
+    from prepared_mouth_layers import reuse_prepared
     from codex_content_runner import CodexStagedContentRunner
     runner = runner or CodexStagedContentRunner()
     package = structure['wuxia_ae_package']
@@ -163,22 +201,8 @@ def prepare_art(structure, identity, download, upload, check=lambda: None, runne
                 else:
                     excluded.append({'state': state['asset_id'], 'speaker': speaker['speaker'], 'reason': speaker.get('reason') or 'Face too small or lips not fully visible'})
             check()
-            try:
-                art = prepare_scene(image, {'state': 'ready', 'source_sha256': state['sha256'], 'speakers': chosen}, runner=runner)
-            except ValueError as exc:
-                if str(exc).startswith('Generated mouth layers need review:'):
-                    # Keep rejected pixels as evidence, but do not retry identical
-                    # rejected cached poses forever. Already approved art survives.
-                    import uuid
-                    import prepared_mouth_layers as cache
-                    for speaker in chosen:
-                        bad = cache.ROOT / cache.cache_key(image, speaker)
-                        if bad.exists() and not (bad/'reviewed.json').exists():
-                            (bad/'quality-note.txt').write_text(str(exc), encoding='utf-8')
-                            bad.rename(bad.with_name(bad.name+'.invalid-'+uuid.uuid4().hex[:8]))
-                raise
-            if len(art.get('entries', [])) != len(chosen):
-                raise RuntimeError('Eligible mouth art was not fully prepared')
+            chosen, art, pose_rejections = prepare_selected_poses(image, chosen, runner)
+            excluded.extend({'state':state['asset_id'], **r} for r in pose_rejections)
             with Image.open(image) as original:
                 width, height = original.size
             for speaker in chosen:

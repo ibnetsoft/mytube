@@ -40,7 +40,7 @@ def test_zero_is_normal_without_generating_or_uploading(tmp_path,monkeypatch):
         report=w.prepare_art(s,'test',lambda ref,p:shutil.copyfile(image,p),lambda *a:pytest.fail('zero must not upload'),runner=Runner())
         assert report['report']['state']=='not_required'
         assert report['report']['selection_complete'] is True
-        assert generate.call_args.args[1]['speakers']==[]
+        generate.assert_not_called()
         assert report['states'][0]['art']==[]
 
 
@@ -60,6 +60,36 @@ def test_missing_image_and_tool_failure_are_not_zero(tmp_path,monkeypatch):
 def test_small_or_occluded_face_never_generates():
     assert not w.eligible({'status':'visible','face_box':[.1,.1,.4,.2],'mouth_box':[.15,.15,.2,.18],'confidence':1},'a'*64)
     assert not w.eligible({'status':'occluded','confidence':1},'a'*64)
+
+
+def test_rejected_pose_preserves_source_and_continues_other_speakers(tmp_path,monkeypatch):
+    import prepared_mouth_layers as cache
+    image,_=fixture(tmp_path);monkeypatch.setattr(cache,'ROOT',tmp_path/'poses')
+    speakers=[{'speaker':name,'mouth_geometry':{'source_sha256':digest(image)}} for name in ('bad','good')]
+    monkeypatch.setattr(cache,'cache_key',lambda image,speaker:speaker['speaker'])
+    def generate(image,geometry,**kwargs):
+        name=geometry['speakers'][0]['speaker']
+        if name=='bad':
+            folder=cache.ROOT/name;folder.mkdir(parents=True);(folder/'original.png').write_bytes(b'rejected pixels')
+            raise ValueError('Generated mouth layers need review: lip identity changed')
+        return {'entries':[{'speaker':name}]}
+    monkeypatch.setattr(cache,'prepare_scene',generate)
+    chosen,art,rejected=w.prepare_selected_poses(image,speakers,Runner())
+    assert [s['speaker']for s in chosen]==['good'] and art['entries']==[{'speaker':'good'}]
+    assert rejected[0]['source_preserved'] is True
+    assert (Path(rejected[0]['rejected_pose_evidence'])/'original.png').read_bytes()==b'rejected pixels'
+    # A restart reuses the actual failed review without regenerating the same bad pixels.
+    chosen,_,rejected=w.prepare_selected_poses(image,speakers,Runner())
+    assert len(chosen)==len(rejected)==1
+
+
+def test_pose_generation_execution_failure_is_not_an_ineligible_face(tmp_path,monkeypatch):
+    import prepared_mouth_layers as cache
+    image,_=fixture(tmp_path);monkeypatch.setattr(cache,'ROOT',tmp_path/'poses')
+    monkeypatch.setattr(cache,'cache_key',lambda *args:'key')
+    monkeypatch.setattr(cache,'prepare_scene',lambda *args,**kwargs: (_ for _ in ()).throw(RuntimeError('image tool unavailable')))
+    with pytest.raises(RuntimeError,match='image tool unavailable'):
+        w.prepare_selected_poses(image,[{'speaker':'hero','mouth_geometry':{}}],Runner())
 
 
 def test_selected_art_is_full_canvas_and_cached(tmp_path,monkeypatch):
