@@ -1,0 +1,27 @@
+{
+  "topic_id": 3433,
+  "source_package_id": "14cd073eef0345a91a4dbcd33ddf4dfe",
+  "script_sha256": "3532128d2f118ed6e4e7258fd3edbc9a662f6ed60525c1ceb050f28cf817e5de",
+  "scene_count": 20,
+  "state_images": 30,
+  "character_sheets": 6,
+  "thumbnail_completed": true,
+  "thumbnail_layers": 3,
+  "review_translation_blocks": 52,
+  "web_readiness": {
+    "ready": true,
+    "prompts_ready": true
+  },
+  "database_readback": "exact_match",
+  "existing_topics_modified": false,
+  "registered_at": "2026-11-07T03:45:34.379411+00:00",
+  "url": "https://studio.airing.work/std?tab=topics",
+  "youtube_published": false,
+  "source_art_revision": "continuity-final",
+  "source_assets_corrected": 8,
+  "refreshed_at": "2026-11-07T04:12:21.690058+00:00",
+  "real_browser_verified": false,
+  "actual_browser_verified": false,
+  "browser_verification_state": "waiting_for_user_unlock",
+  "ae_render_scope": "episode1-3 separately held for native worker source update; episode4 endpoint is registered episode package"
+}

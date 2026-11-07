@@ -1,0 +1,2230 @@
+{
+  "schema": "wuxia_episode_script/v2",
+  "series_title": "나 혼자 무공을 진화시킨다",
+  "episode": 4,
+  "episode_title": "문턱의 증인",
+  "target_duration_seconds": 600,
+  "settings": {
+    "language": "ko",
+    "world": "가상의 전근대 중국풍 강호. 문파가 옛 무공과 괴물이 봉인된 무경의 공략권을 독점한다.",
+    "image_style": "wuxia_webtoon",
+    "style_reference": "auth-web/public/img/styles/style_wuxia_webtoon.png",
+    "visual_medium": "한국어 무협 정지 원화 무빙툰. 장면별 상태 원화 컷 전환과 필요한 AE 효과.",
+    "video_clip_count": 0,
+    "camera_policy": "전 장면 고정 카메라. 느린 줌과 전체 화면의 완만한 확대 금지.",
+    "parallax": "이번 대본에서는 사용하지 않음. 인물의 팔다리 이동을 레이어 애니메이션으로 흉내 내지 않음.",
+    "narration_captions": "내레이션 원문과 문서 설명을 화면 자막으로 출력하지 않음. 일반 자막 트랙 끔.",
+    "dialogue": "실제 대사만 화자별 편집 가능한 말풍선으로 음성과 동기화. 블록의 speaker는 cast.id를 참조.",
+    "bubble_presets": {
+      "dialogue": "일반 타원",
+      "rounded": "부드러운 둥근 상자",
+      "shout": "외침 톱니형",
+      "whisper": "속삭임 점선형",
+      "thought": "생각 구름형",
+      "reaction": "짧은 반응형",
+      "narration": "사각 설명형. 이번 화 내레이션 자막에는 사용하지 않음.",
+      "electronic": "전자통신형. 이번 화에는 사용하지 않음."
+    },
+    "bubble_safety": "모든 인물의 머리·얼굴을 최종 크롭 기준 보호 영역으로 설정한다. 말풍선 본체·꼬리·문자·테두리·그림자·등퇴장 효과와 최대 강조 크기까지 보호 영역을 침범하지 않는다. 본체와 꼬리는 하나의 닫힌 외곽선으로 연결하고 접합부 내부 선이나 이음새를 만들지 않는다. 짧은 꼬리는 화자의 머리에 닿기 전 여백을 두고 끝낸다. 여백 부족 시 줄바꿈·배치·컷 구성을 조정한다.",
+    "typography": "말풍선과 선택적 효과음은 원화에 굽지 않고 AE 독립 텍스트 레이어로 제작. 글꼴·크기·색·외곽선·회전·강조 크기·등퇴장·표시 타이밍을 편집 가능하게 저장. 기본 대사 글꼴은 Gmarket_Default 계열의 사용 가능한 한글 글꼴로 설정하고 교체 가능하게 유지.",
+    "timing": "600초는 목표이며 실제 녹음 길이는 측정하지 않았다. 대사와 내레이션의 실제 녹음 이후 상태 컷과 말풍선 노출을 확정한다. 분량을 맞추기 위한 문장·원화 반복 금지.",
+    "source_policy": "Continue live registered episode3 #3432; episode03 current canon overrides obsolete 3/4 outline. New visual/speech separation required.",
+    "source_sha256": "5811529a71a486d0f21185a4c2a2651fce52abdf307feaa0284a15f5fbd2b57c",
+    "settings_confirmed": true,
+    "inherited_episode_count": 50,
+    "bgm": "프롬프트만 작성, 음악 파일 생성 제외. 낮은 현악 지속음과 절제된 타악으로 추격의 긴장을 유지하고 야외 탈출 뒤에도 승리 음악으로 전환하지 않는다. 대사와 부상자의 호흡을 우선한다.",
+    "source_art_policy": "모든 상태는 단일 16:9 전경 원화. 패널·콜라주·격자 금지. 현대 한국 무협 웹툰의 선명한 잉크선, 절제된 선명색과 셀 채색, 자연스러운 성인 비례. 원화에 글자·말풍선·자막·효과음·워터마크를 넣지 않는다.",
+    "identity_policy": "서진·도겸·수색 무사·서리는 기존 승인 정체성을 유지한다. 보초·checkpoint_guard·수레꾼은 supplied actual_approved_reference_appearances의 승인 얼굴과 복장을 그대로 사용한다. 보초는 넓은 아래턱의 짧은 배형 얼굴과 청동 허리띠, checkpoint_guard는 높은 넓은 이마에서 좁고 평평한 턱으로 좁아지는 면도한 얼굴과 검은 허리띠, 수레꾼은 큰 돌출 귀와 삽 모양 턱 및 이끼색 작업 겉옷으로 구분한다. 이름 있는 얼굴을 군중에 복제하지 않는다.",
+    "production_notes": "visual_action은 이미지 제작 전용이다. 회차 납품 상태는 workflow-state.json과 registration-receipt.json으로 확인한다.",
+    "narration_policy": "WUXIA WEBTOON OVERRIDE: Images and dialogue carry the story together.\nStore image-making action/pose/prop/continuity instructions ONLY in visual_action.\nspoken_blocks contains ONLY audible narration or character dialogue; text is their concatenation,\nnever visual_action or speaker labels. Give every block a stable unique id and kind.\nUse one complete sentence per narration block. A dialogue block also has a named speaker.\nDo not narrate actions or emotions already clearly shown by the planned image.\nKeep narration only for new facts, time transitions, unseen causes or essential meaning\nthat the image/dialogue cannot convey. Do not replace deleted action reports with lyrical\ninner monologue, explanatory dialogue, synonyms or padding. A scene may have no speech:\nspoken_blocks:[] and text:\"\". Preserve its visual action and planned duration for visual/SFX holds.\nThere is no minimum speech count or character quota per cut. Preserve injuries, object custody,\ncausality, cast and the ending across spoken AND visual channels. Never require audio-only\ncomprehension or prefer narration over dialogue. Do not claim actual artwork/audio was reviewed\nwhen only a visual plan is supplied.",
+    "visual_preview_estimate_seconds": 221,
+    "preview_timing_is_not_final_recording": true
+  },
+  "cast": [
+    {
+      "id": "seojin",
+      "name": "서진",
+      "gender": "male",
+      "age": 21,
+      "appearance": "기존 승인 얼굴. 176cm의 마른 짐꾼, 좁고 각진 얼굴, 날카로운 짙은 회색 눈과 곧은 검은 눈썹, 수염 없음. 짧은 검은 높은 묶음머리, 관자머리 두 가닥과 탁한 청록 끈. 먹색 저고리·바지, 탁한 청록 민소매 겉옷과 허리띠, 미색 속깃, 천 손목·종아리 감개와 낡은 갈색 신발. 터진 아랫입술, 찢어진 오른손 손바닥, 왼쪽 옆구리 손상 유지. 단도 칼집은 오른쪽 허리. 08 이후 어깨 타박과 옆구리 출혈 악화, 12 이후 먹색 저고리 소매 끝 찢김. 붙잡히고 찢어지는 소매는 청록 민소매 겉옷 아래의 먹색 저고리 소매이며 청록 겉옷은 계속 민소매이다.",
+      "reference_role": "visual_bible.cast.seojin 및 1·2화 승인 정체성 유지"
+    },
+    {
+      "id": "dogyeom",
+      "name": "도겸",
+      "gender": "male",
+      "age": 34,
+      "appearance": "기존 승인 얼굴. 170cm의 다부진 체격, 그을린 넓은 네모 얼굴, 작고 처진 갈색 눈, 낮고 굵은 눈썹, 넓은 코와 성긴 짧은 콧수염·턱수염. 황토색 두건, 황토 갈색 짧은 겉옷, 미색 속옷, 갈색 바지와 짚신. 오른쪽 다리는 체중을 받지 못한다. 빛바랜 연청색 목도리는 오른쪽 무릎 아래 고정되어 끝까지 풀지 않는다.",
+      "reference_role": "visual_bible.cast.dogyeom 및 1·2화 승인 정체성 유지"
+    },
+    {
+      "id": "guard",
+      "name": "수색 무사",
+      "gender": "male",
+      "age": 27,
+      "appearance": "기존 승인 철산문 무사 얼굴. 넓은 직사각형의 면도한 얼굴, 곧고 굵은 눈썹, 수수한 검은 상투. 평범한 철청색 무복, 어두운 청동 허리띠, 어두운 완갑, 깨끗한 검은 장화와 평범한 직검. 장호의 붉은 허리띠나 귀족 장식 없음.",
+      "reference_role": "visual_bible.cast.guard 및 2화 마지막 수색 명령을 내린 승인 무사"
+    },
+    {
+      "id": "clerk",
+      "name": "서리",
+      "gender": "male",
+      "age": 55,
+      "appearance": "기존 승인 얼굴. 짧고 둥근 얼굴, 작고 가까운 눈, 높은 벗겨진 이마, 짙은 포도주색 천 모자와 가는 회색 구레나룻. 먼지 낀 자주색 긴 조끼와 회청색 옷, 먹 묻은 오른손, 대나무 붓과 장부.",
+      "reference_role": "visual_bible.cast.clerk 및 입구 중개소 승인 정체성 유지"
+    },
+    {
+      "id": "checkpoint_guard",
+      "name": "철산문 보고 무사 / 길목 무사",
+      "gender": "male",
+      "age": 45,
+      "appearance": "Male45 slim adult; narrow diamond facial outline with broad high cheekbones/temples and short receding rounded chin; wide upswept almond eyes with clear lid folds and thin arched brows; prominent convex aquiline nose with fleshy bulbous tip; broad shaped mouth with a rounded lower lip, clean-shaven. Mature restrained Korean wuxia proportions. Iron-blue robe, black belt, blue-bound black bun. Final checkpoint_guard-v4.png.",
+      "reference_role": "actual_approved_reference_appearances.checkpoint_guard. 06의 철산문 무사와 19·20의 길목 무사에 동일 정체성 사용",
+      "reference_revision": 4
+    },
+    {
+      "id": "carter",
+      "name": "수레꾼",
+      "gender": "male",
+      "age": 50,
+      "appearance": "공급된 승인 참조 그대로. 키 크고 마른 체격. 긴 배형 얼굴과 무겁고 넓은 삽 모양 턱, 매우 크고 둥글게 돌출한 귀, 넓고 뭉툭하며 낮은 코, 넓고 이 사이가 벌어진 입, 크고 선하게 처진 눈과 가늘고 높은 눈썹, 수염 없음. 바랜 올리브색 머릿수건, 이끼색 작업 겉옷, 미색 속깃, 갈색 천 허리띠, 회갈색 바지와 짚신. 광석 가루 묻은 손. 도겸의 넓은 네모 얼굴과 구분. 광석 자루를 실은 별도 운반 수레의 주인.",
+      "reference_role": "actual_approved_reference_appearances.carter. 도겸이 평소 운반 일에서 알고 지내던 사람"
+    }
+  ],
+  "continuity_in": {
+    "position": "두 사람은 실제 야외 탈출 후 수레꾼의 별도 운반 수레를 타고 청하진 검문 길목에 도착했다. 덮개 앞에서 검문이 멈춰 있는 상태로 끝난다.",
+    "injuries": "서진의 기존 세 부상에 어깨 타격과 옆구리 출혈 악화가 더해졌다. 먹색 저고리 소매 끝은 찢어졌으며 청록 겉옷은 민소매 그대로이다. 응급 압박만 받았다. 도겸은 오른다리를 계속 딛지 못하고 연청색 목도리도 무릎 아래에 남아 있다.",
+    "props": "기존 단도는 11에서 떨어져 덧문 반대편 하단 보강쇠와 문턱 돌의 접점에 손잡이가 눌렸다. 12에서 한쪽 끝만 다시 들 때도 이 하단 접점은 바닥에 남아 단도를 계속 누른다. 이후 단도를 회수하지 않으며 오른쪽 허리 칼집은 비어 있다. 물통·지게·기존 수레를 회수하지 않았다. 봉함은 계속 장호에게 있다.",
+    "pursuit": "건강한 보초를 이기지 못했다. 보초는 높은 외부 문턱 발판에 남고 두 사람은 낮은 측면 배수 돌턱 아래 작업터로 빠졌다. 내려앉은 덧문이 높은 발판에서 낮은 돌턱으로 가는 가까운 틈을 막아 보초는 좁은 발판을 되돌아 외부 계단으로 내려와야 한다. 이 우회가 몇 초의 틈을 만든다. 보초와 수색 무사는 살아 있으며 추격을 계속할 수 있다.",
+    "ledger": "중개소는 두 사람을 사망으로 정리했다. 길목에는 생존한 두 사람을 중개소 대신 별원으로 인계하라는 지시가 있다. 장부나 지시서를 확보한 것은 아니다.",
+    "cliffhanger": "수레꾼의 항의에도 길목 무사는 손을 내리지 않았다. 서진이 몸을 조금 일으켜 직접 말하려는 순간 종료. 검문 통과나 치료 도착을 추가하지 않는다.",
+    "next_episode": "4화는 목격자가 있는 지상 검문 현장에서 이어진다. 지하 탈출 준비로 되돌리지 않는다."
+  },
+  "continuity_out": {
+    "position": "서진과 도겸은 청하진 검문소에서 길목 무사의 호송을 받아 가까운 의원에 도착했다. 서진은 입구 가까운 치료대에 누워 기본 응급 처치를 받고 있으며 도겸은 맞은편 벤치에서 오른다리를 받친 채 처치를 받는다. 수레꾼은 의원 문턱 안쪽에 남고, 길목 무사와 수색 무사는 출입구와 바깥 운반 수레를 나누어 감시한다.",
+    "injuries": "서진의 터진 아랫입술, 찢어진 오른손 손바닥, 왼쪽 옆구리 손상과 악화된 출혈, 어깨 타박을 유지한다. 옆구리에는 새 천으로 압박과 고정을 시작했지만 지혈 완료나 회복을 확정하지 않는다. 먹색 속저고리 소매 끝은 찢어져 있고 청록색 겉옷은 민소매 그대로다. 도겸은 오른다리에 체중을 싣지 못하며 연청색 천은 오른쪽 무릎 아래에서 풀지 않았다.",
+    "props": "서진의 오른쪽 허리 칼집은 비어 있다. 단도는 이전 탈출 현장의 덧문 하단 보강쇠와 문턱 돌 사이에 눌린 채 회수되지 않았다. 물통, 지게, 기존 수레도 되찾지 않았다. 봉함은 계속 장호에게 있다. 현재 의원 밖 수레는 수레꾼 소유의 별도 광석 운반 수레다. 수레꾼이 치료 물품값을 자기 동전으로 지불했다. 사망 기록이 있는 원장부는 중개소 서리에게 있으며 새 인계 쪽지는 길목 무사가 보관한다. 생존자들은 장부나 지시서를 확보하지 않았다.",
+    "threat": "서진과 도겸은 검문 현장의 운반꾼들이 듣는 앞에서 각자 이름을 밝혔다. 중개소 서리는 두 사람의 사망 표시와 생존 보고의 모순을 확인했으나 장부를 정정하지 않고 별도 보고를 보냈다. 공개된 목격, 운송 정체, 길목 무사와 수레꾼의 구체적 책임 때문에 의원 호송이 허용됐지만 감시는 유지된다. 돌아온 수색 무사는 생존을 확인한 수레꾼도 치료 후 두 사람과 함께 별원으로 인계하라는 지시를 전달했다. 장호의 책임이나 배후는 공개적으로 입증되지 않았다.",
+    "next_episode": "5화는 의원에서 기본 처치가 이어지는 가운데 시작한다. 서진과 도겸은 무리하게 싸우거나 즉시 회복할 수 없는 상태에서, 자신들을 도운 수레꾼까지 별원으로 끌려가는 일을 막을 방법을 찾아야 한다. 살아 있는 이름이 공개됐다는 사실은 남았지만 목격자 개인에게 구체적인 대가가 돌아왔다."
+  },
+  "scenes": [
+    {
+      "id": "E04_S01",
+      "scene_order": 1,
+      "location": "청하진 검문 길목, 멈춰 선 운반 수레 안",
+      "cast": [
+        "seojin",
+        "dogyeom",
+        "checkpoint_guard",
+        "carter"
+      ],
+      "scene_summary": "서진이 도겸에게 말을 맡겨 달라고 한 직후 검문 무사에게 치료를 요청한다. 숨는 대신 자신을 드러내는 선택으로 검문의 성격이 바뀐다.",
+      "visual_action": "청하진 낮의 검문 길목, 광석 운반 수레 안을 보는 고정 중경. 모든 원화는 글자 없는 단일 16:9 한국 무협 웹툰 컷이며 상태 변화는 별도 원화로 전환한다. 서진이 도겸 쪽으로 고개를 기울인 직전 화의 마지막 자세에서 시작한다. 도겸의 오른손은 서진의 왼쪽 옆구리에 접은 천을 누르고 왼팔은 등을 받친다. 서진이 왼손으로 덮개 가장자리를 젖힌 다음 상태에서 길목 무사와 눈을 맞춘다. 서진의 터진 아랫입술, 찢어진 오른손 손바닥, 어깨 타박, 피에 젖은 옆구리와 먹색 속저고리의 찢어진 소매 끝을 유지한다. 청록 겉옷은 민소매이며 오른쪽 허리 칼집은 비어 있다. 인물은 공급된 승인 정체성을 유지하고 얼굴 위에는 편집용 말풍선이 들어오지 않을 여백을 둔다.",
+      "dramatic_purpose": "직전 화의 마지막 순간을 이어 받아 치료를 위한 자발적 노출을 이번 화의 첫 선택으로 만든다.",
+      "duration_seconds": 30,
+      "spoken_blocks": [
+        {
+          "id": "s1d1",
+          "kind": "dialogue",
+          "speaker": "seojin",
+          "text": "“형. 이번엔 제가 말할게요.”"
+        },
+        {
+          "id": "s1d2",
+          "kind": "dialogue",
+          "speaker": "seojin",
+          "text": "“의원으로 보내 주십시오. 저희 둘 다 치료가 필요합니다.”"
+        }
+      ],
+      "text": "“형. 이번엔 제가 말할게요.”\n“의원으로 보내 주십시오. 저희 둘 다 치료가 필요합니다.”",
+      "blocks": [
+        {
+          "kind": "dialogue",
+          "speaker": "seojin",
+          "text": "“형. 이번엔 제가 말할게요.”",
+          "source_block_id": "s1d1"
+        },
+        {
+          "kind": "dialogue",
+          "speaker": "seojin",
+          "text": "“의원으로 보내 주십시오. 저희 둘 다 치료가 필요합니다.”",
+          "source_block_id": "s1d2"
+        }
+      ],
+      "silent_visual": false,
+      "visual_states": [
+        "직전 화의 자세를 이어받는다. 도겸이 압박과 등 지지를 유지한 채 서진의 말을 듣는다.",
+        "서진의 왼손이 덮개 가장자리를 젖힌 상태. 서진과 길목 무사가 시선을 맞추며 치료를 요청한다."
+      ],
+      "state_image_prompts": [
+        "Single 16:9 Korean wuxia webtoon still, crisp ink lines and restrained cel shading, one frozen daylight moment inside a halted ore transport cart at Qingha checkpoint. Seojin reclines low at frame left, turning his narrow angular clean-shaven face toward Dogyeom; dark gray eyes, black high-tied hair with two temple strands and a muted teal tie. His muted teal SLEEVELESS vest lies over charcoal sleeves with already torn cuffs. Preserve his split lower lip, injured right palm, bruised shoulder and blood-soaked LEFT flank; the sheath at his RIGHT hip is visibly empty. Dogyeom, stocky with a broad square face, sparse beard and ochre headcloth, sits at frame right, his RIGHT hand pressing folded cloth against Seojin's left flank and LEFT arm supporting his back. His injured RIGHT leg rests entirely on ore sacks, pale blue cloth tied ONLY BELOW the RIGHT knee, bare neck. The cart canopy edge remains lowered beside Seojin's left hand. Compose both heads low, with naturally shaded canopy fabric above and away from them for later editable dialogue. No dagger, pack, flask, writing, speech bubbles, panels, collage, watermark or motion trails.",
+        "Single 16:9 Korean wuxia webtoon still, one frozen moment from the same fixed cart-side camera as the preceding state. Seojin's uninjured LEFT hand holds the canopy edge aside; he remains reclined and meets the eyes of checkpoint_guard standing outside at frame right. Match checkpoint_guard-v4.png identity: slim mature man, narrow diamond facial outline, broad high cheekbones, short receding rounded chin, upswept almond eyes, thin arched brows, convex aquiline nose with bulbous tip, clean-shaven, iron-blue robe, BLACK belt and blue-bound black bun. Dogyeom remains seated, RIGHT hand continuously pressing Seojin's LEFT flank and LEFT arm supporting his back; his RIGHT leg remains elevated with pale blue cloth ONLY BELOW the right knee, nothing around his neck. Seojin retains the teal SLEEVELESS vest, torn charcoal cuffs, split lip, injured right palm, shoulder bruise and empty RIGHT-hip sheath. Carter stands behind the guard near the cart shaft, tall and lean with very large projecting ears, shovel-shaped jaw, olive headcloth and moss work coat. Keep all heads below the natural open sky and canopy recess available for later dialogue. No restored belongings, writing, bubbles, panels, collage or motion trails."
+      ],
+      "ae": {
+        "camera": "fixed",
+        "parallax": false,
+        "duration_estimate_seconds": 10,
+        "timing": "발화 1 종료 뒤 상태 0→1 하드컷. 확정 녹음의 블록 시작·끝과 실제 호흡으로 재배치하며 긴 정지로 목표 시간을 채우지 않는다.",
+        "episode_defaults": {
+          "scope": "E04_S01–E04_S20",
+          "state_index_base": 0,
+          "block_index_base": 1,
+          "art_job_policy": "각 visual_states 항목은 독립된 단일 16:9 원화 제작 요청이다. 승인 참조 정체성을 해당 cast에 연결한다. 설명은 미술 제작 지시이며 발화에 추가하지 않는다.",
+          "reference_policy": "공급된 cast.appearance와 reference_role을 사용한다. checkpoint_guard는 최신 cast 항목의 checkpoint_guard-v4.png 정체성을 우선한다. 승인 얼굴을 군중이나 다른 역할에 복제하지 않는다.",
+          "continuity": "서진의 청록 겉옷은 민소매이며 먹색 속저고리 소매 끝은 첫 장면부터 찢어진 상태다. 터진 입술·오른손 손바닥 손상·왼쪽 옆구리 출혈·어깨 타박을 유지한다. 오른쪽 칼집은 비어 있다. 도겸의 연청색 천은 오른쪽 무릎 아래에만 고정하고 오른다리에 체중을 싣지 않는다. 단도·지게·물통·기존 수레·봉함을 생존자에게 추가하지 않는다.",
+          "subtitles": false,
+          "narration_captions": false,
+          "dialogue_bubbles": {
+            "editable": true,
+            "text_source": "각 spoken_blocks.text 원문 전체",
+            "timing_source": "동일 source block id의 확정 녹음 발화 시작·끝",
+            "font_family": "Gmarket_Default",
+            "font_size_canvas_height_fraction": 0.038,
+            "text_color": "#202126",
+            "fill_color": "#FFFDF5",
+            "outline_color": "#292C32",
+            "outline_width_canvas_height_fraction": 0.002,
+            "rotation_degrees": 0,
+            "emphasis_scale": 1,
+            "entrance": "발화 시작에 2프레임 불투명도 등장",
+            "exit": "발화 종료 뒤 최대 0.15초 여유 후 2프레임 퇴장",
+            "tail": "몸체와 하나의 닫힌 외곽선으로 연결한 짧은 꼬리. 머리 보호 영역에 닿기 전에 끝내고 접합부 내부 선을 제거한다.",
+            "layout": "각 블록의 bubble_region 안에서 순차 표시한다. 좌표는 최종 16:9 화면의 정규화된 [x,y,width,height]이다. 실제 원화의 모든 머리·얼굴 보호 영역을 본체·꼬리·문자·그림자·등퇴장 구간 전체에서 피한다. 배치가 맞지 않으면 줄바꿈·위치·원화 구도를 수정하고 읽기 어려운 축소로 해결하지 않는다.",
+            "paused_editing": "선택한 블록의 전체 문구와 편집 속성을 유지한다."
+          },
+          "animation": "원화는 정지한다. 상태 사이 하드컷과 짧은 정지로 진행하며 팔다리 이동·전체 장면 확대·느린 줌을 추가하지 않는다.",
+          "duration_policy": "600초는 목표값이다. 장면별 시간은 녹음 전 편집 추정치이며 확정 녹음과 필요한 시각 행동 길이로 결정한다. 반복 발화·반복 원화·긴 무동작 정지로 시간을 늘리지 않는다.",
+          "mouth_policy": "새 회차 자동 준비 정책을 유지하되 실제 게시 원화를 검토한 뒤 적합한 입만 선택한다. 현재 단계에서 입 좌표·적격 여부·합성 검수 완료를 확정하지 않는다.",
+          "bgm_prompt": "낮은 현악 지속음과 절제된 타악으로 감시 아래의 긴장을 유지한다. 의원 도착을 승리 음악으로 처리하지 않는다. 대사·부상자의 호흡·수레와 처치 소리를 우선한다. 음악 파일 생성 요청은 포함하지 않는다."
+        },
+        "spoken_blocks": [
+          {
+            "id": "s1d1",
+            "kind": "dialogue",
+            "speaker": "seojin",
+            "text": "형. 이번엔 제가 말할게요.",
+            "bubble_preset": "whisper",
+            "bubble_region": [
+              0.06,
+              0.05,
+              0.58,
+              0.22
+            ]
+          },
+          {
+            "id": "s1d2",
+            "kind": "dialogue",
+            "speaker": "seojin",
+            "text": "의원으로 보내 주십시오. 저희 둘 다 치료가 필요합니다.",
+            "bubble_preset": "dialogue",
+            "bubble_region": [
+              0.05,
+              0.04,
+              0.7,
+              0.25
+            ]
+          }
+        ]
+      },
+      "screen_text": []
+    },
+    {
+      "id": "E04_S02",
+      "scene_order": 2,
+      "location": "청하진 검문 길목, 수레 뒤편 대기 행렬",
+      "cast": [
+        "carter",
+        "checkpoint_guard",
+        "seojin",
+        "dogyeom"
+      ],
+      "scene_summary": "무사가 수레를 옆길로 빼라고 명령하지만 수레꾼은 뒤따르는 짐수레와 좁은 도랑 때문에 즉시 움직일 수 없다. 검문이 길어질수록 운반 행렬 전체가 막힌다.",
+      "visual_action": "검문 가로대와 대기 수레 행렬을 함께 담는 고정 원경. 수레 한쪽 바퀴 바로 옆에는 도랑, 뒤에는 짐수레 앞채가 바짝 붙어 있다. 길목 무사가 옆길을 가리키는 상태에서 수레꾼이 바퀴와 도랑 사이의 틈을 가리키는 상태로 전환한다. 수레꾼은 승인된 큰 돌출 귀, 삽 모양 턱, 이끼색 작업 겉옷을 유지한다. 익명의 운반꾼들은 짐을 받치거나 자기 수레 곁에 서서 바라본다. 무사를 에워싸거나 무기를 들지 않는다. 서진과 도겸은 전경 수레에 그대로 있고 압박은 지속된다.",
+      "dramatic_purpose": "군중의 위세 대신 실제 물류 정체와 지형을 협상의 조건으로 세운다.",
+      "duration_seconds": 30,
+      "spoken_blocks": [
+        {
+          "id": "s2d1",
+          "kind": "dialogue",
+          "speaker": "checkpoint_guard",
+          "text": "“수레부터 옆으로 빼라.”"
+        },
+        {
+          "id": "s2d2",
+          "kind": "dialogue",
+          "speaker": "carter",
+          "text": "“여기서 꺾으면 도랑에 빠집니다. 앞을 열어 주셔야 빠져나가지요.”"
+        }
+      ],
+      "text": "“수레부터 옆으로 빼라.”\n“여기서 꺾으면 도랑에 빠집니다. 앞을 열어 주셔야 빠져나가지요.”",
+      "blocks": [
+        {
+          "kind": "dialogue",
+          "speaker": "checkpoint_guard",
+          "text": "“수레부터 옆으로 빼라.”",
+          "source_block_id": "s2d1"
+        },
+        {
+          "kind": "dialogue",
+          "speaker": "carter",
+          "text": "“여기서 꺾으면 도랑에 빠집니다. 앞을 열어 주셔야 빠져나가지요.”",
+          "source_block_id": "s2d2"
+        }
+      ],
+      "silent_visual": false,
+      "visual_states": [
+        "도랑과 뒤따르는 수레 때문에 회전할 수 없는 지형을 한 원화에서 보여 준다."
+      ],
+      "state_image_prompts": [
+        "Single 16:9 Korean wuxia webtoon still, fixed wide three-quarter view of a congested daylight checkpoint. Carter's separate ore cart occupies the lower center; its near wheel is inches from an open drainage ditch, and another freight cart's shaft nearly touches its rear, leaving no turning radius. Carter, tall lean man with very large protruding ears, a heavy shovel-shaped jaw, olive headcloth and moss work coat, points down at the narrow wheel-to-ditch gap. At frame right checkpoint_guard, matching approved v4 diamond face, aquiline nose, iron-blue robe and BLACK belt, holds an arm toward the blocked side lane. Seojin and Dogyeom remain low in the opened cart: teal sleeveless vest over torn charcoal sleeves, split lip, injured right palm, bruised shoulder, bloody LEFT-flank pressure cloth, empty RIGHT sheath; Dogyeom supports him and keeps his injured RIGHT leg on sacks, pale blue cloth ONLY BELOW the right knee, no neck scarf. Two anonymous laborers stay beside their own loads in the distant queue, unarmed and not surrounding the guard. Leave natural pale sky above every head for later bubbles, without a blank banner. No writing, bubbles, restored belongings, panels, collage or motion trails."
+      ],
+      "ae": {
+        "camera": "fixed",
+        "parallax": false,
+        "duration_estimate_seconds": 10,
+        "timing": "한 원화에서 발화 순서대로 표시한다. 도랑과 뒤 수레 간격이 읽힐 짧은 시작 정지만 확보한다.",
+        "spoken_blocks": [
+          {
+            "id": "s2d1",
+            "kind": "dialogue",
+            "speaker": "checkpoint_guard",
+            "text": "수레부터 옆으로 빼라.",
+            "bubble_preset": "dialogue",
+            "bubble_region": [
+              0.42,
+              0.04,
+              0.52,
+              0.22
+            ]
+          },
+          {
+            "id": "s2d2",
+            "kind": "dialogue",
+            "speaker": "carter",
+            "text": "여기서 꺾으면 도랑에 빠집니다. 앞을 열어 주셔야 빠져나가지요.",
+            "bubble_preset": "dialogue",
+            "bubble_region": [
+              0.05,
+              0.04,
+              0.72,
+              0.26
+            ]
+          }
+        ]
+      },
+      "screen_text": []
+    },
+    {
+      "id": "E04_S03",
+      "scene_order": 3,
+      "location": "검문 수레 적재함, 광석 자루 사이",
+      "cast": [
+        "seojin",
+        "dogyeom",
+        "carter",
+        "checkpoint_guard"
+      ],
+      "scene_summary": "확인을 위해 덮개가 더 걷히자 서진의 출혈이 드러난다. 도겸은 검문에 응하면서도 압박을 풀라는 요구는 거절해 치료의 시급함을 행동으로 지킨다.",
+      "visual_action": "광석 자루 사이 적재함을 보는 고정 근경. 길목 무사가 덮개를 더 들어 올린 손과 도겸의 압박 손을 한 화면에 둔다. 도겸은 오른손을 떼지 않고 왼쪽 팔꿈치만 옮겨 서진의 얼굴을 드러낸다. 서진은 모서리에 등을 기댄 채 턱을 낮추며 왼손 힘도 풀린 상태다. 천의 기존 혈흔과 가장자리의 새 젖음을 구분한다. 도겸의 오른다리는 자루 위에 뻗어 있으며 연청색 목도리는 오른쪽 무릎 아래에 묶여 있다. 얼굴과 손의 위치를 분리해 가림 없이 보여 준다.",
+      "dramatic_purpose": "신원 확인과 생존에 필요한 처치가 충돌하는 구체적인 긴장을 만든다.",
+      "duration_seconds": 30,
+      "spoken_blocks": [
+        {
+          "id": "s3d1",
+          "kind": "dialogue",
+          "speaker": "checkpoint_guard",
+          "text": "“손 치워. 상처를 보겠다.”"
+        },
+        {
+          "id": "s3d2",
+          "kind": "dialogue",
+          "speaker": "dogyeom",
+          "text": "“누른 건 못 뗍니다. 확인은 이대로 하십시오.”"
+        }
+      ],
+      "text": "“손 치워. 상처를 보겠다.”\n“누른 건 못 뗍니다. 확인은 이대로 하십시오.”",
+      "blocks": [
+        {
+          "kind": "dialogue",
+          "speaker": "checkpoint_guard",
+          "text": "“손 치워. 상처를 보겠다.”",
+          "source_block_id": "s3d1"
+        },
+        {
+          "kind": "dialogue",
+          "speaker": "dogyeom",
+          "text": "“누른 건 못 뗍니다. 확인은 이대로 하십시오.”",
+          "source_block_id": "s3d2"
+        }
+      ],
+      "silent_visual": false,
+      "visual_states": [
+        "덮개가 들린 적재함. 상처 확인 요구에도 도겸의 오른손 압박은 유지된다."
+      ],
+      "state_image_prompts": [
+        "Single 16:9 Korean wuxia webtoon still, fixed intimate cart-bed view with both injured men's faces and the pressure hand clearly separated. Checkpoint_guard stands at the far right edge, approved clean-shaven v4 diamond face and iron-blue robe visible, one hand holding the cart canopy high. Seojin slumps against an ore sack at lower left, chin lowered, LEFT hand slack. Preserve his narrow angular face, split lower lip, bruised shoulder, wounded RIGHT palm, muted teal SLEEVELESS vest over charcoal sleeves with torn cuffs, empty RIGHT-hip sheath and bleeding LEFT flank. Dogyeom sits beside him, broad square tanned face and sparse beard beneath an ochre headcloth; his RIGHT hand presses the same folded cloth against the left flank while his LEFT elbow supports Seojin's back without hiding either face. Show dark old blood at the cloth center and a small fresh wet edge, not a blood spray. Dogyeom's RIGHT leg lies fully supported on sacks, pale blue cloth ONLY BELOW the right knee, neck unwrapped. Natural shaded canopy recess occupies the upper third above all heads. No writing, bubbles, dagger, pack, flask, panels, collage or motion trails."
+      ],
+      "ae": {
+        "camera": "fixed",
+        "parallax": false,
+        "duration_estimate_seconds": 9,
+        "timing": "圧迫を外す演技や傷の点滅を加えず、二つの発話を同じ静止状態に同期する。",
+        "spoken_blocks": [
+          {
+            "id": "s3d1",
+            "kind": "dialogue",
+            "speaker": "checkpoint_guard",
+            "text": "손 치워. 상처를 보겠다.",
+            "bubble_preset": "dialogue",
+            "bubble_region": [
+              0.46,
+              0.04,
+              0.48,
+              0.23
+            ]
+          },
+          {
+            "id": "s3d2",
+            "kind": "dialogue",
+            "speaker": "dogyeom",
+            "text": "누른 건 못 뗍니다. 확인은 이대로 하십시오.",
+            "bubble_preset": "dialogue",
+            "bubble_region": [
+              0.05,
+              0.04,
+              0.68,
+              0.25
+            ]
+          }
+        ]
+      },
+      "screen_text": []
+    },
+    {
+      "id": "E04_S04",
+      "scene_order": 4,
+      "location": "검문소 가로대 옆, 대기 행렬에 열린 수레 측면",
+      "cast": [
+        "seojin",
+        "dogyeom",
+        "checkpoint_guard",
+        "carter"
+      ],
+      "scene_summary": "이름을 묻는 무사에게 서진과 도겸이 각각 자기 이름을 말한다. 주변 운반꾼들이 듣는 자리에서 생존 사실이 두 사람의 입으로 확인된다.",
+      "visual_action": "대기 행렬에 열린 수레 측면 고정 중경. 수레 난간 위에 서진과 도겸의 얼굴이 함께 보이고 길목 무사는 화면 오른쪽에 선다. 서진이 고개를 든 상태, 도겸이 무사를 바라보는 상태, 뒤쪽 운반꾼 두세 명이 그쪽으로 돌아선 상태를 개별 원화로 연결한다. 덮개는 걷힌 채 유지한다. 두 부상자는 일어서지 않으며 도겸의 압박 손과 받친 오른다리 위치를 바꾸지 않는다. 익명 군중에게 승인된 주요 인물의 얼굴을 복제하지 않는다.",
+      "dramatic_purpose": "살아 있는 이름을 공개해 이후 은밀한 인계의 부담을 만든다.",
+      "duration_seconds": 30,
+      "spoken_blocks": [
+        {
+          "id": "s4d1",
+          "kind": "dialogue",
+          "speaker": "checkpoint_guard",
+          "text": "“이름.”"
+        },
+        {
+          "id": "s4d2",
+          "kind": "dialogue",
+          "speaker": "seojin",
+          "text": "“서진입니다.”"
+        },
+        {
+          "id": "s4d3",
+          "kind": "dialogue",
+          "speaker": "dogyeom",
+          "text": "“나는 도겸이오. 저 수레꾼이 나를 압니다.”"
+        },
+        {
+          "id": "s4d4",
+          "kind": "dialogue",
+          "speaker": "carter",
+          "text": "“도겸 맞습니다. 저하고 광석을 나르던 사람이에요.”"
+        }
+      ],
+      "text": "“이름.”\n“서진입니다.”\n“나는 도겸이오. 저 수레꾼이 나를 압니다.”\n“도겸 맞습니다. 저하고 광석을 나르던 사람이에요.”",
+      "blocks": [
+        {
+          "kind": "dialogue",
+          "speaker": "checkpoint_guard",
+          "text": "“이름.”",
+          "source_block_id": "s4d1"
+        },
+        {
+          "kind": "dialogue",
+          "speaker": "seojin",
+          "text": "“서진입니다.”",
+          "source_block_id": "s4d2"
+        },
+        {
+          "kind": "dialogue",
+          "speaker": "dogyeom",
+          "text": "“나는 도겸이오. 저 수레꾼이 나를 압니다.”",
+          "source_block_id": "s4d3"
+        },
+        {
+          "kind": "dialogue",
+          "speaker": "carter",
+          "text": "“도겸 맞습니다. 저하고 광석을 나르던 사람이에요.”",
+          "source_block_id": "s4d4"
+        }
+      ],
+      "silent_visual": false,
+      "visual_states": [
+        "열린 수레 측면에서 두 생존자와 수레꾼이 공개적으로 신원을 밝힌다."
+      ],
+      "state_image_prompts": [
+        "Single 16:9 Korean wuxia webtoon still, fixed medium-wide side view of an uncovered ore cart beside the checkpoint barrier. Seojin and Dogyeom remain seated low behind the rail, faces unobstructed and directed toward checkpoint_guard at frame right. Seojin has the approved narrow angular face, black tied hair, split lip, injured RIGHT palm, shoulder bruise, bloody LEFT flank, teal SLEEVELESS vest over torn charcoal cuffs and empty RIGHT sheath. Dogyeom has the distinct broad square face, sparse beard and ochre headcloth; his RIGHT hand maintains left-flank pressure and his RIGHT leg is supported inside the cart, pale blue cloth ONLY BELOW the right knee, no neck scarf. Carter stands lower left beside the shaft, very large projecting ears, shovel jaw and moss work coat clearly distinct from Dogyeom. Checkpoint_guard retains the v4 diamond face, convex aquiline nose and BLACK belt. Two anonymous distant carriers have turned toward the exchange without approaching or raising weapons. Keep all named heads in the middle-to-lower frame and preserve natural sky and receding roof space above them for editable dialogue. No lettering, bubbles, recovered belongings, panels, collage or motion trails."
+      ],
+      "ae": {
+        "camera": "fixed",
+        "parallax": false,
+        "duration_estimate_seconds": 14,
+        "timing": "질문과 세 답변을 원래 순서대로 표시한다. 신원 확인 뒤 짧게 컷하며 군중 반응을 반복하지 않는다.",
+        "spoken_blocks": [
+          {
+            "id": "s4d1",
+            "kind": "dialogue",
+            "speaker": "checkpoint_guard",
+            "text": "이름.",
+            "bubble_preset": "reaction",
+            "bubble_region": [
+              0.62,
+              0.06,
+              0.3,
+              0.16
+            ]
+          },
+          {
+            "id": "s4d2",
+            "kind": "dialogue",
+            "speaker": "seojin",
+            "text": "서진입니다.",
+            "bubble_preset": "dialogue",
+            "bubble_region": [
+              0.08,
+              0.05,
+              0.4,
+              0.18
+            ]
+          },
+          {
+            "id": "s4d3",
+            "kind": "dialogue",
+            "speaker": "dogyeom",
+            "text": "나는 도겸이오. 저 수레꾼이 나를 압니다.",
+            "bubble_preset": "dialogue",
+            "bubble_region": [
+              0.18,
+              0.04,
+              0.66,
+              0.24
+            ]
+          },
+          {
+            "id": "s4d4",
+            "kind": "dialogue",
+            "speaker": "carter",
+            "text": "도겸 맞습니다. 저하고 광석을 나르던 사람이에요.",
+            "bubble_preset": "dialogue",
+            "bubble_region": [
+              0.05,
+              0.04,
+              0.7,
+              0.24
+            ]
+          }
+        ]
+      },
+      "screen_text": []
+    },
+    {
+      "id": "E04_S05",
+      "scene_order": 5,
+      "location": "검문소 가로대 안쪽, 별원으로 갈라지는 좁은 길 입구",
+      "cast": [
+        "checkpoint_guard",
+        "carter",
+        "seojin",
+        "dogyeom"
+      ],
+      "scene_summary": "무사는 두 사람을 별원으로 데려가라는 지시를 고수한다. 수레꾼은 별원 길 대신 가까운 의원 처마를 가리키며 치료까지 자신이 운반하고 도주하면 책임지겠다고 나선다.",
+      "visual_action": "가로대 안쪽 갈림길을 보는 고정 넓은 중경. 길목 무사의 팔은 별원 방향의 좁은 길을 향하고 수레꾼의 손은 큰길 건너 가까운 의원 처마를 향한다. 수레꾼은 자기 수레 앞채에 몸을 붙이고 선다. 두 방향과 막힌 운반 행렬이 한 구도에서 읽히게 한다. 서진은 수레 안에서 눈만 돌리고 도겸은 압박 자세를 유지한다. 의원에는 새 인물의 얼굴이나 간판 문자를 원화에 넣지 않는다.",
+      "dramatic_purpose": "치료를 얻는 대가를 수레꾼 개인의 책임으로 구체화한다.",
+      "duration_seconds": 30,
+      "spoken_blocks": [
+        {
+          "id": "s5d1",
+          "kind": "dialogue",
+          "speaker": "checkpoint_guard",
+          "text": "“이 둘은 별원으로 인계하라는 지시다.”"
+        },
+        {
+          "id": "s5d2",
+          "kind": "dialogue",
+          "speaker": "carter",
+          "text": "“의원은 바로 저깁니다. 제가 데려가겠습니다.”"
+        },
+        {
+          "id": "s5d3",
+          "kind": "dialogue",
+          "speaker": "checkpoint_guard",
+          "text": "“도망치면?”"
+        },
+        {
+          "id": "s5d4",
+          "kind": "dialogue",
+          "speaker": "carter",
+          "text": "“제 수레도 저도 남겠습니다. 놓치면 제게 책임을 물으십시오.”"
+        }
+      ],
+      "text": "“이 둘은 별원으로 인계하라는 지시다.”\n“의원은 바로 저깁니다. 제가 데려가겠습니다.”\n“도망치면?”\n“제 수레도 저도 남겠습니다. 놓치면 제게 책임을 물으십시오.”",
+      "blocks": [
+        {
+          "kind": "dialogue",
+          "speaker": "checkpoint_guard",
+          "text": "“이 둘은 별원으로 인계하라는 지시다.”",
+          "source_block_id": "s5d1"
+        },
+        {
+          "kind": "dialogue",
+          "speaker": "carter",
+          "text": "“의원은 바로 저깁니다. 제가 데려가겠습니다.”",
+          "source_block_id": "s5d2"
+        },
+        {
+          "kind": "dialogue",
+          "speaker": "checkpoint_guard",
+          "text": "“도망치면?”",
+          "source_block_id": "s5d3"
+        },
+        {
+          "kind": "dialogue",
+          "speaker": "carter",
+          "text": "“제 수레도 저도 남겠습니다. 놓치면 제게 책임을 물으십시오.”",
+          "source_block_id": "s5d4"
+        }
+      ],
+      "silent_visual": false,
+      "visual_states": [
+        "별원 쪽 좁은 길과 큰길 건너 의원 처마를 구별한다. 수레꾼이 치료 운반과 책임을 자청한다."
+      ],
+      "state_image_prompts": [
+        "Single 16:9 Korean wuxia webtoon still, fixed wide medium view of a checkpoint fork in a premodern Chinese-inspired town. The narrow shaded branch to the separate compound recedes at frame right; across the wider street at frame left is a nearby modest clinic with low stone steps, a timber doorway and a shallow tiled eave, no sign lettering. Checkpoint_guard, approved v4 narrow diamond face, high cheekbones, aquiline nose and BLACK belt, points toward the narrow branch. Carter stands close against his ore cart shaft, moss coat, olive headcloth, enormous projecting ears and shovel jaw, pointing toward the clinic eave. The blocked transport queue remains behind them. In the lower cart bed Seojin reclines in his teal SLEEVELESS vest over torn charcoal sleeves, split lip, wounded RIGHT palm, bruised shoulder, bloody LEFT flank and empty RIGHT sheath. Dogyeom maintains pressure with his RIGHT hand; his injured RIGHT leg rests on sacks with pale blue cloth ONLY BELOW the knee, no scarf at the neck. Reserve naturally open sky and distant unlettered plaster above all heads for later dialogue. No writing, bubbles, new named faces, recovered equipment, panels, collage or motion trails."
+      ],
+      "ae": {
+        "camera": "fixed",
+        "parallax": false,
+        "duration_estimate_seconds": 16,
+        "timing": "두 방향이 한 번에 읽히는 원화를 유지하고 책임 약속 뒤 바로 다음 장면으로 전환한다.",
+        "spoken_blocks": [
+          {
+            "id": "s5d1",
+            "kind": "dialogue",
+            "speaker": "checkpoint_guard",
+            "text": "이 둘은 별원으로 인계하라는 지시다.",
+            "bubble_preset": "dialogue",
+            "bubble_region": [
+              0.3,
+              0.04,
+              0.64,
+              0.23
+            ]
+          },
+          {
+            "id": "s5d2",
+            "kind": "dialogue",
+            "speaker": "carter",
+            "text": "의원은 바로 저깁니다. 제가 데려가겠습니다.",
+            "bubble_preset": "dialogue",
+            "bubble_region": [
+              0.05,
+              0.04,
+              0.68,
+              0.24
+            ]
+          },
+          {
+            "id": "s5d3",
+            "kind": "dialogue",
+            "speaker": "checkpoint_guard",
+            "text": "도망치면?",
+            "bubble_preset": "reaction",
+            "bubble_region": [
+              0.62,
+              0.07,
+              0.3,
+              0.17
+            ]
+          },
+          {
+            "id": "s5d4",
+            "kind": "dialogue",
+            "speaker": "carter",
+            "text": "제 수레도 저도 남겠습니다. 놓치면 제게 책임을 물으십시오.",
+            "bubble_preset": "dialogue",
+            "bubble_region": [
+              0.05,
+              0.04,
+              0.76,
+              0.26
+            ]
+          }
+        ]
+      },
+      "screen_text": []
+    },
+    {
+      "id": "E04_S06",
+      "scene_order": 6,
+      "location": "검문소 바깥, 대기 수레 사이로 이어지는 산길 입구",
+      "cast": [
+        "guard",
+        "checkpoint_guard",
+        "carter",
+        "seojin",
+        "dogyeom"
+      ],
+      "scene_summary": "추적해 온 수색 무사가 도착해 생존자들을 알아본다. 서진은 즉시 끌려갈 위험을 맞지만 수레꾼은 이미 여러 사람이 신원을 들은 공개된 자리에서 인계 책임자를 분명히 하라고 요구한다.",
+      "visual_action": "대기 수레 사이의 산길 입구를 보는 고정 원경. 승인된 직사각형 얼굴과 청동 허리띠의 수색 무사가 좁은 틈으로 들어온 상태를 새 원화로 제시한다. 검은 허리띠의 길목 무사는 그를 향해 돌아선다. 수레꾼은 앞채 옆에 남고 군중은 멀찍이 떨어져 있다. 서진의 어깨가 움츠러든 상태와 도겸이 왼팔로 등을 더 받친 상태를 연결한다. 서진의 손은 빈 칼집에 닿지 않는다. 수색 무사는 온전한 무장과 곧은 자세를 유지한다.",
+      "dramatic_purpose": "말 몇 마디로 경비를 무력화하지 않고 추격자의 실재하는 위협을 합류시킨다.",
+      "duration_seconds": 30,
+      "spoken_blocks": [
+        {
+          "id": "s6d1",
+          "kind": "dialogue",
+          "speaker": "guard",
+          "text": "“그 둘이다. 수레에서 내려.”"
+        },
+        {
+          "id": "s6d2",
+          "kind": "dialogue",
+          "speaker": "carter",
+          "text": "“지금 내리라니요? 여기서 넘기면, 누가 데려갔다고 해야 합니까?”"
+        },
+        {
+          "id": "s6d3",
+          "kind": "dialogue",
+          "speaker": "checkpoint_guard",
+          "text": "“잠깐. 여기는 내가 맡는다.”"
+        }
+      ],
+      "text": "“그 둘이다. 수레에서 내려.”\n“지금 내리라니요? 여기서 넘기면, 누가 데려갔다고 해야 합니까?”\n“잠깐. 여기는 내가 맡는다.”",
+      "blocks": [
+        {
+          "kind": "dialogue",
+          "speaker": "guard",
+          "text": "“그 둘이다. 수레에서 내려.”",
+          "source_block_id": "s6d1"
+        },
+        {
+          "kind": "dialogue",
+          "speaker": "carter",
+          "text": "“지금 내리라니요? 여기서 넘기면, 누가 데려갔다고 해야 합니까?”",
+          "source_block_id": "s6d2"
+        },
+        {
+          "kind": "dialogue",
+          "speaker": "checkpoint_guard",
+          "text": "“잠깐. 여기는 내가 맡는다.”",
+          "source_block_id": "s6d3"
+        }
+      ],
+      "silent_visual": false,
+      "visual_states": [
+        "수색 무사가 대기 수레 사이로 합류한다. 두 무사의 얼굴과 허리띠를 구별한다."
+      ],
+      "state_image_prompts": [
+        "Single 16:9 Korean wuxia webtoon still, fixed wide view through a gap between waiting freight carts toward a mountain-road entrance. The pursuing guard has just reached the halted ore cart and stands firmly at lower left: approved broad RECTANGULAR clean-shaven face, straight heavy eyebrows, plain black topknot, iron-blue martial clothing, dark BRONZE belt, bracers, black boots and a sheathed straight sword. At lower right checkpoint_guard turns toward him, distinctly slimmer with the approved v4 DIAMOND face, aquiline nose, thin arched eyebrows and BLACK belt. Carter stays by the shaft, moss work coat and large projecting ears, addressing the newcomers. Seojin hunches in the cart, teal SLEEVELESS vest over torn charcoal cuffs, split lip, injured RIGHT palm, shoulder bruise, bleeding LEFT flank and empty RIGHT sheath; his hands do not reach the sheath. Dogyeom's LEFT arm braces his back and RIGHT hand keeps pressure, RIGHT leg supported on sacks, pale blue cloth ONLY BELOW the right knee, neck bare. Anonymous carriers remain distant beside their loads. Keep clear natural sky above every head for later bubbles. No lettering, speech bubbles, red belts, restored belongings, panels, collage or motion trails."
+      ],
+      "ae": {
+        "camera": "fixed",
+        "parallax": false,
+        "duration_estimate_seconds": 13,
+        "timing": "수색 무사의 도착 상태를 짧게 읽힌 뒤 발화 순서를 따른다. 군중의 포위나 무사 제압 연출을 추가하지 않는다.",
+        "spoken_blocks": [
+          {
+            "id": "s6d1",
+            "kind": "dialogue",
+            "speaker": "guard",
+            "text": "그 둘이다. 수레에서 내려.",
+            "bubble_preset": "dialogue",
+            "bubble_region": [
+              0.05,
+              0.04,
+              0.6,
+              0.23
+            ]
+          },
+          {
+            "id": "s6d2",
+            "kind": "dialogue",
+            "speaker": "carter",
+            "text": "지금 내리라니요? 여기서 넘기면, 누가 데려갔다고 해야 합니까?",
+            "bubble_preset": "dialogue",
+            "bubble_region": [
+              0.07,
+              0.04,
+              0.78,
+              0.27
+            ]
+          },
+          {
+            "id": "s6d3",
+            "kind": "dialogue",
+            "speaker": "checkpoint_guard",
+            "text": "잠깐. 여기는 내가 맡는다.",
+            "bubble_preset": "dialogue",
+            "bubble_region": [
+              0.4,
+              0.04,
+              0.54,
+              0.23
+            ]
+          }
+        ]
+      },
+      "screen_text": []
+    },
+    {
+      "id": "E04_S07",
+      "scene_order": 7,
+      "location": "검문소 가로대, 운반 수레 앞바퀴 옆",
+      "cast": [
+        "checkpoint_guard",
+        "guard",
+        "carter",
+        "seojin",
+        "dogyeom"
+      ],
+      "scene_summary": "길목 무사가 의원까지의 호송만 허용하고 자신이 현장에서 감시하기로 한다. 수색 무사에게는 중개소에 생존 사실을 알리고 인계 확인을 받아 오라고 지시한다. 수레꾼은 치료가 끝날 때까지 수레와 함께 남아야 한다.",
+      "visual_action": "수레 앞바퀴와 가로대를 담는 고정 중경. 길목 무사가 뒤쪽 정체 행렬과 압박 천을 차례로 보는 상태 뒤에 의원 쪽 가로대 일부를 여는 상태를 둔다. 다른 손은 칼집 가까이에 남는다. 수색 무사는 중개소 방향으로 돌아서고 수레꾼은 고삐를 잡는다. 길목 무사가 수레 옆에 바짝 붙어 호송 대형을 만든다. 주변 운반꾼은 자기 짐 곁에 그대로 있어 길을 여는 결정이 군중의 물리적 제압처럼 보이지 않게 한다.",
+      "dramatic_purpose": "목격자, 막힌 운송, 현장 책임이 결합한 제한적 양보로 검문 갈등을 해결한다.",
+      "duration_seconds": 30,
+      "spoken_blocks": [
+        {
+          "id": "s7d1",
+          "kind": "dialogue",
+          "speaker": "checkpoint_guard",
+          "text": "“의원까지만 간다. 내가 붙어 있겠다.”"
+        },
+        {
+          "id": "s7d2",
+          "kind": "dialogue",
+          "speaker": "checkpoint_guard",
+          "text": "“중개소에 살아 있다고 보고해. 인계 확인도 받아 와.”"
+        },
+        {
+          "id": "s7d3",
+          "kind": "dialogue",
+          "speaker": "checkpoint_guard",
+          "text": "“수레꾼, 너도 치료가 끝날 때까지 남아라.”"
+        },
+        {
+          "id": "s7d4",
+          "kind": "dialogue",
+          "speaker": "carter",
+          "text": "“알겠습니다. 길을 내주십시오.”"
+        }
+      ],
+      "text": "“의원까지만 간다. 내가 붙어 있겠다.”\n“중개소에 살아 있다고 보고해. 인계 확인도 받아 와.”\n“수레꾼, 너도 치료가 끝날 때까지 남아라.”\n“알겠습니다. 길을 내주십시오.”",
+      "blocks": [
+        {
+          "kind": "dialogue",
+          "speaker": "checkpoint_guard",
+          "text": "“의원까지만 간다. 내가 붙어 있겠다.”",
+          "source_block_id": "s7d1"
+        },
+        {
+          "kind": "dialogue",
+          "speaker": "checkpoint_guard",
+          "text": "“중개소에 살아 있다고 보고해. 인계 확인도 받아 와.”",
+          "source_block_id": "s7d2"
+        },
+        {
+          "kind": "dialogue",
+          "speaker": "checkpoint_guard",
+          "text": "“수레꾼, 너도 치료가 끝날 때까지 남아라.”",
+          "source_block_id": "s7d3"
+        },
+        {
+          "kind": "dialogue",
+          "speaker": "carter",
+          "text": "“알겠습니다. 길을 내주십시오.”",
+          "source_block_id": "s7d4"
+        }
+      ],
+      "silent_visual": false,
+      "visual_states": [
+        "닫힌 가로대 앞에서 길목 무사가 의원 호송과 생존 보고, 수레꾼 잔류를 지시한다.",
+        "의원 방향 가로대가 열린 상태. 수색 무사는 중개소 방향으로 돌아서고 길목 무사는 수레 옆 호송 위치를 잡는다."
+      ],
+      "state_image_prompts": [
+        "Single 16:9 Korean wuxia webtoon still, fixed medium-wide checkpoint view with the ore cart's front wheel low in frame and the timber barrier still closed. Checkpoint_guard stands beside the barrier, approved v4 diamond face and aquiline nose, iron-blue robe and BLACK belt, one hand on the barrier and the other near his sheathed sword. He faces the pursuing guard, whose broad rectangular face, heavy straight brows and dark BRONZE belt remain clearly different. Carter waits beside the shaft holding the reins, tall lean body, very large ears and moss coat. The ore cart contains reclining Seojin with teal SLEEVELESS vest, torn charcoal cuffs, split lip, wounded right palm, shoulder bruise, bloody LEFT flank and empty RIGHT sheath. Dogyeom continuously presses the flank with his RIGHT hand and supports the back with his LEFT arm; his RIGHT leg rests inside the cart, pale blue cloth ONLY BELOW the knee, no neck scarf. Anonymous carriers remain at their own carts behind. Leave naturally open sky above all heads for dialogue. No writing, bubbles, recovered belongings, panels, collage or motion trails.",
+        "Single 16:9 Korean wuxia webtoon still from exactly the same fixed camera and daylight as the preceding checkpoint state. The clinic-side timber barrier is now lifted enough for the ore cart; the separate compound lane remains closed. Checkpoint_guard, approved v4 diamond face, aquiline nose and BLACK belt, is stationed tightly beside the cart on the escort side. The pursuing guard, broad rectangular face and BRONZE belt, faces away toward the agency road, his sword still sheathed. Carter grips the reins at the cart shaft, large projecting ears, shovel jaw and moss work coat visible. Seojin remains reclined in his teal SLEEVELESS vest over torn charcoal cuffs, split lip, injured right palm, bruised shoulder, bloody LEFT flank and empty RIGHT sheath. Dogyeom keeps RIGHT-hand pressure and LEFT-arm support, with his RIGHT leg elevated inside the bed and pale blue cloth ONLY BELOW the knee, no neck scarf. The waiting laborers stay beside their own loads. Preserve natural upper sky space above all heads, no artificial banner. No lettering, bubbles, reclaimed equipment, panels, collage or motion trails."
+      ],
+      "ae": {
+        "camera": "fixed",
+        "parallax": false,
+        "duration_estimate_seconds": 16,
+        "timing": "발화 3 종료 뒤 열린 가로대 상태로 하드컷하고 발화 4를 배치한다. 가로대를 레이어 회전으로 움직이지 않는다.",
+        "spoken_blocks": [
+          {
+            "id": "s7d1",
+            "kind": "dialogue",
+            "speaker": "checkpoint_guard",
+            "text": "의원까지만 간다. 내가 붙어 있겠다.",
+            "bubble_preset": "dialogue",
+            "bubble_region": [
+              0.32,
+              0.04,
+              0.62,
+              0.23
+            ]
+          },
+          {
+            "id": "s7d2",
+            "kind": "dialogue",
+            "speaker": "checkpoint_guard",
+            "text": "중개소에 살아 있다고 보고해. 인계 확인도 받아 와.",
+            "bubble_preset": "dialogue",
+            "bubble_region": [
+              0.2,
+              0.04,
+              0.74,
+              0.25
+            ]
+          },
+          {
+            "id": "s7d3",
+            "kind": "dialogue",
+            "speaker": "checkpoint_guard",
+            "text": "수레꾼, 너도 치료가 끝날 때까지 남아라.",
+            "bubble_preset": "dialogue",
+            "bubble_region": [
+              0.28,
+              0.04,
+              0.66,
+              0.24
+            ]
+          },
+          {
+            "id": "s7d4",
+            "kind": "dialogue",
+            "speaker": "carter",
+            "text": "알겠습니다. 길을 내주십시오.",
+            "bubble_preset": "dialogue",
+            "bubble_region": [
+              0.05,
+              0.04,
+              0.6,
+              0.23
+            ]
+          }
+        ]
+      },
+      "screen_text": []
+    },
+    {
+      "id": "E04_S08",
+      "scene_order": 8,
+      "location": "검문 가로대와 도랑 사이의 좁은 통과 지점",
+      "cast": [
+        "carter",
+        "checkpoint_guard",
+        "seojin",
+        "dogyeom"
+      ],
+      "scene_summary": "수레가 가로대를 통과하다 바퀴가 턱에 걸린다. 수레꾼이 바퀴 방향을 바로잡고 도겸이 서진을 붙들어 충격을 줄이면서 호송이 실제로 시작된다.",
+      "visual_action": "30초 계획의 무언 동작 구간. 가로대와 도랑 사이를 보는 고정 낮은 전경. 앞바퀴가 돌턱에 닿은 상태, 수레꾼이 앞채 각도를 비스듬히 바꾼 상태, 바퀴가 턱을 벗어난 상태를 각각 단일 원화로 전환한다. 바퀴살 사이에 손을 넣지 않는다. 화면 위쪽 도겸의 왼팔은 서진의 상체를 받치고 오른손은 옆구리 압박을 지속한다. 도겸의 오른다리는 적재함 안에 남는다. 길목 무사는 반대 측면에서 감시한다. 인물 팔다리를 레이어 이동으로 움직이지 않는다.",
+      "dramatic_purpose": "허가가 곧 안전을 뜻하지 않음을 보여 주고 두 조력자의 행동을 부각한다.",
+      "duration_seconds": 30,
+      "spoken_blocks": [],
+      "text": "",
+      "blocks": [],
+      "silent_visual": true,
+      "visual_states": [
+        "무언 상태 1. 좁은 통과 지점에서 앞바퀴가 돌턱에 닿아 멎은 충돌 순간.",
+        "무언 상태 2. 앞채 각도가 바뀌고 앞바퀴가 돌턱을 벗어난 직후. 두 부상자의 지지는 그대로다."
+      ],
+      "state_image_prompts": [
+        "Single 16:9 Korean wuxia webtoon still, one frozen wheel-contact moment from a fixed low wide camera between the opened checkpoint barrier and drainage ditch. The ore cart's near front wheel touches a low stone lip at lower center; show solid spokes and precise wheel-to-stone contact, no hand inside the wheel. Carter braces both hands on the cart shaft, not the spokes, moss work coat, olive headcloth, enormous projecting ears and shovel jaw. In the cart's upper-right portion Dogyeom's LEFT arm firmly supports Seojin's upper body while his RIGHT hand keeps pressure on the bloody LEFT flank. Seojin remains in the teal SLEEVELESS vest over torn charcoal sleeves, with split lip, injured RIGHT palm, shoulder bruise and empty RIGHT sheath. Dogyeom's injured RIGHT leg stays entirely inside the cart, pale blue cloth ONLY BELOW the knee, no neck scarf. Checkpoint_guard stands on the opposite cart side, approved v4 diamond face, iron-blue robe and BLACK belt, watching. Keep every head fully inside frame with generous natural sky clearance. No explosion, airborne debris, new injury, lettering, bubbles, panels, collage or motion trails.",
+        "Single 16:9 Korean wuxia webtoon still from exactly the same fixed low checkpoint camera. The ore cart's near front wheel is now beyond the low stone lip on level ground; Carter holds the shaft at a slightly diagonal angle, showing the completed correction in one frozen pose, hands far from the spokes. Preserve his tall lean build, large projecting ears, shovel jaw, olive headcloth and moss coat. Dogyeom remains seated in the cart with his LEFT arm supporting Seojin's back and RIGHT hand pressing Seojin's LEFT flank; his RIGHT leg never leaves the cart, pale blue cloth ONLY BELOW the right knee, neck bare. Seojin retains his teal SLEEVELESS vest over torn charcoal sleeves, split lip, wounded RIGHT palm, bruised shoulder, blood-darkened left-flank cloth and empty RIGHT sheath. Checkpoint_guard, approved v4 diamond face and BLACK belt, remains on the opposite side of the cart. Maintain identical barrier, ditch, lighting and upper sky clearance around all heads. No intermediate duplicate figures, lettering, bubbles, explosions, panels, collage or motion trails."
+      ],
+      "ae": {
+        "camera": "fixed",
+        "parallax": false,
+        "duration_estimate_seconds": 4,
+        "timing": "無音声の二状態。状態0を約2秒、状態1を約2秒。0.5でハードカットし、車輪の修正を手足のレイヤー移動で補間しない。",
+        "spoken_blocks": [],
+        "voice_anchor": null,
+        "sfx": [
+          {
+            "type": "wheel_stone_contact",
+            "state_index": 0,
+            "preview_fraction": 0.04,
+            "duration_seconds": 0.2,
+            "voice_anchor": null,
+            "direction": "小さな木輪と石の接触音を一度だけ。爆発音なし。"
+          }
+        ]
+      },
+      "screen_text": []
+    },
+    {
+      "id": "E04_S09",
+      "scene_order": 9,
+      "location": "청하진 큰길, 검문소와 의원 사이의 장터 모퉁이",
+      "cast": [
+        "carter",
+        "checkpoint_guard",
+        "seojin",
+        "dogyeom"
+      ],
+      "scene_summary": "호송 수레가 장터를 가로지른다. 수레꾼은 급히 가려는 마음을 억누르고 울퉁불퉁한 길의 평평한 쪽을 택하며, 무사는 골목으로 빠질 여지를 차단한다.",
+      "visual_action": "30초 계획의 무언 이동 구간. 청하진 장터 모퉁이를 보는 고정 거리 원경. 같은 구도에서 수레가 모퉁이에 들어온 상태와 평평한 길을 따라 지나간 상태를 별도 원화로 연결한다. 수레꾼은 낮게 솟은 돌을 피해 앞채를 잡고 익명 행인들은 노점 쪽으로 비켜선다. 길목 무사는 골목 입구를 차단하는 쪽에 위치한다. 적재함 안 서진의 청록 민소매 겉옷 옆에 피 묻은 압박 천이 보인다. 도겸의 오른발은 바닥에 닿지 않는다. 고정 카메라를 유지하며 줌이나 패럴랙스를 넣지 않는다.",
+      "dramatic_purpose": "검문에서 치료 장소로 공간을 전진시키면서 감시와 부상의 제약을 유지한다.",
+      "duration_seconds": 30,
+      "spoken_blocks": [],
+      "text": "",
+      "blocks": [],
+      "silent_visual": true,
+      "visual_states": [
+        "무언 상태 1. 호송 수레가 장터 모퉁이에 들어와 솟은 돌 앞에서 평평한 경로를 택한다.",
+        "무언 상태 2. 같은 거리 구도에서 수레가 평평한 경로를 지나 의원 쪽으로 전진한 위치."
+      ],
+      "state_image_prompts": [
+        "Single 16:9 Korean wuxia webtoon still, fixed wide street view of a daylight market corner between the checkpoint and clinic. Carter's ore cart has reached the corner at frame left; raised uneven stones are visible directly ahead while a flat strip of paving curves toward the clinic on frame right. Carter holds the shaft toward that flat strip, moss work coat, olive headcloth, very large projecting ears and shovel jaw. Checkpoint_guard, approved v4 diamond face, aquiline nose and BLACK belt, occupies the alley-side flank to deny an escape route. Seojin lies low inside the cart in his teal SLEEVELESS vest over torn charcoal sleeves, split lip, injured RIGHT palm, shoulder bruise, bloody LEFT-flank pressure cloth and empty RIGHT sheath. Dogyeom maintains RIGHT-hand pressure and LEFT-arm support, his RIGHT leg supported on sacks with pale blue cloth ONLY BELOW the knee and no neck scarf. Anonymous pedestrians stand back beside unlettered stalls. Keep natural sky and unmarked plaster above all heads; no artificial blank strip. No writing, bubbles, recovered equipment, panels, collage or motion trails.",
+        "Single 16:9 Korean wuxia webtoon still from the identical fixed market-corner camera and daylight. The same ore cart is now farther along the flat paved strip at frame right, beyond the protruding stones; the checkpoint remains in the distant left background and the clinic eave is closer ahead. Carter stays at the shaft, tall lean body, very large ears, shovel jaw, olive headcloth and moss coat. Checkpoint_guard, approved v4 diamond face and BLACK belt, remains between the cart and the side alley. In the cart Seojin's teal SLEEVELESS vest, torn charcoal cuffs, split lip, wounded RIGHT palm, bruised shoulder, bloody LEFT flank and empty RIGHT sheath remain unchanged. Dogyeom still supports him with LEFT arm and RIGHT-hand pressure; his injured RIGHT leg is supported inside the cart, pale blue cloth ONLY BELOW the knee, nothing at the neck. Anonymous pedestrians remain by their stalls with no recognizable cast faces. Preserve natural sky clearance around every head. One frozen destination position, no duplicate cart, no lettering, bubbles, panels, collage or motion trails."
+      ],
+      "ae": {
+        "camera": "fixed",
+        "parallax": false,
+        "duration_estimate_seconds": 5,
+        "timing": "무언 이동을 두 정지 위치로 보여 준다. 약 2.25초 뒤 상태 1로 하드컷하고 약 2.75초 뒤 의원 앞 장면으로 전환한다.",
+        "spoken_blocks": [],
+        "voice_anchor": null,
+        "sfx": [
+          {
+            "type": "cart_wood_creak",
+            "state_index": 0,
+            "preview_fraction": 0.12,
+            "duration_seconds": 0.5,
+            "voice_anchor": null,
+            "direction": "절제된 수레 목재 마찰음. 발화나 효과음 문자는 만들지 않는다."
+          },
+          {
+            "type": "wheel_on_flat_paving",
+            "state_index": 1,
+            "preview_fraction": 0.54,
+            "duration_seconds": 0.7,
+            "voice_anchor": null,
+            "direction": "평평한 돌길 위 짧은 바퀴 소리. 그림을 이동시키지 않는다."
+          }
+        ]
+      },
+      "screen_text": []
+    },
+    {
+      "id": "E04_S10",
+      "scene_order": 10,
+      "location": "청하진 의원 앞, 낮은 돌계단과 좁은 처마",
+      "cast": [
+        "carter",
+        "checkpoint_guard",
+        "seojin",
+        "dogyeom"
+      ],
+      "scene_summary": "의원에 도착하지만 수레는 높은 문턱을 넘을 수 없다. 수레꾼이 도움을 청하고 무사는 출입문 옆을 지켜, 치료 진입과 감시가 같은 문턱에서 맞물린다.",
+      "visual_action": "의원의 낮은 돌계단과 높은 문턱을 함께 보는 고정 정면 전경. 수레는 계단과 간격을 두고 멈추며 수레꾼이 바퀴 앞뒤를 쐐기로 고정한 상태를 보여 준다. 문 안에서 익명 치료 인력의 손과 소매만 나오며 운반판을 준비한다. 적재함에서 계단 위 입구까지 운반판을 사람이 들어 옮길 수 있는 공간을 확보한다. 길목 무사는 출입문 옆 기둥에 서고 도겸은 수레에 앉아 서진을 붙든다. 치료 인력의 얼굴이나 백소연의 외형을 등장시키지 않는다.",
+      "dramatic_purpose": "지체 없이 의원에 도착해 치료를 시작할 수 있는 구체적인 동선을 마련한다.",
+      "duration_seconds": 30,
+      "spoken_blocks": [
+        {
+          "id": "s10d1",
+          "kind": "dialogue",
+          "speaker": "carter",
+          "text": "“도와주십시오! 피를 많이 흘렸습니다!”"
+        },
+        {
+          "id": "s10d2",
+          "kind": "dialogue",
+          "speaker": "dogyeom",
+          "text": "“이쪽 사람부터 부탁합니다.”"
+        }
+      ],
+      "text": "“도와주십시오! 피를 많이 흘렸습니다!”\n“이쪽 사람부터 부탁합니다.”",
+      "blocks": [
+        {
+          "kind": "dialogue",
+          "speaker": "carter",
+          "text": "“도와주십시오! 피를 많이 흘렸습니다!”",
+          "source_block_id": "s10d1"
+        },
+        {
+          "kind": "dialogue",
+          "speaker": "dogyeom",
+          "text": "“이쪽 사람부터 부탁합니다.”",
+          "source_block_id": "s10d2"
+        }
+      ],
+      "silent_visual": false,
+      "visual_states": [
+        "의원 계단 앞에 수레가 고정되어 있다. 익명 치료 인력의 손이 운반판을 준비한다."
+      ],
+      "state_image_prompts": [
+        "Single 16:9 Korean wuxia webtoon still, fixed frontal wide view of a modest clinic with low stone steps and a high timber threshold. The separate ore cart is halted a safe distance from the steps, its visible wheel securely chocked fore and aft. Carter stands beside the shaft calling into the doorway, approved large projecting ears, shovel jaw, olive headcloth and moss work coat. Dogyeom remains seated in the cart, RIGHT hand pressing Seojin's LEFT flank and LEFT arm supporting him; his injured RIGHT leg stays supported, pale blue cloth ONLY BELOW the knee, no neck scarf. Seojin reclines in a teal SLEEVELESS vest over torn charcoal sleeves, split lip, wounded RIGHT palm, bruised shoulder and empty RIGHT sheath. Only anonymous clinic workers' sleeves, hands and cropped torsos appear at the threshold holding a plain carrying board; every staff head is outside the frame or fully occluded by the doorframe. Checkpoint_guard, approved v4 diamond face and BLACK belt, guards the side pillar. Keep the carrying route clear and natural upper plaster and eave space above all visible heads for dialogue. No clinic lettering, bubbles, named healer, recovered belongings, panels, collage or motion trails."
+      ],
+      "ae": {
+        "camera": "fixed",
+        "parallax": false,
+        "duration_estimate_seconds": 8,
+        "timing": "수레 고정과 운반 동선이 보이는 한 원화에 두 발화를 배치한다. 외침 말풍선도 크기 튀기기 없이 등장한다.",
+        "spoken_blocks": [
+          {
+            "id": "s10d1",
+            "kind": "dialogue",
+            "speaker": "carter",
+            "text": "도와주십시오! 피를 많이 흘렸습니다!",
+            "bubble_preset": "shout",
+            "bubble_region": [
+              0.05,
+              0.04,
+              0.7,
+              0.25
+            ]
+          },
+          {
+            "id": "s10d2",
+            "kind": "dialogue",
+            "speaker": "dogyeom",
+            "text": "이쪽 사람부터 부탁합니다.",
+            "bubble_preset": "dialogue",
+            "bubble_region": [
+              0.2,
+              0.04,
+              0.64,
+              0.23
+            ]
+          }
+        ]
+      },
+      "screen_text": []
+    },
+    {
+      "id": "E04_S11",
+      "scene_order": 11,
+      "location": "의원 문턱 안쪽, 입구 가까운 낮은 치료대",
+      "cast": [
+        "seojin",
+        "dogyeom",
+        "carter",
+        "checkpoint_guard"
+      ],
+      "scene_summary": "수레꾼과 익명의 치료 인력이 서진을 운반판으로 옮긴다. 도겸은 인계가 끝날 때까지 압박을 유지하고, 치료 인력의 손이 자리를 넘겨받은 뒤에야 손을 뗀다.",
+      "visual_action": "의원 입구와 수레를 함께 담는 고정 측면 중경. 첫 상태에서 서진을 수레 위 운반판에 눕히고 도겸이 앉은 채 옆구리를 누른다. 익명 치료 인력의 손이 기존 천 위로 새 천을 포개어 압박을 넘겨받은 상태 다음에 도겸의 손이 떨어진 상태를 둔다. 이후 수레꾼과 익명 보조자가 판 양끝을 들어 계단과 문턱을 넘긴 상태, 입구 가까운 낮은 치료대에 판을 내려놓은 상태로 전환한다. 옆구리 압박은 인계 중에도 유지된다. 길목 무사의 검은 허리띠와 장화는 출구 가장자리에 남는다.",
+      "dramatic_purpose": "치료라는 당면 목표를 실제 처치의 시작으로 달성하고 압박의 연속성을 지킨다.",
+      "duration_seconds": 30,
+      "spoken_blocks": [
+        {
+          "id": "s11d1",
+          "kind": "dialogue",
+          "speaker": "dogyeom",
+          "text": "“제가 누르던 자리입니다. 손 넘겨드리겠습니다.”"
+        }
+      ],
+      "text": "“제가 누르던 자리입니다. 손 넘겨드리겠습니다.”",
+      "blocks": [
+        {
+          "kind": "dialogue",
+          "speaker": "dogyeom",
+          "text": "“제가 누르던 자리입니다. 손 넘겨드리겠습니다.”",
+          "source_block_id": "s11d1"
+        }
+      ],
+      "silent_visual": false,
+      "visual_states": [
+        "도겸과 익명 치료 인력의 손이 겹쳐 압박을 인계하는 순간. 서진은 수레 위 운반판에 누워 있다.",
+        "압박을 넘겨받은 뒤 서진의 운반판이 입구 가까운 치료대에 내려놓인 상태. 도겸은 수레에 남아 있다."
+      ],
+      "state_image_prompts": [
+        "Single 16:9 Korean wuxia webtoon still, fixed side view spanning the clinic threshold and the chocked ore cart. Seojin lies on a plain carrying board resting securely in the cart bed. Dogyeom remains seated beside him with his RIGHT hand on the old pressure cloth at Seojin's LEFT flank; an anonymous clinician's hand presses a fresh folded cloth over the same site so both hands visibly overlap during the handover. Dogyeom's LEFT arm still supports the back; his injured RIGHT leg rests in the cart, pale blue cloth ONLY BELOW the knee, no neck scarf. Seojin retains the teal SLEEVELESS vest over torn charcoal cuffs, split lip, injured RIGHT palm, shoulder bruise, pallor and empty RIGHT sheath. Carter grips the near board handle, large ears, shovel jaw and moss coat visible; a cropped anonymous helper supports the opposite end. Show staff hands and torsos only, their heads outside the composition. Checkpoint_guard's BLACK belt and boots remain at the exit edge. Preserve natural unmarked wall space above visible heads for the dialogue. No writing, bubbles, restored equipment, panels, collage or motion trails.",
+        "Single 16:9 Korean wuxia webtoon still from the same fixed side camera spanning the open clinic doorway and cart. Seojin's carrying board now rests fully on the low treatment table immediately inside the threshold. An anonymous clinician's hands maintain uninterrupted pressure with fresh cloth on his LEFT flank; staff heads remain outside frame, only sleeves and cropped torsos visible. Seojin is pale, split lower lip, wounded RIGHT palm and bruised shoulder unchanged, teal SLEEVELESS vest and torn charcoal cuffs loosened only enough for care, empty RIGHT-hip sheath retained with his clothing. Carter, moss coat, large projecting ears and shovel jaw, has both hands at the near board handle after setting it down. Through the open doorway Dogyeom remains seated in the stationary cart, RIGHT hand withdrawn after handover, injured RIGHT leg still supported with pale blue cloth ONLY BELOW the knee, bare neck. Checkpoint_guard's BLACK belt and boots guard the doorway edge. No visual gap in compression, no healed wound, no staff faces, lettering, bubbles, restored belongings, panels, collage or motion trails."
+      ],
+      "ae": {
+        "camera": "fixed",
+        "parallax": false,
+        "duration_estimate_seconds": 7,
+        "timing": "발화 전체를 상태 0에 연결한다. 손 인계를 읽힌 뒤 상태 1로 하드컷해 운반 완료 위치를 약 1.5–2초 보여 준다. 들어 옮기는 중간 동작을 레이어 이동으로 만들지 않는다.",
+        "spoken_blocks": [
+          {
+            "id": "s11d1",
+            "kind": "dialogue",
+            "speaker": "dogyeom",
+            "text": "제가 누르던 자리입니다. 손 넘겨드리겠습니다.",
+            "bubble_preset": "dialogue",
+            "bubble_region": [
+              0.06,
+              0.04,
+              0.74,
+              0.25
+            ]
+          }
+        ]
+      },
+      "screen_text": []
+    },
+    {
+      "id": "E04_S12",
+      "scene_order": 12,
+      "location": "의원 입구 안쪽, 치료대 맞은편 벽 벤치",
+      "cast": [
+        "dogyeom",
+        "carter",
+        "seojin"
+      ],
+      "scene_summary": "서진이 처치를 받는 동안 수레꾼은 도겸도 안으로 옮긴다. 도겸은 다친 다리를 딛지 않은 채 벤치에 앉아 서진의 치료대가 보이는 자리를 고른다.",
+      "visual_action": "의원 입구 안 벽 벤치와 맞은편 치료대를 담는 고정 넓은 중경. 수레꾼과 얼굴이 프레임 밖인 보조자가 도겸의 양옆과 오른다리를 지지해 안으로 옮긴다. 도겸은 왼발만 잠깐 바닥에 대며 오른다리에 체중을 싣지 않는다. 다음 상태에서 벤치에 앉아 접은 깔개 위에 오른다리를 올린다. 오른쪽 무릎 아래 연청색 천은 풀지 않는다. 익명 치료 인력이 그 위쪽과 다리 주변을 살피는 손만 보인다. 서진은 후경 치료대에서 계속 압박 처치를 받는다.",
+      "dramatic_purpose": "도겸을 단순한 부축 도구로 남기지 않고 그 역시 치료와 보호가 필요한 생존자로 다룬다.",
+      "duration_seconds": 30,
+      "spoken_blocks": [
+        {
+          "id": "s12d1",
+          "kind": "dialogue",
+          "speaker": "carter",
+          "text": "“자네도 들어가야지. 내 어깨 잡게.”"
+        },
+        {
+          "id": "s12d2",
+          "kind": "dialogue",
+          "speaker": "dogyeom",
+          "text": "“저 애 보이는 쪽에 앉혀 주게.”"
+        }
+      ],
+      "text": "“자네도 들어가야지. 내 어깨 잡게.”\n“저 애 보이는 쪽에 앉혀 주게.”",
+      "blocks": [
+        {
+          "kind": "dialogue",
+          "speaker": "carter",
+          "text": "“자네도 들어가야지. 내 어깨 잡게.”",
+          "source_block_id": "s12d1"
+        },
+        {
+          "kind": "dialogue",
+          "speaker": "dogyeom",
+          "text": "“저 애 보이는 쪽에 앉혀 주게.”",
+          "source_block_id": "s12d2"
+        }
+      ],
+      "silent_visual": false,
+      "visual_states": [
+        "수레꾼과 익명 보조자가 도겸의 양옆과 오른다리를 지지한 상태. 도겸이 앉을 위치를 요청한다.",
+        "도겸이 벤치에 앉아 오른다리를 접은 깔개와 받침에 올린 상태. 맞은편 서진이 보인다."
+      ],
+      "state_image_prompts": [
+        "Single 16:9 Korean wuxia webtoon still, fixed wide medium view inside the clinic entrance, with a wall bench opposite Seojin's treatment table. Carter supports Dogyeom's left side, approved tall lean build, enormous projecting ears, shovel jaw, olive headcloth and moss coat. A second anonymous helper's cropped torso and hands support Dogyeom's other side and injured RIGHT lower leg; the helper's head is entirely beyond the frame. Dogyeom grips Carter's shoulder, his LEFT foot lightly touching the floor while the RIGHT foot is lifted and carries absolutely no body weight. Preserve his stocky broad square face, sparse beard, ochre headcloth and pale blue cloth tied ONLY BELOW the RIGHT knee, nothing around the neck. Seojin lies on the opposite table with anonymous hands maintaining LEFT-flank pressure, teal SLEEVELESS vest over torn charcoal cuffs, split lip, injured RIGHT palm, bruised shoulder and empty RIGHT sheath with his clothing. Keep all visible heads low beneath naturally unmarked plaster for later bubbles. No staff faces, lettering, bubbles, new named cast, recovered equipment, panels, collage or motion trails.",
+        "Single 16:9 Korean wuxia webtoon still from the identical fixed clinic camera. Dogyeom is now seated securely on the wall bench facing Seojin's treatment table, injured RIGHT leg resting on a folded pad over a low support, heel and calf fully supported and no weight on that leg. Pale blue cloth stays tied ONLY BELOW the RIGHT knee, neck bare; preserve broad square tanned face, sparse beard, ochre headcloth and ochre-brown work clothing. Carter stands immediately beside him with hands lowered after assistance, very large projecting ears, shovel jaw and moss coat unchanged. Anonymous clinician hands inspect the leg around the existing cloth without untying it; all staff heads are outside frame. In the background Seojin remains pale on the table, split lip, wounded right palm, bruised shoulder, LEFT-flank compression, teal SLEEVELESS vest, torn charcoal cuffs and empty RIGHT sheath retained. Natural plaster and eave shadow remain above every visible head. No recovery pose, writing, bubbles, restored belongings, panels, collage or motion trails."
+      ],
+      "ae": {
+        "camera": "fixed",
+        "parallax": false,
+        "duration_estimate_seconds": 9,
+        "timing": "두 발화를 지지 상태 0에 모두 연결한 뒤 앉은 상태 1로 하드컷한다. 마지막 위치 확인은 약 1.5초로 제한한다.",
+        "spoken_blocks": [
+          {
+            "id": "s12d1",
+            "kind": "dialogue",
+            "speaker": "carter",
+            "text": "자네도 들어가야지. 내 어깨 잡게.",
+            "bubble_preset": "rounded",
+            "bubble_region": [
+              0.05,
+              0.04,
+              0.64,
+              0.23
+            ]
+          },
+          {
+            "id": "s12d2",
+            "kind": "dialogue",
+            "speaker": "dogyeom",
+            "text": "저 애 보이는 쪽에 앉혀 주게.",
+            "bubble_preset": "dialogue",
+            "bubble_region": [
+              0.25,
+              0.04,
+              0.67,
+              0.23
+            ]
+          }
+        ]
+      },
+      "screen_text": []
+    },
+    {
+      "id": "E04_S13",
+      "scene_order": 13,
+      "location": "의원 내부, 서진의 치료대 머리맡",
+      "cast": [
+        "seojin",
+        "dogyeom",
+        "carter"
+      ],
+      "scene_summary": "서진의 출혈 부위에 기본 처치가 이어진다. 서진이 몸을 일으키려 하자 도겸은 치료받는 동안 자신이 깨어 지켜보겠다고 해 그를 눕혀 둔다.",
+      "visual_action": "서진의 치료대 머리맡을 보는 고정 근경. 익명 치료 인력의 손이 옷을 필요한 만큼만 젖히고 왼쪽 옆구리에 새 압박 천을 고정한다. 터진 입술, 어깨 타박, 찢어진 오른손 손바닥은 그대로다. 청록 민소매 겉옷과 찢어진 먹색 속저고리 소매는 치료대 가장자리에 이어 놓는다. 서진이 머리와 어깨를 조금 들려는 상태 뒤에 다시 누운 상태를 둔다. 맞은편 도겸은 다리를 받친 채 시선을 맞춘다. 지혈 완료나 안색 회복을 표현하지 않는다.",
+      "dramatic_purpose": "회복을 과장하지 않고 처치를 받아들일 수 있게 하는 두 사람의 신뢰를 보여 준다.",
+      "duration_seconds": 30,
+      "spoken_blocks": [
+        {
+          "id": "s13d1",
+          "kind": "dialogue",
+          "speaker": "seojin",
+          "text": "“형은요?”"
+        },
+        {
+          "id": "s13d2",
+          "kind": "dialogue",
+          "speaker": "dogyeom",
+          "text": "“나도 봐주고 있어. 넌 누워 있어.”"
+        },
+        {
+          "id": "s13d3",
+          "kind": "dialogue",
+          "speaker": "dogyeom",
+          "text": "“내가 깨어 있을게.”"
+        }
+      ],
+      "text": "“형은요?”\n“나도 봐주고 있어. 넌 누워 있어.”\n“내가 깨어 있을게.”",
+      "blocks": [
+        {
+          "kind": "dialogue",
+          "speaker": "seojin",
+          "text": "“형은요?”",
+          "source_block_id": "s13d1"
+        },
+        {
+          "kind": "dialogue",
+          "speaker": "dogyeom",
+          "text": "“나도 봐주고 있어. 넌 누워 있어.”",
+          "source_block_id": "s13d2"
+        },
+        {
+          "kind": "dialogue",
+          "speaker": "dogyeom",
+          "text": "“내가 깨어 있을게.”",
+          "source_block_id": "s13d3"
+        }
+      ],
+      "silent_visual": false,
+      "visual_states": [
+        "서진은 다시 누운 자세로 도겸을 바라본다. 익명 치료 인력의 손이 새 압박 천을 고정한다."
+      ],
+      "state_image_prompts": [
+        "Single 16:9 Korean wuxia webtoon still, fixed intimate oblique view from the head of Seojin's low treatment table. Seojin lies flat with his narrow angular face turned toward Dogyeom across the room, dark gray eyes open, split lower lip and pallor unchanged. His injured RIGHT palm rests visibly on the bedding, and shoulder bruising remains. Anonymous clinician hands secure fresh pressure cloth at his LEFT flank, without showing a healed or dry wound. His teal SLEEVELESS vest is loosened beside the flank, torn charcoal sleeves remain connected to his clothing, and the empty RIGHT-hip sheath stays at the table edge with the belt. Dogyeom sits on the opposite bench, broad square face, sparse beard and ochre headcloth, calmly meeting Seojin's gaze; his RIGHT leg stays elevated on a pad with pale blue cloth ONLY BELOW the knee, neck bare. Staff appear only as hands and cropped sleeves with every staff head excluded. Use a natural quiet plaster wall above both visible heads for later dialogue. No writing, bubbles, new healer identity, restored belongings, panels, collage or motion trails."
+      ],
+      "ae": {
+        "camera": "fixed",
+        "parallax": false,
+        "duration_estimate_seconds": 10,
+        "timing": "누운 상태 한 컷에서 대화를 이어 간다. 마지막 답변 뒤 짧은 호흡만 두고 장부방으로 컷한다.",
+        "spoken_blocks": [
+          {
+            "id": "s13d1",
+            "kind": "dialogue",
+            "speaker": "seojin",
+            "text": "형은요?",
+            "bubble_preset": "whisper",
+            "bubble_region": [
+              0.06,
+              0.06,
+              0.38,
+              0.17
+            ]
+          },
+          {
+            "id": "s13d2",
+            "kind": "dialogue",
+            "speaker": "dogyeom",
+            "text": "나도 봐주고 있어. 넌 누워 있어.",
+            "bubble_preset": "rounded",
+            "bubble_region": [
+              0.3,
+              0.04,
+              0.64,
+              0.24
+            ]
+          },
+          {
+            "id": "s13d3",
+            "kind": "dialogue",
+            "speaker": "dogyeom",
+            "text": "내가 깨어 있을게.",
+            "bubble_preset": "rounded",
+            "bubble_region": [
+              0.42,
+              0.05,
+              0.5,
+              0.21
+            ]
+          }
+        ]
+      },
+      "screen_text": []
+    },
+    {
+      "id": "E04_S14",
+      "scene_order": 14,
+      "location": "입구 중개소 장부방, 낮은 서안 앞",
+      "cast": [
+        "clerk",
+        "guard"
+      ],
+      "scene_summary": "수색 무사가 두 사람의 생존과 의원 호송을 보고한다. 서리는 사망 표시가 남은 두 이름을 확인하고, 장부를 고치는 대신 별도 보고 쪽지를 꺼낸다.",
+      "visual_action": "중개소 장부방의 낮은 서안을 보는 고정 부감. 수색 무사의 손가락이 장부의 두 항목 앞에 놓이고, 승인된 포도주색 모자와 자주색 조끼의 서리가 먹 묻은 오른손에 붓을 든 채 멈춘다. 문서 원화는 글자 없이 만들고 별도 편집 가능한 문서 그래픽으로 두 항목의 서진·도겸 이름과 사망 표시를 계획한다. 서리는 기존 표시를 지우지 않고 장부 옆에 별도 쪽지를 꺼낸다. 다음 상태에서 쪽지에 붓을 대고 접어 수색 무사에게 건넨다. 장부는 서리 앞에 남는다.",
+      "dramatic_purpose": "살아 있는 당사자와 사망 기록의 모순을 관객에게 확인시키되 증거 확보나 배후 폭로로 비약하지 않는다.",
+      "duration_seconds": 30,
+      "spoken_blocks": [
+        {
+          "id": "s14d1",
+          "kind": "dialogue",
+          "speaker": "guard",
+          "text": "“서진, 도겸. 둘 다 살아 있습니다. 지금 의원에 있습니다.”"
+        },
+        {
+          "id": "s14d2",
+          "kind": "dialogue",
+          "speaker": "clerk",
+          "text": "“둘 다 사망으로 올라가 있는데.”"
+        },
+        {
+          "id": "s14d3",
+          "kind": "dialogue",
+          "speaker": "guard",
+          "text": "“제가 얼굴을 확인했습니다.”"
+        },
+        {
+          "id": "s14d4",
+          "kind": "dialogue",
+          "speaker": "clerk",
+          "text": "“누가 더 봤나?”"
+        },
+        {
+          "id": "s14d5",
+          "kind": "dialogue",
+          "speaker": "guard",
+          "text": "“태워 온 수레꾼이 압니다. 길목에서도 이름을 밝혔습니다.”"
+        }
+      ],
+      "text": "“서진, 도겸. 둘 다 살아 있습니다. 지금 의원에 있습니다.”\n“둘 다 사망으로 올라가 있는데.”\n“제가 얼굴을 확인했습니다.”\n“누가 더 봤나?”\n“태워 온 수레꾼이 압니다. 길목에서도 이름을 밝혔습니다.”",
+      "blocks": [
+        {
+          "kind": "dialogue",
+          "speaker": "guard",
+          "text": "“서진, 도겸. 둘 다 살아 있습니다. 지금 의원에 있습니다.”",
+          "source_block_id": "s14d1"
+        },
+        {
+          "kind": "dialogue",
+          "speaker": "clerk",
+          "text": "“둘 다 사망으로 올라가 있는데.”",
+          "source_block_id": "s14d2"
+        },
+        {
+          "kind": "dialogue",
+          "speaker": "guard",
+          "text": "“제가 얼굴을 확인했습니다.”",
+          "source_block_id": "s14d3"
+        },
+        {
+          "kind": "dialogue",
+          "speaker": "clerk",
+          "text": "“누가 더 봤나?”",
+          "source_block_id": "s14d4"
+        },
+        {
+          "kind": "dialogue",
+          "speaker": "guard",
+          "text": "“태워 온 수레꾼이 압니다. 길목에서도 이름을 밝혔습니다.”",
+          "source_block_id": "s14d5"
+        }
+      ],
+      "silent_visual": false,
+      "visual_states": [
+        "중개소 장부방. 수색 무사의 손가락이 두 항목을 가리키고 서리의 붓이 멈춰 있다.",
+        "서리가 별도 보고 쪽지를 접어 수색 무사에게 건네는 상태. 사망 기록의 원장부는 서리 앞에 남는다."
+      ],
+      "state_image_prompts": [
+        "Single 16:9 Korean wuxia webtoon still, fixed elevated oblique view of a cramped agency ledger office, clearly different from the clinic. A low timber writing desk fills the lower half. The original ledger lies open with two clearly separated EMPTY entry rows and empty status cells, absolutely no ink letters or symbols in the artwork. The pursuing guard stands to the right, broad RECTANGULAR clean-shaven face, heavy straight brows, black topknot, iron-blue clothing and BRONZE belt; his finger rests beside the two rows without covering them. Clerk sits to the left with approved short round face, close-set small eyes, receding high forehead, wine-colored cloth cap, thin gray sideburns, dusty purple long vest and gray-blue sleeves; his ink-stained RIGHT hand holds a bamboo brush paused above the ledger. An unused plain slip rests beside it. Keep both heads low beneath naturally dark shelving recesses for editable dialogue, and leave the ledger rows fully unobstructed. No baked writing, bubbles, new named cast, panels, collage or motion trails.",
+        "Single 16:9 Korean wuxia webtoon still from exactly the same fixed elevated ledger-office camera. Clerk, approved short round face, wine cap, gray sideburns and dusty purple long vest, holds out a folded plain report slip with his ink-stained RIGHT hand; the pursuing guard's hand accepts its opposite edge. The guard preserves his distinct broad RECTANGULAR face, heavy brows, iron-blue uniform and BRONZE belt. The original open ledger remains flat in front of Clerk with the same two empty rows and status cells intact, no erasure marks and no readable writing baked into the art. The bamboo brush lies beside the ledger. Only one slip exists and it is being transferred to the guard, not to either survivor. Keep the same shelves, desk geometry, lighting and natural upper recess above all heads. No lettering, bubbles, second ledger, panels, collage or motion trails."
+      ],
+      "ae": {
+        "camera": "fixed",
+        "parallax": false,
+        "duration_estimate_seconds": 19,
+        "timing": "다섯 발화는 상태 0에 배치한다. 마지막 발화 뒤 상태 1로 하드컷해 별도 쪽지 인계를 약 1.5–2초 보여 준다.",
+        "document_graphics": [
+          {
+            "state_indices": [
+              0,
+              1
+            ],
+            "editable": true,
+            "target": "original_ledger_two_rows",
+            "rows": [
+              {
+                "name": "서진",
+                "status": "사망"
+              },
+              {
+                "name": "도겸",
+                "status": "사망"
+              }
+            ],
+            "timing": "장부가 보이는 동안 두 상태에 유지",
+            "style": "작고 읽을 수 있는 먹색 문서 글자, 상태 표시는 탁한 적갈색",
+            "tracking": "실제 원화의 빈 두 항목에만 수동 사각면 정합하고 손·붓의 가림을 반영한다.",
+            "direction": "편집 가능한 소품 표기이며 하단 자막이나 문서 설명문을 추가하지 않는다. 사망 표시를 삭제·정정하지 않는다. 보고 쪽지에는 문구를 추가하지 않는다."
+          }
+        ],
+        "spoken_blocks": [
+          {
+            "id": "s14d1",
+            "kind": "dialogue",
+            "speaker": "guard",
+            "text": "서진, 도겸. 둘 다 살아 있습니다. 지금 의원에 있습니다.",
+            "bubble_preset": "dialogue",
+            "bubble_region": [
+              0.22,
+              0.03,
+              0.72,
+              0.24
+            ]
+          },
+          {
+            "id": "s14d2",
+            "kind": "dialogue",
+            "speaker": "clerk",
+            "text": "둘 다 사망으로 올라가 있는데.",
+            "bubble_preset": "dialogue",
+            "bubble_region": [
+              0.05,
+              0.03,
+              0.62,
+              0.23
+            ]
+          },
+          {
+            "id": "s14d3",
+            "kind": "dialogue",
+            "speaker": "guard",
+            "text": "제가 얼굴을 확인했습니다.",
+            "bubble_preset": "dialogue",
+            "bubble_region": [
+              0.38,
+              0.03,
+              0.56,
+              0.23
+            ]
+          },
+          {
+            "id": "s14d4",
+            "kind": "dialogue",
+            "speaker": "clerk",
+            "text": "누가 더 봤나?",
+            "bubble_preset": "reaction",
+            "bubble_region": [
+              0.06,
+              0.05,
+              0.4,
+              0.18
+            ]
+          },
+          {
+            "id": "s14d5",
+            "kind": "dialogue",
+            "speaker": "guard",
+            "text": "태워 온 수레꾼이 압니다. 길목에서도 이름을 밝혔습니다.",
+            "bubble_preset": "dialogue",
+            "bubble_region": [
+              0.18,
+              0.03,
+              0.76,
+              0.25
+            ]
+          }
+        ]
+      },
+      "screen_text": []
+    },
+    {
+      "id": "E04_S15",
+      "scene_order": 15,
+      "location": "의원 내부, 치료대 옆 물품 선반",
+      "cast": [
+        "carter",
+        "dogyeom",
+        "seojin"
+      ],
+      "scene_summary": "치료에 쓸 천과 약값을 위해 수레꾼이 자기 품의 동전을 낸다. 도겸은 이를 지켜보고 빚을 기억하겠다고 말하지만 지금 갚겠다는 허세 대신 치료를 계속 받는다.",
+      "visual_action": "의원 치료대 옆 선반의 손 중심 고정 근경. 수레꾼이 낡은 돈주머니에서 동전을 꺼내 선반에 놓은 상태와 익명 치료 인력의 손이 깨끗한 천과 처치 물품을 가져간 상태를 연결한다. 도겸은 벤치에서 손을 뻗다가 자기 다리 위에 멈춘다. 연청색 천은 무릎 아래 그대로이며 오른다리는 받침 위에 있다. 후경에서는 서진의 옆구리 압박 천을 손으로 확인하는 처치가 지속된다. 새 물통이나 회수한 짐을 두 사람 소지품으로 추가하지 않는다.",
+      "dramatic_purpose": "구조에 드는 실제 비용을 보여 주고 수레꾼의 선택에 무게를 더한다.",
+      "duration_seconds": 30,
+      "spoken_blocks": [
+        {
+          "id": "s15d1",
+          "kind": "dialogue",
+          "speaker": "dogyeom",
+          "text": "“그 돈까지 자네가 내면…….”"
+        },
+        {
+          "id": "s15d2",
+          "kind": "dialogue",
+          "speaker": "carter",
+          "text": "“외상 안 된다잖나. 우선 써야지.”"
+        },
+        {
+          "id": "s15d3",
+          "kind": "dialogue",
+          "speaker": "dogyeom",
+          "text": "“잊지 않겠네.”"
+        }
+      ],
+      "text": "“그 돈까지 자네가 내면…….”\n“외상 안 된다잖나. 우선 써야지.”\n“잊지 않겠네.”",
+      "blocks": [
+        {
+          "kind": "dialogue",
+          "speaker": "dogyeom",
+          "text": "“그 돈까지 자네가 내면…….”",
+          "source_block_id": "s15d1"
+        },
+        {
+          "kind": "dialogue",
+          "speaker": "carter",
+          "text": "“외상 안 된다잖나. 우선 써야지.”",
+          "source_block_id": "s15d2"
+        },
+        {
+          "kind": "dialogue",
+          "speaker": "dogyeom",
+          "text": "“잊지 않겠네.”",
+          "source_block_id": "s15d3"
+        }
+      ],
+      "silent_visual": false,
+      "visual_states": [
+        "수레꾼의 동전이 물품 선반에 놓여 있다. 도겸의 손은 다리 위에서 멈추고 서진의 처치는 계속된다."
+      ],
+      "state_image_prompts": [
+        "Single 16:9 Korean wuxia webtoon still, fixed hand-led medium composition at a clinic supply shelf. A few worn coins from CARTER'S own small coin purse rest on the shelf beside clean folded cloth and basic treatment supplies. Carter's ore-dusted hand remains beside the coins; his approved large projecting ears, shovel jaw, olive headcloth and moss work coat are visible low at frame left. Dogyeom sits at frame right on the wall bench, broad square face, sparse beard and ochre headcloth; his hand has stopped on his own thigh, injured RIGHT leg fully supported on a pad, pale blue cloth ONLY BELOW the knee, no neck scarf. An anonymous clinician's cropped sleeve and hand reaches for clean cloth, with the entire staff head outside frame. In the background Seojin lies on the treatment table under continuous LEFT-flank compression, teal SLEEVELESS vest over torn charcoal cuffs, split lip, wounded right palm, bruised shoulder and empty RIGHT sheath with his clothing. Natural upper plaster space clears all heads for later bubbles. No survivor flask or pack, writing, bubbles, panels, collage or motion trails."
+      ],
+      "ae": {
+        "camera": "fixed",
+        "parallax": false,
+        "duration_estimate_seconds": 10,
+        "timing": "동전과 다리 위 손을 가리지 않는 위치에 세 발화를 순차 표시한다. 지불 동작을 반복하거나 동전 확대 컷을 추가하지 않는다.",
+        "spoken_blocks": [
+          {
+            "id": "s15d1",
+            "kind": "dialogue",
+            "speaker": "dogyeom",
+            "text": "그 돈까지 자네가 내면…….",
+            "bubble_preset": "dialogue",
+            "bubble_region": [
+              0.38,
+              0.04,
+              0.56,
+              0.23
+            ]
+          },
+          {
+            "id": "s15d2",
+            "kind": "dialogue",
+            "speaker": "carter",
+            "text": "외상 안 된다잖나. 우선 써야지.",
+            "bubble_preset": "dialogue",
+            "bubble_region": [
+              0.05,
+              0.04,
+              0.66,
+              0.24
+            ]
+          },
+          {
+            "id": "s15d3",
+            "kind": "dialogue",
+            "speaker": "dogyeom",
+            "text": "잊지 않겠네.",
+            "bubble_preset": "rounded",
+            "bubble_region": [
+              0.5,
+              0.05,
+              0.42,
+              0.2
+            ]
+          }
+        ]
+      },
+      "screen_text": []
+    },
+    {
+      "id": "E04_S16",
+      "scene_order": 16,
+      "location": "의원 처마 아래, 운반 수레와 출입문 사이",
+      "cast": [
+        "carter",
+        "checkpoint_guard",
+        "dogyeom"
+      ],
+      "scene_summary": "치료가 시작됐으니 돌아가려는 수레꾼을 무사가 붙잡는다. 수레꾼에게 두 사람의 도주 책임을 약속한 대가가 돌아오고, 그는 수레를 몰고 떠나는 대신 문이 보이는 자리에 남는다.",
+      "visual_action": "의원 처마 아래 수레 앞채와 출입문을 보는 고정 중경. 수레꾼이 고삐를 정리한 상태에서 길목 무사가 앞채에 손을 얹은 상태로 전환한다. 수레꾼의 손이 멈추고, 다음 원화에서 고삐를 수레에 걸어 둔 채 처마 기둥 아래 앉아 있다. 의원 안 도겸은 벤치에 앉아 문밖을 바라본다. 길목 무사는 출입문과 별도 광석 운반 수레를 함께 볼 수 있는 자리에 선다. 무사의 칼은 칼집 안에 있지만 손이 닿는 거리를 유지한다.",
+      "dramatic_purpose": "검문에서 맺은 책임 약속을 회수하고 생존자와 목격자의 운명이 연결되기 시작했음을 드러낸다.",
+      "duration_seconds": 30,
+      "spoken_blocks": [
+        {
+          "id": "s16d1",
+          "kind": "dialogue",
+          "speaker": "carter",
+          "text": "“짐 받을 데에 말만 전하고 오겠습니다. 바로 옆입니다.”"
+        },
+        {
+          "id": "s16d2",
+          "kind": "dialogue",
+          "speaker": "checkpoint_guard",
+          "text": "“남겠다고 한 건 너다.”"
+        },
+        {
+          "id": "s16d3",
+          "kind": "dialogue",
+          "speaker": "carter",
+          "text": "“……그럼 여기 있겠습니다.”"
+        }
+      ],
+      "text": "“짐 받을 데에 말만 전하고 오겠습니다. 바로 옆입니다.”\n“남겠다고 한 건 너다.”\n“……그럼 여기 있겠습니다.”",
+      "blocks": [
+        {
+          "kind": "dialogue",
+          "speaker": "carter",
+          "text": "“짐 받을 데에 말만 전하고 오겠습니다. 바로 옆입니다.”",
+          "source_block_id": "s16d1"
+        },
+        {
+          "kind": "dialogue",
+          "speaker": "checkpoint_guard",
+          "text": "“남겠다고 한 건 너다.”",
+          "source_block_id": "s16d2"
+        },
+        {
+          "kind": "dialogue",
+          "speaker": "carter",
+          "text": "“……그럼 여기 있겠습니다.”",
+          "source_block_id": "s16d3"
+        }
+      ],
+      "silent_visual": false,
+      "visual_states": [
+        "의원 처마 아래. 수레꾼이 고삐를 정리하던 중 길목 무사의 손이 앞채를 막는다.",
+        "고삐가 수레에 걸리고 수레꾼은 처마 기둥 아래 앉아 남는다. 무사는 출입문과 수레를 함께 감시한다."
+      ],
+      "state_image_prompts": [
+        "Single 16:9 Korean wuxia webtoon still, fixed medium view beneath the clinic eave showing the ore cart shaft and open doorway together. Carter stands at the shaft with reins gathered in his hands, frozen at the moment his task stops; preserve tall lean build, enormous projecting ears, shovel jaw, olive headcloth and moss work coat. Checkpoint_guard places one hand firmly on the shaft between Carter and departure, other hand within reach of his SHEATHED sword; match approved v4 diamond face, high cheekbones, aquiline nose, iron-blue robe and BLACK belt. Through the doorway Dogyeom sits on the bench watching, broad square face, sparse beard, ochre headcloth, injured RIGHT leg elevated on a support, pale blue cloth ONLY BELOW the knee and nothing at the neck. The cart is the separate ore transport cart, stationary beside the clinic. Use naturally quiet eave shadow and upper plaster above all heads for dialogue. No aggression from a crowd, lettering, bubbles, recovered belongings, panels, collage or motion trails.",
+        "Single 16:9 Korean wuxia webtoon still from the same fixed clinic-eave camera. Carter is now seated beneath the timber pillar, hands resting near his knees, reins clearly hung on the ore cart shaft rather than held for departure; preserve his enormous projecting ears, shovel jaw, olive headcloth and moss work coat. Checkpoint_guard stands between the doorway and cart with both in his sightline, approved v4 diamond face, aquiline nose, iron-blue robe and BLACK belt, sword still sheathed and within reach. Dogyeom remains visible on the indoor bench, RIGHT leg supported, pale blue cloth ONLY BELOW the right knee, no neck scarf, broad square face and ochre headcloth unchanged. Keep the cart, doorway, pillar and lighting identical to the previous state. Natural eave shadow and unmarked wall remain above every visible head. No writing, bubbles, new named cast, panels, collage or motion trails."
+      ],
+      "ae": {
+        "camera": "fixed",
+        "parallax": false,
+        "duration_estimate_seconds": 11,
+        "timing": "발화 2 뒤 상태 1로 하드컷한다. 수레꾼의 마지막 말은 앉아 남은 상태에 연결한다.",
+        "spoken_blocks": [
+          {
+            "id": "s16d1",
+            "kind": "dialogue",
+            "speaker": "carter",
+            "text": "짐 받을 데에 말만 전하고 오겠습니다. 바로 옆입니다.",
+            "bubble_preset": "dialogue",
+            "bubble_region": [
+              0.05,
+              0.04,
+              0.74,
+              0.25
+            ]
+          },
+          {
+            "id": "s16d2",
+            "kind": "dialogue",
+            "speaker": "checkpoint_guard",
+            "text": "남겠다고 한 건 너다.",
+            "bubble_preset": "dialogue",
+            "bubble_region": [
+              0.46,
+              0.04,
+              0.48,
+              0.22
+            ]
+          },
+          {
+            "id": "s16d3",
+            "kind": "dialogue",
+            "speaker": "carter",
+            "text": "……그럼 여기 있겠습니다.",
+            "bubble_preset": "dialogue",
+            "bubble_region": [
+              0.05,
+              0.05,
+              0.6,
+              0.23
+            ]
+          }
+        ]
+      },
+      "screen_text": []
+    },
+    {
+      "id": "E04_S17",
+      "scene_order": 17,
+      "location": "의원 내부, 문이 보이는 치료대와 벤치 사이",
+      "cast": [
+        "seojin",
+        "dogyeom",
+        "carter",
+        "checkpoint_guard"
+      ],
+      "scene_summary": "기본 압박 처치를 받은 서진은 수레꾼도 붙들렸다는 사실을 알게 된다. 도겸과 서진은 서로를 떼어 보내 달라고 거래하는 대신 같은 장소에서 치료와 감시를 받겠다고 뜻을 맞춘다.",
+      "visual_action": "치료대, 벤치, 열린 문을 깊이 있게 담는 고정 중경. 서진은 전경 치료대에 누워 있고 도겸은 중경 벤치에서 오른다리를 받친다. 후경 문밖에는 수레꾼과 길목 무사가 함께 보인다. 서진이 문 쪽으로 조금 들었던 머리를 내려놓은 다음 상태에서 다치지 않은 왼손을 도겸 방향으로 편다. 도겸은 자리에서 일어나지 않고 벤치 가장자리의 보이는 위치에 자기 손을 놓는다. 두 사람의 손은 공간상 떨어져 있으며 억지로 맞잡게 하지 않는다. 처치는 계속된다.",
+      "dramatic_purpose": "살아남기 위해 타인을 버리지 않는 선택을 유지하되 부상자의 무리한 행동으로 표현하지 않는다.",
+      "duration_seconds": 30,
+      "spoken_blocks": [
+        {
+          "id": "s17d1",
+          "kind": "dialogue",
+          "speaker": "seojin",
+          "text": "“저분도 못 가시는 거예요?”"
+        },
+        {
+          "id": "s17d2",
+          "kind": "dialogue",
+          "speaker": "dogyeom",
+          "text": "“우릴 맡겠다고 했거든.”"
+        },
+        {
+          "id": "s17d3",
+          "kind": "dialogue",
+          "speaker": "seojin",
+          "text": "“형, 누가 저만 데려가겠다고 해도 보내지 마세요.”"
+        },
+        {
+          "id": "s17d4",
+          "kind": "dialogue",
+          "speaker": "dogyeom",
+          "text": "“너도 나 혼자 보내겠다는 말 하지 마.”"
+        }
+      ],
+      "text": "“저분도 못 가시는 거예요?”\n“우릴 맡겠다고 했거든.”\n“형, 누가 저만 데려가겠다고 해도 보내지 마세요.”\n“너도 나 혼자 보내겠다는 말 하지 마.”",
+      "blocks": [
+        {
+          "kind": "dialogue",
+          "speaker": "seojin",
+          "text": "“저분도 못 가시는 거예요?”",
+          "source_block_id": "s17d1"
+        },
+        {
+          "kind": "dialogue",
+          "speaker": "dogyeom",
+          "text": "“우릴 맡겠다고 했거든.”",
+          "source_block_id": "s17d2"
+        },
+        {
+          "kind": "dialogue",
+          "speaker": "seojin",
+          "text": "“형, 누가 저만 데려가겠다고 해도 보내지 마세요.”",
+          "source_block_id": "s17d3"
+        },
+        {
+          "kind": "dialogue",
+          "speaker": "dogyeom",
+          "text": "“너도 나 혼자 보내겠다는 말 하지 마.”",
+          "source_block_id": "s17d4"
+        }
+      ],
+      "silent_visual": false,
+      "visual_states": [
+        "누운 서진의 왼손과 벤치 가장자리 도겸의 손이 서로 떨어져 보인다. 후경의 수레꾼과 감시 무사까지 한 공간에 연결한다."
+      ],
+      "state_image_prompts": [
+        "Single 16:9 Korean wuxia webtoon still, fixed layered medium-wide view inside the clinic linking treatment table, bench and open doorway. Seojin lies in the lower-left foreground, head resting on bedding, uninjured LEFT hand open toward Dogyeom across a clearly visible gap; their hands do NOT touch. Preserve Seojin's pale narrow angular face, split lower lip, wounded RIGHT palm, shoulder bruise, fresh pressure cloth on the LEFT flank, teal SLEEVELESS vest over torn charcoal cuffs and empty RIGHT sheath with his clothing. Dogyeom sits at middle right, one hand resting visibly on the bench edge, broad square face, sparse beard and ochre headcloth; his RIGHT leg remains elevated, pale blue cloth ONLY BELOW the knee, neck bare. In the doorway background Carter sits beneath the eave pillar, large ears and moss coat visible, beside standing checkpoint_guard with approved v4 diamond face and BLACK belt. Anonymous treatment hands maintain compression; staff faces excluded. Leave natural upper wall space above every head for sequential bubbles. No writing, bubbles, recovered equipment, panels, collage or motion trails."
+      ],
+      "ae": {
+        "camera": "fixed",
+        "parallax": false,
+        "duration_estimate_seconds": 14,
+        "timing": "한 원화에서 시선과 떨어진 손의 관계를 유지한다. 마지막 답변 뒤 짧은 정지로 약속을 읽히고 문밖으로 컷한다.",
+        "spoken_blocks": [
+          {
+            "id": "s17d1",
+            "kind": "dialogue",
+            "speaker": "seojin",
+            "text": "저분도 못 가시는 거예요?",
+            "bubble_preset": "whisper",
+            "bubble_region": [
+              0.05,
+              0.04,
+              0.62,
+              0.23
+            ]
+          },
+          {
+            "id": "s17d2",
+            "kind": "dialogue",
+            "speaker": "dogyeom",
+            "text": "우릴 맡겠다고 했거든.",
+            "bubble_preset": "dialogue",
+            "bubble_region": [
+              0.4,
+              0.04,
+              0.54,
+              0.22
+            ]
+          },
+          {
+            "id": "s17d3",
+            "kind": "dialogue",
+            "speaker": "seojin",
+            "text": "형, 누가 저만 데려가겠다고 해도 보내지 마세요.",
+            "bubble_preset": "whisper",
+            "bubble_region": [
+              0.05,
+              0.04,
+              0.74,
+              0.25
+            ]
+          },
+          {
+            "id": "s17d4",
+            "kind": "dialogue",
+            "speaker": "dogyeom",
+            "text": "너도 나 혼자 보내겠다는 말 하지 마.",
+            "bubble_preset": "rounded",
+            "bubble_region": [
+              0.25,
+              0.04,
+              0.69,
+              0.24
+            ]
+          }
+        ]
+      },
+      "screen_text": []
+    },
+    {
+      "id": "E04_S18",
+      "scene_order": 18,
+      "location": "의원 출입문 바깥, 처마 기둥 옆",
+      "cast": [
+        "guard",
+        "checkpoint_guard",
+        "carter"
+      ],
+      "scene_summary": "중개소에서 돌아온 수색 무사가 접은 보고 쪽지를 길목 무사에게 건넨다. 무사들은 치료 후 인계뿐 아니라 생존을 확인한 수레꾼도 함께 데려가라는 지시를 공유한다.",
+      "visual_action": "의원 출입문 바깥 처마 기둥 옆 고정 옆얼굴 중경. 돌아온 수색 무사가 접은 쪽지를 길목 무사에게 넘긴다. 길목 무사가 펼쳐 보는 상태 뒤에 두 무사가 기둥 아래 수레꾼을 바라보는 상태를 둔다. 수레꾼은 일어서지만 길목 무사의 팔이 앞채 방향을 막는다. 문 안 후경에 서진의 치료대와 익명 치료 인력의 손이 남는다. 원장부는 등장시키지 않고 쪽지 원화에도 글자를 굽지 않는다. 승인된 두 무사의 얼굴과 허리띠 차이를 유지한다.",
+      "dramatic_purpose": "생존 사실의 공개가 목격자 구금이라는 새 위협으로 돌아오게 한다.",
+      "duration_seconds": 30,
+      "spoken_blocks": [
+        {
+          "id": "s18d1",
+          "kind": "dialogue",
+          "speaker": "guard",
+          "text": "“회신이다. 치료 뒤 인계하라더군.”"
+        },
+        {
+          "id": "s18d2",
+          "kind": "dialogue",
+          "speaker": "guard",
+          "text": "“살아 있는 걸 확인한 수레꾼도 함께.”"
+        },
+        {
+          "id": "s18d3",
+          "kind": "dialogue",
+          "speaker": "carter",
+          "text": "“저도 별원에 가란 말입니까?”"
+        }
+      ],
+      "text": "“회신이다. 치료 뒤 인계하라더군.”\n“살아 있는 걸 확인한 수레꾼도 함께.”\n“저도 별원에 가란 말입니까?”",
+      "blocks": [
+        {
+          "kind": "dialogue",
+          "speaker": "guard",
+          "text": "“회신이다. 치료 뒤 인계하라더군.”",
+          "source_block_id": "s18d1"
+        },
+        {
+          "kind": "dialogue",
+          "speaker": "guard",
+          "text": "“살아 있는 걸 확인한 수레꾼도 함께.”",
+          "source_block_id": "s18d2"
+        },
+        {
+          "kind": "dialogue",
+          "speaker": "carter",
+          "text": "“저도 별원에 가란 말입니까?”",
+          "source_block_id": "s18d3"
+        }
+      ],
+      "silent_visual": false,
+      "visual_states": [
+        "돌아온 수색 무사의 손과 길목 무사의 손 사이에 접은 회신 쪽지가 있다. 수레꾼은 기둥 아래 앉아 듣는다.",
+        "쪽지를 받은 길목 무사가 수레꾼의 앞채 쪽 동선을 팔로 막는다. 수레꾼은 일어서서 반문한다."
+      ],
+      "state_image_prompts": [
+        "Single 16:9 Korean wuxia webtoon still, fixed side-on medium view outside the clinic doorway by the eave pillar. The returning pursuing guard hands one folded plain reply slip to checkpoint_guard; their hands hold opposite ends at chest level, no writing visible. The pursuing guard retains the approved broad RECTANGULAR clean-shaven face, heavy straight brows, iron-blue uniform and BRONZE belt. Checkpoint_guard retains the approved v4 narrow DIAMOND face, high cheekbones, convex aquiline nose, thin brows, iron-blue robe and BLACK belt. Carter sits under the pillar in the lower frame, enormous projecting ears, shovel jaw, olive headcloth and moss coat, listening. Both swords remain sheathed. Through the doorway only the edge of Seojin's treatment table and anonymous clinician hands maintaining compression are visible; staff faces and the patient's head are outside this composition. Preserve natural unmarked plaster and eave shadow above all visible heads for dialogue. No original ledger, lettering, bubbles, new named cast, panels, collage or motion trails.",
+        "Single 16:9 Korean wuxia webtoon still from exactly the same fixed clinic-eave camera. Carter now stands beside the pillar, looking toward the two guards with a restrained shocked expression; retain enormous projecting ears, shovel jaw, olive headcloth and moss coat. Checkpoint_guard blocks the route toward the cart shaft with one extended forearm, holding the same opened plain reply slip low in his other hand; approved v4 diamond face, aquiline nose and BLACK belt. The pursuing guard, distinct broad rectangular face and BRONZE belt, stands beside him looking at Carter. Both weapons remain sheathed, no physical strike. Through the doorway the treatment-table edge and anonymous pressure-maintaining hands remain in view, every staff head excluded. The original ledger is absent. Natural upper plaster and eave shadow remain clear above every head for editable dialogue. No baked writing, bubbles, additional papers, panels, collage or motion trails."
+      ],
+      "ae": {
+        "camera": "fixed",
+        "parallax": false,
+        "duration_estimate_seconds": 12,
+        "timing": "발화 2 뒤 상태 1로 하드컷한다. 수레꾼의 질문은 막힌 동선이 보이는 상태에서 표시한다. 쪽지 내용 자막은 추가하지 않는다.",
+        "spoken_blocks": [
+          {
+            "id": "s18d1",
+            "kind": "dialogue",
+            "speaker": "guard",
+            "text": "회신이다. 치료 뒤 인계하라더군.",
+            "bubble_preset": "dialogue",
+            "bubble_region": [
+              0.05,
+              0.04,
+              0.66,
+              0.23
+            ]
+          },
+          {
+            "id": "s18d2",
+            "kind": "dialogue",
+            "speaker": "guard",
+            "text": "살아 있는 걸 확인한 수레꾼도 함께.",
+            "bubble_preset": "dialogue",
+            "bubble_region": [
+              0.05,
+              0.04,
+              0.7,
+              0.24
+            ]
+          },
+          {
+            "id": "s18d3",
+            "kind": "dialogue",
+            "speaker": "carter",
+            "text": "저도 별원에 가란 말입니까?",
+            "bubble_preset": "dialogue",
+            "bubble_region": [
+              0.3,
+              0.04,
+              0.64,
+              0.23
+            ]
+          }
+        ]
+      },
+      "screen_text": []
+    },
+    {
+      "id": "E04_S19",
+      "scene_order": 19,
+      "location": "의원 내부에서 바라본 열린 문턱",
+      "cast": [
+        "dogyeom",
+        "seojin",
+        "carter",
+        "checkpoint_guard",
+        "guard"
+      ],
+      "scene_summary": "도겸이 수레꾼까지 인계 대상이 됐다는 말을 듣고 자신이 그를 불렀다고 밝힌다. 길목 무사는 책임을 바꿔 받을 수 없다며 거절하고 수색 무사를 문 밖 감시 위치에 세운다.",
+      "visual_action": "의원 안에서 열린 문턱을 바라보는 고정 원경. 도겸은 벤치 끝으로 상체만 기울이고 오른다리는 받침에서 내리지 않는다. 무릎 아래 연청색 천을 유지한다. 서진은 치료대에 누운 채 문을 향해 눈을 뜬다. 길목 무사는 문 한쪽에 서고, 그의 손짓 다음 상태에서 수색 무사는 수레 바깥쪽 감시 자리로 옮겨 있다. 수레꾼은 두 감시 지점 사이에서 의원 안을 바라본다. 출구와 운반 수단을 동시에 통제하는 배치를 분명하게 한다.",
+      "dramatic_purpose": "도겸이 책임을 떠맡으려는 행동을 하게 하고 새 구금 조건의 강제성을 분명히 한다.",
+      "duration_seconds": 30,
+      "spoken_blocks": [
+        {
+          "id": "s19d1",
+          "kind": "dialogue",
+          "speaker": "dogyeom",
+          "text": "“내가 불렀소. 저 사람은 태워 달라는 부탁만 들어준 거요.”"
+        },
+        {
+          "id": "s19d2",
+          "kind": "dialogue",
+          "speaker": "dogyeom",
+          "text": "“물을 게 있으면 내게 물으시오.”"
+        },
+        {
+          "id": "s19d3",
+          "kind": "dialogue",
+          "speaker": "checkpoint_guard",
+          "text": "“네가 대신할 일 아니다. 수레꾼도 데려오라는 지시다.”"
+        }
+      ],
+      "text": "“내가 불렀소. 저 사람은 태워 달라는 부탁만 들어준 거요.”\n“물을 게 있으면 내게 물으시오.”\n“네가 대신할 일 아니다. 수레꾼도 데려오라는 지시다.”",
+      "blocks": [
+        {
+          "kind": "dialogue",
+          "speaker": "dogyeom",
+          "text": "“내가 불렀소. 저 사람은 태워 달라는 부탁만 들어준 거요.”",
+          "source_block_id": "s19d1"
+        },
+        {
+          "kind": "dialogue",
+          "speaker": "dogyeom",
+          "text": "“물을 게 있으면 내게 물으시오.”",
+          "source_block_id": "s19d2"
+        },
+        {
+          "kind": "dialogue",
+          "speaker": "checkpoint_guard",
+          "text": "“네가 대신할 일 아니다. 수레꾼도 데려오라는 지시다.”",
+          "source_block_id": "s19d3"
+        }
+      ],
+      "silent_visual": false,
+      "visual_states": [
+        "의원 안에서 열린 문턱을 본다. 도겸은 오른다리를 받침에 둔 채 상체만 기울여 책임을 자청한다.",
+        "길목 무사가 문을 지키고 수색 무사가 바깥 수레 감시 위치에 선 상태. 출구와 운반 수단이 나뉘어 통제된다."
+      ],
+      "state_image_prompts": [
+        "Single 16:9 Korean wuxia webtoon still, fixed wide view from inside the clinic toward the open threshold. Dogyeom sits at lower left on the bench, leaning ONLY his upper body forward, one hand braced on the bench; his injured RIGHT leg stays fully elevated on its support, pale blue cloth ONLY BELOW the knee, bare neck, broad square face, sparse beard and ochre headcloth. Seojin lies on the opposite table at lower right, eyes directed toward the doorway, pale narrow face, split lip, wounded RIGHT palm, bruised shoulder, LEFT-flank compression, teal SLEEVELESS vest over torn charcoal cuffs and empty RIGHT sheath with his clothing. Carter stands just outside the threshold, enormous ears, shovel jaw and moss coat. Checkpoint_guard, approved v4 diamond face and BLACK belt, stands at one doorpost with the reply slip held low; the pursuing guard, broad rectangular face and BRONZE belt, remains outside near the other post. Anonymous clinician hands continue care, all staff faces excluded. Natural upper wall and doorway lintel space clears every head for dialogue. No writing, bubbles, restored belongings, panels, collage or motion trails.",
+        "Single 16:9 Korean wuxia webtoon still from exactly the same fixed interior-to-threshold camera. Dogyeom remains on the left bench with only his upper body inclined, RIGHT leg fully supported and pale blue cloth ONLY BELOW the right knee, no neck scarf. Seojin stays reclined on the opposite table, pale with split lip, wounded RIGHT palm, bruised shoulder, LEFT-flank compression, teal SLEEVELESS vest over torn charcoal cuffs and empty RIGHT sheath retained. Checkpoint_guard now occupies the near doorpost as the exit sentry, approved v4 diamond face, aquiline nose and BLACK belt, one lowered hand completing a directing gesture. The pursuing guard is already stationed beyond him at the OUTER side of the ore cart, broad rectangular face and BRONZE belt visible through the doorway. Carter stands between the two surveillance positions facing into the clinic, large projecting ears, shovel jaw and moss coat. The reply slip remains with checkpoint_guard. Anonymous treatment hands continue care with no staff faces. Preserve natural upper wall space above all heads. No writing, bubbles, weapon draw, panels, collage or motion trails."
+      ],
+      "ae": {
+        "camera": "fixed",
+        "parallax": false,
+        "duration_estimate_seconds": 14,
+        "timing": "도겸의 두 발화 뒤 상태 1로 하드컷한다. 길목 무사의 거절 동안 문과 수레의 분리 감시 위치가 함께 보이게 한다.",
+        "spoken_blocks": [
+          {
+            "id": "s19d1",
+            "kind": "dialogue",
+            "speaker": "dogyeom",
+            "text": "내가 불렀소. 저 사람은 태워 달라는 부탁만 들어준 거요.",
+            "bubble_preset": "dialogue",
+            "bubble_region": [
+              0.05,
+              0.04,
+              0.76,
+              0.25
+            ]
+          },
+          {
+            "id": "s19d2",
+            "kind": "dialogue",
+            "speaker": "dogyeom",
+            "text": "물을 게 있으면 내게 물으시오.",
+            "bubble_preset": "dialogue",
+            "bubble_region": [
+              0.05,
+              0.04,
+              0.64,
+              0.23
+            ]
+          },
+          {
+            "id": "s19d3",
+            "kind": "dialogue",
+            "speaker": "checkpoint_guard",
+            "text": "네가 대신할 일 아니다. 수레꾼도 데려오라는 지시다.",
+            "bubble_preset": "dialogue",
+            "bubble_region": [
+              0.2,
+              0.04,
+              0.74,
+              0.25
+            ]
+          }
+        ]
+      },
+      "screen_text": []
+    },
+    {
+      "id": "E04_S20",
+      "scene_order": 20,
+      "location": "의원 치료실, 문턱과 치료대를 함께 보는 자리",
+      "cast": [
+        "seojin",
+        "dogyeom",
+        "carter",
+        "checkpoint_guard",
+        "guard"
+      ],
+      "scene_summary": "서진과 도겸은 의원에 도착해 응급 처치를 받았지만 자유를 얻지는 못했다. 무사는 치료 뒤 셋을 함께 인계하겠다고 알린다. 두 사람이 살아 있음을 증언한 수레꾼까지 데려가려는 상황에서 다음 화로 이어진다.",
+      "visual_action": "의원 치료대와 문턱을 함께 보는 고정 넓은 중경. 서진의 왼쪽 옆구리에 새 압박 천이 고정되어 있으나 창백한 얼굴, 터진 입술, 손바닥 손상과 어깨 타박은 유지한다. 익명 치료 인력의 손이 압박 상태를 계속 확인한다. 도겸은 벤치에서 오른다리를 받치고 처치를 받으며 연청색 천은 무릎 아래에 남는다. 수레꾼이 문턱 안쪽으로 한 걸음 들어온 상태를 제시하고 두 무사는 바깥 양옆에 배치한다. 길목 무사가 인계 쪽지를 접어 품에 넣은 뒤 마지막 원화는 누운 서진과 문턱의 수레꾼이 시선을 맞추는 구도로 유지한다. 오른쪽 허리의 빈 칼집은 치료대 옆 기존 옷에 남고 새로운 무기나 봉함은 없다.",
+      "dramatic_purpose": "치료 시작이라는 즉각적 목표를 해결하고 목격자를 함께 지켜야 하는 다음 화의 구체적인 문제를 연다.",
+      "duration_seconds": 30,
+      "spoken_blocks": [
+        {
+          "id": "s20d1",
+          "kind": "dialogue",
+          "speaker": "checkpoint_guard",
+          "text": "“치료가 끝나면 셋 다 별원으로 간다.”"
+        },
+        {
+          "id": "s20d2",
+          "kind": "dialogue",
+          "speaker": "carter",
+          "text": "“살아 있는 사람을 안다고 한 게 전부인데요.”"
+        }
+      ],
+      "text": "“치료가 끝나면 셋 다 별원으로 간다.”\n“살아 있는 사람을 안다고 한 게 전부인데요.”",
+      "blocks": [
+        {
+          "kind": "dialogue",
+          "speaker": "checkpoint_guard",
+          "text": "“치료가 끝나면 셋 다 별원으로 간다.”",
+          "source_block_id": "s20d1"
+        },
+        {
+          "kind": "dialogue",
+          "speaker": "carter",
+          "text": "“살아 있는 사람을 안다고 한 게 전부인데요.”",
+          "source_block_id": "s20d2"
+        }
+      ],
+      "silent_visual": false,
+      "visual_states": [
+        "응급 처치가 이어지는 치료대와 문턱 안쪽 수레꾼의 시선이 연결된다. 두 무사는 바깥 출입구와 수레를 감시한다."
+      ],
+      "state_image_prompts": [
+        "Single 16:9 Korean wuxia webtoon still, fixed wide medium final composition inside the clinic linking the low treatment table and open threshold. Seojin lies in the lower-left foreground, pale approved narrow angular face and dark gray eyes meeting Carter's gaze; retain split lower lip, wounded RIGHT palm, shoulder bruise and fresh pressure cloth fixed over the LEFT flank without implying bleeding has stopped. His teal SLEEVELESS vest and charcoal garment with torn cuffs lie loosened at the table edge, the empty RIGHT-hip sheath still attached to the belt. Anonymous clinician hands keep checking compression, all staff heads outside frame. Dogyeom sits on the opposite bench with RIGHT leg elevated and pale blue cloth ONLY BELOW the right knee, bare neck, broad square face, sparse beard and ochre headcloth. Carter has stepped just INSIDE the threshold, very large projecting ears, shovel jaw and moss coat, looking at Seojin. Outside, checkpoint_guard with approved v4 diamond face and BLACK belt guards the near doorway, the folded reply slip already tucked into his robe; the rectangular-faced BRONZE-belt pursuing guard watches the ore cart farther outside. Natural upper plaster and doorway recess remain above every head for dialogue. No original ledger, dagger, pack, flask, sealed object, writing, bubbles, panels, collage or motion trails."
+      ],
+      "ae": {
+        "camera": "fixed",
+        "parallax": false,
+        "duration_estimate_seconds": 10,
+        "timing": "두 발화를 원문 순서로 표시한다. 마지막 말풍선 퇴장 뒤 약 1초 동안 서진과 수레꾼의 시선을 유지하고 종료한다. 회복·인계 실행·탈출 장면을 추가하지 않는다.",
+        "spoken_blocks": [
+          {
+            "id": "s20d1",
+            "kind": "dialogue",
+            "speaker": "checkpoint_guard",
+            "text": "치료가 끝나면 셋 다 별원으로 간다.",
+            "bubble_preset": "dialogue",
+            "bubble_region": [
+              0.25,
+              0.04,
+              0.69,
+              0.24
+            ]
+          },
+          {
+            "id": "s20d2",
+            "kind": "dialogue",
+            "speaker": "carter",
+            "text": "살아 있는 사람을 안다고 한 게 전부인데요.",
+            "bubble_preset": "dialogue",
+            "bubble_region": [
+              0.08,
+              0.04,
+              0.72,
+              0.24
+            ]
+          }
+        ]
+      },
+      "screen_text": []
+    }
+  ],
+  "wuxia_narration_profile": "wuxia_visual_narration/v1"
+}

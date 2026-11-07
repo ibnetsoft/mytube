@@ -25,3 +25,5 @@
 로컬 루트는 `output/wuxia-series-rewrite/episode-04/`다. 원문 `script-final.json`, 읽기용 `approved-draft.md`, 원화 이력 `image-generation-jobs.json`, 연출 `direction/ae-scene-package.json`, 등록 확인 `packaging/registration-receipt.json`, 실제 저장본 `packaging/registered-topic-readback.json`, 품질 기록 `QUALITY_NOTES.md`를 기준으로 한다. 실제 브라우저 확인 여부는 확인서의 검증 범위를 따른다.
 
 4화 확정 음성·최종 AE 출력, 관리자 게시 및 YouTube 업로드는 회차 등록 범위와 구분한다.
+
+Git 보관 원문: [읽기용 대본](wuxia-handoff/episode-04/draft.md), [발화·행동·연속성 JSON](wuxia-handoff/episode-04/script-final.json), [등록 확인서](wuxia-handoff/episode-04/registration-receipt.json). 실제 웹 화면 검수는 Mac 잠금 및 Chrome 확장 UI 차단 해제 후 이어간다. 확인서의 브라우저 검증을 완료로 바꾸지 않았다.
