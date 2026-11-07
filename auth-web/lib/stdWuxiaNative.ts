@@ -23,7 +23,7 @@ export function freezeWuxiaScene(project:any,number:number,rows:any[],start:numb
  const scene=pkg.scenes.find((s:any)=>Number(String(s.scene_id).match(/S(\d+)$/)?.[1])===number)
  const autoPolicy=p.structure?.wuxia_motion_policy?.enabled===true?p.structure.wuxia_motion_policy:null
  const authored=(p.structure?.scenes||p.scenes||[]).find((s:any)=>Number(s.scene_number||s.scene_order)===number)
- const hasMotion=first.motion.active||Boolean(autoPolicy),hasHeat=first.motion.heat.length>0
+ const hasMotion=first.motion.active||Boolean(autoPolicy),hasHeat=first.motion.heat.length>0||scene.states?.some((s:any)=>s.heat_shimmer_enabled===true)
  const states=(scene.states||[]).map((s:any)=>{
   const url=new URL(s.media_url||s.image_url||'', 'https://studio.airing.work')
   const path=url.searchParams.get('path'),bucket=url.searchParams.get('bucket')

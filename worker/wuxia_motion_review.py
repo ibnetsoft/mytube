@@ -1,5 +1,5 @@
 """Focused evidence for the actual native output, never metadata-only approval."""
-CHECKS=('wuxia_motion_fit','wuxia_camera_execution','wuxia_heat_execution','wuxia_motion_protection')
+CHECKS=('wuxia_motion_fit','wuxia_camera_execution','wuxia_heat_execution','wuxia_transition_execution','wuxia_motion_protection')
 def review_source(runner,scene,runtime,fresh):
     if runtime.get('auto_motion_policy',{}).get('actual_source_review_required') is not True:return None
     from pathlib import Path
@@ -29,7 +29,13 @@ frames: correct pan direction, zoom direction, combined motion and final hold mu
 be visibly present when requested. For wuxia_heat_execution compare different heat
 phases in unprotected image regions; spatially varying refraction must be present
 without whole-camera wobble, and an unrequested effect must be absent. For
-wuxia_motion_protection inspect source/output anatomy, hands, lettering, full crop
+wuxia_transition_execution compare the frozen boundary transition with actual
+pixels during entry, its middle and settled state, or the closing fade. Check slide
+direction and preceding still backdrop, brief flash, punch zoom, snap shake,
+dissolve and fade only when requested. The backdrop intentionally contains still
+art without preceding lettering/mouth overlays. A requested closing fade reaches
+black intentionally; do not classify that black phase as missing/corrupt imagery.
+For wuxia_motion_protection inspect source/output anatomy, hands, lettering, full crop
 envelope and mouth/ambient patch alignment. Sampling is not exhaustive approval.
 The frozen schedule or renderer success is not proof. Missing/ambiguous evidence
 fails the relevant check and is retained in quality notes; never claim it passed.
@@ -59,10 +65,19 @@ def evidence(scene,duration,fps):
         # Different times/field values, not two copies of the same pose.
         a=heat[len(heat)//3];b=next((s for s in heat if s['at']>=a['at']+.15 and s['motion']['heat']!=a['motion']['heat']),heat[-1])
         times.update((a['at'],b['at']))
-    times=sorted(times)
+    # Sample short boundary effects too: an entry flash can finish before any
+    # camera midpoint. Include actual last frozen frame for a closing fade.
+    transition=[s for s in samples if s.get('transition') and
+        any(s['transition'].get(k,default)!=default for k,default in
+            (('dx',0),('dy',0),('scale',1),('opacity',1),('flash',0),('backdrop',0)))]
+    if transition:
+        times.update((transition[0]['at'],transition[len(transition)//2]['at'],transition[-1]['at']))
+        settled=next((s for s in samples if s['at']>transition[-1]['at']),None)
+        if settled:times.add(settled['at'])
+    times=sorted(min(samples[-1]['at'],max(0,at)) for at in times)
     selected=[min(samples,key=lambda s:abs(s['at']-at)) for at in times]
     return {'contract':'wuxia_motion_output_review/v1','required_checks':CHECKS,'sample_times':times,
         'selection':t.get('motion_selection'),'policy':t['auto_motion_policy'],
-        'frozen_samples':[{'at':s['at'],'state':s['state'],'motion':s['motion']} for s in selected],
+        'frozen_samples':[{'at':s['at'],'state':s['state'],'motion':s['motion'],'transition':s.get('transition')} for s in selected],
         'source_states':[{'asset_id':s['asset_id'],'sha256':s['sha256'],'heat_protection_boxes':s.get('heat_protection_boxes',[])} for s in t.get('states',[])],
         'proof_scope':'actual decoded samples plus source comparison; not exhaustive full-frame approval'}

@@ -108,3 +108,16 @@ def test_auto_motion_requires_new_review_worker_and_rejects_unaudited_cache(monk
  ack=claim_acknowledgement({'scenes':[{'wuxia_timeline':timeline}]},{'required_worker_contract':'wuxia_motion_auto/v1'},'new-lease')
  assert ack['worker_contract_ack']['contract']=='wuxia_motion_auto/v1'
  assert not native_cache_covers_frame_clock({}, {'wuxia_timeline':timeline},{'review':{'passed':True}})
+
+
+def test_actual_output_review_captures_brief_flash_and_intentional_closing_black():
+ for kind in ('flash','fade_out'):
+  samples=[]
+  for i in range(48):
+   tr={'kind':kind,'flash':max(0,.8*(1-i/3)) if kind=='flash' else 0,
+       'opacity':min(1,(47-i)/7) if kind=='fade_out' else 1}
+   samples.append({'at':i/24,'state':'a','motion':{},'transition':tr})
+  r=evidence({'wuxia_timeline':{'samples':samples,'auto_motion_policy':{'actual_output_review_required':True}}},2,24)
+  assert 'wuxia_transition_execution' in r['required_checks']
+  assert any(0<t<.125 for t in r['sample_times']) if kind=='flash' else 47/24 in r['sample_times']
+  assert all(s['transition']['kind']==kind for s in r['frozen_samples'])

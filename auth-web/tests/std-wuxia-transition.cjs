@@ -32,3 +32,10 @@ test('unsupported transitions and changed source identity fail rather than disap
  const g=fixture('dissolve');g.project.project_payload.structure.wuxia_ae_package.scenes[0].states[0].sha256='bad';
  assert.throws(()=>freezeWuxiaScene(g.project,2,[],2,4,24,{metadata:{}}),/저장 위치/);
 });
+
+test('closing fade reaches black on the last global frame with fractional scene boundaries',()=>{
+ const {wuxiaTransitionFrame}=load('lib/stdWuxiaTransition.ts');
+ const sc={transition_effect:'fade_out'};
+ const t=wuxiaTransitionFrame({},sc,1,.26+5/24,.26,.52,24);
+ assert.equal(t.opacity,0);
+});

@@ -48,3 +48,15 @@ test('automatic fixed-scene review fits the existing snapshot budget for a ten-m
  assert.equal(t.samples.length,14400);assert.ok(Buffer.byteLength(JSON.stringify(t))<3_000_000);
  assert.ok(t.samples.every(s=>!('transition' in s)&&Object.keys(s.motion).length===0));
 });
+test('a reviewed torch cut alone refracts the approved top rows; earlier face cuts remain untouched',()=>{
+ const f=fixture('none+heat'),sc=f.project.project_payload.structure.wuxia_ae_package.scenes[0];
+ f.state.end=.5;f.state.heat_shimmer_enabled=false;delete f.state.face_exclusion_boxes;
+ sc.states.push({...f.state,asset_id:'b',sha256:'b'.repeat(64),media_url:'/api/std/media?bucket=b&path=b.png',start:.5,end:1,heat_shimmer_enabled:true,heat_shimmer_vertical_range:[0,.2],face_exclusion_boxes:[],hand_exclusion_boxes:[[.3,.2,.9,.8]]});
+ assert.deepEqual(f.at(.5).motion.heat,[]);const hot=f.at(2.5).motion.heat;assert.ok(hot.some(v=>v!==0));assert.ok(hot.slice(10).every(v=>v===0));
+ const frozen=freezeWuxiaScene(f.project,1,[],0,4,24,{metadata:{}});assert.equal(frozen.states[1].heat_face_reviewed,true);assert.ok(frozen.samples.some(s=>s.state==='b'&&s.motion.heat.some(x=>x)));
+});
+test('source-reviewed camera strength reduces overscan without changing the opening movement clock',()=>{
+ const f=fixture('pan_left');f.project.project_payload.structure.wuxia_ae_package.scenes[0].motion_strength=.4;
+ assert.equal(f.at(1).motion.scale,1.048);assert.equal(f.at(1).motion.dx,-.012);assert.deepEqual(f.at(1).motion,f.at(3).motion);
+ f.project.project_payload.structure.wuxia_ae_package.scenes[0].motion_strength=2;assert.match(f.at(.5).motion.issues[0],/invalid_motion_strength/);
+});

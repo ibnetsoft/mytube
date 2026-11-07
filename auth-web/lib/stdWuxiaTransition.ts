@@ -18,7 +18,9 @@ export function wuxiaTransitionFrame(project:any,scene:any,number:number,seconds
  if(previous&&!backdrop&&(kind.startsWith('wipe_')||kind==='dissolve'))issues.push('missing_transition_source')
  const duration=Math.min(kind==='flash'?.125:kind==='dissolve'||kind==='fade_out'?.32:.24,(end-start)/2)
  // Quantize exactly as freezeWuxiaScene does, including pause and backward seek.
- const local=Math.max(0,Math.floor((seconds-start)*fps+1e-7)/fps), remaining=Math.max(0,end-start-local-1/fps)
+ const local=Math.max(0,Math.floor((seconds-start)*fps+1e-7)/fps)
+ const frames=Math.ceil(end*fps-1e-7)-Math.ceil(start*fps-1e-7)
+ const remaining=Math.max(0,(frames-1)/fps-local)
  const progress=Math.min(1,local/duration), ease=1-(1-progress)**3
  const f={contract:'wuxia_transition_samples/v1',kind,dx:0,dy:0,scale:1,opacity:1,flash:0,backdrop:0,issues}
  if(kind==='none'||issues.length)return {...f,source:null}
