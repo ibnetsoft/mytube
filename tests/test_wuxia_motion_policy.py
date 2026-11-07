@@ -92,6 +92,7 @@ def test_actual_decoder_review_cannot_skip_missing_effect_even_with_legacy_bypas
    self.calls+=1
    assert set(CHECKS)<=set(context['required_checks'])
    assert context['wuxia_actual_sample_times'] and str(source) in context['_local_image_paths']
+   assert all(abs(t*24-round(t*24))<1e-7 for t in context['wuxia_actual_sample_times'])
    assert all(Path(p).is_file() for p in context['_local_image_paths'])
    return {'passed':False,'repair_scope':'direction_only','critical_issues':['camera did not move in held test video'],
     'checks':[{'id':k,'passed':k!='wuxia_camera_execution','evidence':'held fixture pixels; requested motion absent'} for k in context['required_checks']]}

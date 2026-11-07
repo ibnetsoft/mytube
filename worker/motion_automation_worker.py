@@ -583,7 +583,13 @@ def review_output(runner,output,reference,voice,scene,plan,directory,fresh,previ
     for offset in range(0,len(times),4):
         fresh();frames=[];source_frames=[];paired_times=[];actual_times=[]
         for timestamp in sorted(set(times[offset:offset+4]+[max(0,min(duration-1/12,duration*.5))])):
-            frame=directory/f'actual-{timestamp:.6f}.png';run([ffmpeg(),'-v','error','-y','-ss',str(timestamp),'-i',str(output),'-frames:v','1',str(frame)])
+            frame=directory/f'actual-{timestamp:.6f}.png'
+            if wuxia_evidence:
+                decoded_index=max(0,min(cadence['decoded_frames']-1,round(timestamp*cadence['fps'])))
+                run([ffmpeg(),'-v','error','-y','-i',str(output),'-vf','select=eq(n\\,'+str(decoded_index)+')','-fps_mode','vfr','-frames:v','1',str(frame)])
+                timestamp=decoded_index/cadence['fps']
+            else:
+                run([ffmpeg(),'-v','error','-y','-ss',str(timestamp),'-i',str(output),'-frames:v','1',str(frame)])
             if not frame.is_file():raise NeedsReview('Actual output sample could not be decoded')
             frames.append(frame);actual_times.append(timestamp)
             if scene.get('_source_video_path'):
