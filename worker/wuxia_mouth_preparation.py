@@ -32,9 +32,71 @@ def eligible(speaker, sha):
             and animatable(speaker, sha))
 
 
+def locate_selective_speakers(runner, identity, scene, image, rows, cast):
+    """One feedback repair; rejected geometry remains uncertain, never approved."""
+    from ae_mouth import locate_speakers, digest
+    import shutil
+    requested = list(dict.fromkeys(r['speaker'] for r in rows))
+    source_sha = digest(image)
+    feedback = None
+    for attempt in range(2):
+        class ReviewRunner:
+            def __init__(self):
+                self.context = None
+                self.result = None
+                self.refined = {}
+            def _stage(self, job, name, context, task):
+                if feedback:
+                    context = {**context, 'previous_geometry_rejection': feedback}
+                    task += '\nRepair the rejected markers using actual pixels and this independent feedback. Never force a pass.'
+                result = runner._stage(job, name, context, task)
+                if name == '03_ae_mouth_crop_localization':
+                    self.refined[result['speaker']] = result
+                if name == '03_ae_mouth_geometry_review':
+                    self.context, self.result = context, result
+                return result
+        proxy = ReviewRunner()
+        try:
+            return locate_speakers(proxy, identity, scene, image, rows, cast)
+        except ValueError as error:
+            # Do not hide execution errors, missing files or malformed contracts.
+            if str(error) != 'Original face crop must pass independent geometry review' or not proxy.context or not proxy.result:
+                raise
+            feedback = {'source_sha256': source_sha, 'reviews': proxy.result.get('speakers', [])}
+            if not feedback['reviews'] or not any(r.get('passed') is not True for r in feedback['reviews']):
+                raise
+            evidence = image.parent / 'rejected-geometry' / str(attempt + 1)
+            evidence.mkdir(parents=True, exist_ok=True)
+            for number, attachment in enumerate(proxy.context.get('_local_image_paths', [])):
+                src = Path(attachment)
+                shutil.copy2(src, evidence / (str(number) + '-' + src.name))
+            (evidence / 'review.json').write_text(json.dumps(feedback, ensure_ascii=False), encoding='utf-8')
+            if attempt == 0:
+                continue
+            candidates = {s['speaker']: copy.deepcopy(s) for s in proxy.context['speakers']}
+            decisions = {r['speaker']: r for r in feedback['reviews']}
+            result = []
+            for name in requested:
+                speaker = candidates.get(name) or copy.deepcopy(proxy.refined.get(name)) or {'speaker': name}
+                decision = decisions.get(name, {})
+                if name in candidates and decision.get('passed') is True:
+                    from mouth_geometry import validate
+                    speaker['mouth_geometry']['review'] = {'passed': True, 'reason': decision.get('reason'), 'proof': 'annotated-face-crop-v4'}
+                    validate(speaker, source_sha)
+                else:
+                    speaker.update(status='uncertain', confidence=0,
+                        reason='Independent annotated geometry review could not confirm the lips after one repair: ' + str(decision.get('reason') or speaker.get('reason') or 'unconfirmed face geometry'))
+                    speaker['geometry_review_excluded'] = True
+                    if speaker.get('mouth_geometry'):
+                        speaker['mouth_geometry'].update(render_policy='preserve_original',
+                            review={'passed': False, 'reason': speaker['reason'], 'proof': 'annotated-face-crop-v4'})
+                result.append(speaker)
+            return result
+
+
 def prepare_art(structure, identity, download, upload, check=lambda: None, runner=None):
     from PIL import Image
-    from ae_mouth import digest, locate_speakers, POSES
+    from ae_mouth import digest, POSES
     from prepared_mouth_layers import prepare_scene, reuse_prepared
     from codex_content_runner import CodexStagedContentRunner
     runner = runner or CodexStagedContentRunner()
@@ -68,7 +130,7 @@ def prepare_art(structure, identity, download, upload, check=lambda: None, runne
             if geometry_path.exists():
                 speakers = json.loads(geometry_path.read_text())
             else:
-                speakers = locate_speakers(runner, identity+'-'+key, {'text': '\n'.join(g['text'] for g in graphs)}, image, rows, context['cast'])
+                speakers = locate_selective_speakers(runner, identity+'-'+key, {'text': '\n'.join(g['text'] for g in graphs)}, image, rows, context['cast'])
                 check()
                 geometry_path.write_text(json.dumps(speakers, ensure_ascii=False))
             expected = list(dict.fromkeys(g['speaker'] for g in graphs))
