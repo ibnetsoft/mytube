@@ -5,7 +5,7 @@ sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'worker'))
 import ae_scene_production as production
 
 @pytest.mark.parametrize('duration_delta',[0,-1])
-@pytest.mark.parametrize('scene_duration,wuxia',[(3,False),(.26,True)])
+@pytest.mark.parametrize('scene_duration,wuxia',[(3,False),(.26,True),(.25000000000001,True)])
 def test_native_ae_writes_to_media_drive_and_rejects_truncated_output(tmp_path,monkeypatch,duration_delta,scene_duration,wuxia):
  import motion_media_storage,adobe_tools,ae_highlight_worker,ae_flat_scene
  work=tmp_path/'project/output/codex-local-console/motion-automation/job/scene-25/attempt-0';work.mkdir(parents=True)
@@ -21,7 +21,7 @@ def test_native_ae_writes_to_media_drive_and_rejects_truncated_output(tmp_path,m
   assert Path(args[args.index('-output')+1])==capture['native']
   capture['native'].with_suffix('.mp4').write_bytes(b'native-output-test')
  monkeypatch.setattr(ae_highlight_worker,'_run_checked',render)
- render_seconds=math.ceil(scene_duration*24-1e-7)/24 if wuxia else scene_duration
+ render_seconds=7/24 if wuxia else scene_duration
  monkeypatch.setattr(production,'_video_info',lambda path:{'duration':render_seconds+duration_delta})
  prepared={'plan':{'camera':[]},'layers':{},'flat_media':True,'fps':24}
  if wuxia:prepared['plan']['wuxia_runtime']={'samples':[{}]*7}

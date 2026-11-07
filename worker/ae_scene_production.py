@@ -193,7 +193,7 @@ def _render_native(prepared, directory, duration):
     render_duration = duration
     if prepared['plan'].get('wuxia_runtime'):
         # AE quantizes fractional composition lengths; include every frozen sample.
-        render_duration = math.ceil(duration * prepared.get('fps', 24) - 1e-7) / prepared.get('fps', 24)
+        render_duration = len(prepared['plan']['wuxia_runtime']['samples']) / prepared.get('fps', 24)
     writer(prepared['plan'], prepared['layers'], project, native, jsx, render_duration, prepared.get('fps', 24))
     ae._run_afterfx_script(afterfx, jsx, project, timeout=240)
     render_args=[str(aerender), '-project', str(project), '-comp', 'ae_scene', '-output', str(native)]
