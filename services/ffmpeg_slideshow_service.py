@@ -22,6 +22,21 @@ class FastRenderTimeout(RuntimeError):
 VIDEO_EXTENSIONS = {".mp4", ".mov", ".avi", ".mkv", ".webm"}
 
 
+def native_sequence_frame_counts(durations, fps):
+    """Quantize shared scene boundaries, not each scene duration independently."""
+    total, previous, counts = 0., 0, []
+    for duration in durations:
+        if not math.isfinite(float(duration)) or float(duration) <= 0:
+            raise ValueError("Invalid native scene duration")
+        total += float(duration)
+        boundary = math.ceil(total * fps - 1e-7)
+        if boundary <= previous:
+            raise ValueError("Native scene has no output frame")
+        counts.append(boundary - previous)
+        previous = boundary
+    return counts
+
+
 def _web_font_catalog():
     root = Path(__file__).resolve().parents[1] / 'auth-web' / 'public' / 'fonts'
     return root, json.loads((root / 'catalog.json').read_text(encoding='utf-8'))
@@ -682,6 +697,16 @@ def render_ffmpeg_slideshow(
 
     command = [ffmpeg_exe, "-hide_banner", "-y"]
     filters = []
+    native_scenes = motion_options.get('scenes') or {}
+    # The native worker marks these already rendered movies explicitly. Preserve
+    # their shared voice clock; independent per-cut ceil rounding accumulates drift.
+    native_counts = native_sequence_frame_counts(durations, fps) if (
+        motion_options.get('enabled') is True and len(native_scenes) == len(images)
+        and all(v.get('direction') == 'Reviewed scene artifact' for v in native_scenes.values())
+        and all(Path(p).suffix.lower() in VIDEO_EXTENSIONS for p in images)
+        and len(transition_effects or []) == len(images)
+        and all(str(t).lower() == 'none' for t in transition_effects)
+    ) else None
     transition_durations = []
     for index in range(len(images)):
         transition = 0.0 if index == len(images) - 1 or str((transition_effects or ['none']*len(images))[index+1] if index+1<len(transition_effects or []) else 'none').lower()=='none' else 0.5
@@ -691,6 +716,9 @@ def render_ffmpeg_slideshow(
         if not source_path or not os.path.isfile(source_path):
             raise FastRenderUnsupported(f"씬 {index + 1} 파일이 없습니다.")
         segment_duration = float(base_duration) + transition_durations[index]
+        if native_counts is not None:
+            segment_duration = native_counts[index] / fps
+        trim = f"trim=end_frame={native_counts[index]}" if native_counts is not None else f"trim=duration={segment_duration:.3f}"
         extension = os.path.splitext(source_path)[1].lower()
         if extension in VIDEO_EXTENSIONS:
             source_duration = _media_duration(ffmpeg_exe, source_path)
@@ -702,7 +730,7 @@ def render_ffmpeg_slideshow(
             filters.append(
                 f"[{index}:v]{timing}fps={fps},{tail}scale={width}:{height}:force_original_aspect_ratio=increase,"
                 f"crop={width}:{height},setsar=1,zoompan=z=1:d=1:s={width}x{height}:fps={fps},"
-                f"trim=duration={segment_duration:.3f},format=yuv420p[v{index}]"
+                f"{trim},format=yuv420p[v{index}]"
             )
         else:
             command.extend(["-loop", "1", "-framerate", str(fps), "-i", source_path])
