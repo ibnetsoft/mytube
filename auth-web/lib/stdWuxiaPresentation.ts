@@ -1,5 +1,6 @@
 import { wuxiaEffectFrame } from './stdWuxiaEffects'
 import { wuxiaTransitionFrame } from './stdWuxiaTransition'
+import { wuxiaMotionFrame } from './stdWuxiaMotion'
 import { ambientFrameIndex, ambientLoopsForState } from './stdAmbientLoop'
 import { mouthMatchesRecording, wuxiaMouthFrame, stateMouths } from './stdWuxiaMouth'
 /** Wuxia voice rows are speech input, never the on-screen caption track. */
@@ -92,5 +93,6 @@ export function wuxiaSceneFrame(project: any, number: number, rows: any[], secon
     const mouthSources=(scene.states||[]).flatMap((item:any)=>stateMouths(item).filter((m:any)=>m?.enabled&&m.source_sha256===item.sha256&&mouthMatchesRecording(m,project,rows)).flatMap((m:any)=>Object.values(m.poses).map((f:any)=>({...f,region:m.mouth_box,width:m.width,height:m.height}))))
     const effects=wuxiaEffectFrame(scene,state,graphics,seconds,start,end,rowRange,fps||p.render_settings?.motion?.fps||24)
     const transition=wuxiaTransitionFrame(project,scene,number,seconds,start,end,fps||p.render_settings?.motion?.fps||24)
-    return { state, graphics, fraction, effects, transition, ambient, ambientSources, mouths, mouthSources, sources: [...(scene.states || []),...(transition.source?[transition.source]:[])].map((item: any) => String(item.media_url || item.image_url || '')).filter(Boolean), timingBasis: voiced?'subtitle_row_bound_or_authored_preview':'authored_silent_scene_clock' }
+    const motion=wuxiaMotionFrame(project,scene,state,number,seconds,start,end,fps||p.render_settings?.motion?.fps||24)
+    return { state, graphics, fraction, effects, transition, motion, ambient, ambientSources, mouths, mouthSources, sources: [...(scene.states || []),...(transition.source?[transition.source]:[])].map((item: any) => String(item.media_url || item.image_url || '')).filter(Boolean), timingBasis: voiced?'subtitle_row_bound_or_authored_preview':'authored_silent_scene_clock' }
 }

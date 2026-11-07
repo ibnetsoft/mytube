@@ -1,4 +1,6 @@
 'use client'
+import StdWuxiaMotionControls from '@/components/StdWuxiaMotionControls'
+import { WUXIA_MOTIONS, wuxiaMotionValue, wuxiaMotionSpeed, splitWuxiaMotion } from '@/lib/stdWuxiaMotion'
 import { WUXIA_TRANSITIONS } from '@/lib/stdWuxiaTransition'
 import StdWuxiaScenePreview from '@/components/StdWuxiaScenePreview'
 import { isWuxiaMovingtoon, usesStandardSubtitles } from '@/lib/stdWuxiaPresentation'
@@ -2810,7 +2812,7 @@ export default function StdPortalPage() {
     const sceneEffectSavingRef = useRef(false)
     const [isSceneEffectSaving, setIsSceneEffectSaving] = useState(false)
     const applySelectedSceneTransition = async (effectId: string, field: 'transition_effect' | 'image_effect' | 'motion_speed' = 'transition_effect', targets = selectedSubtitleSceneNumbers) => {
-        targets = field !== 'transition_effect' ? targets.filter(sceneNumber => Number(sceneNumber) > 12) : targets
+        targets = field !== 'transition_effect' && !isWuxiaMovingtoon(selectedProject?.project) ? targets.filter(sceneNumber => Number(sceneNumber) > 12) : targets
         if (!selectedProject?.project?.id || targets.length === 0) return
         if (sceneEffectSavingRef.current) return
         sceneEffectSavingRef.current = true
@@ -3492,7 +3494,7 @@ export default function StdPortalPage() {
         const selectedSceneSet = new Set(selectedSubtitleSceneNumbers.map(Number))
         const selectedMotions = (selectedProject?.scenes || [])
             .filter((scene: any, index: number) => selectedSceneSet.has(Number(scene?.scene_number || index + 1)))
-            .map((scene: any) => sceneMotion(scene))
+            .map((scene: any) => isWuxiaMovingtoon(selectedProject?.project) ? wuxiaMotionValue(scene) : sceneMotion(scene))
         const activeMotion = selectedMotions.length > 0 && selectedMotions.every(motion => motion === selectedMotions[0])
             ? selectedMotions[0]
             : ''
@@ -3568,6 +3570,8 @@ export default function StdPortalPage() {
                             </div>
                             <div className="overflow-y-auto p-4">
                                 <div className="flex flex-wrap justify-center gap-x-4 gap-y-4">
+                                    {isWuxiaMovingtoon(selectedProject?.project) ? <StdWuxiaMotionControls key={activeMotion} value={activeMotion || "none"} busy={isSceneEffectSaving} onSave={value=>void applySelectedSceneTransition(value, "image_effect")}/> : <>
+
                                     {SCENE_MOTIONS.map(motion => {
                                         const selected = activeMotion === motion.id
                                         return (
@@ -3597,7 +3601,7 @@ export default function StdPortalPage() {
                                                 </div>
                                             </button>
                                         )
-                                    })}
+                                    })}</>}
                                 </div>
                             </div>
                         </div>
@@ -9974,7 +9978,7 @@ export default function StdPortalPage() {
                                                     [sceneRecord, ...getProjectPayloadScenes()], Number(sNum)
                                                 )
                                                 const transitionEffect = String(sceneRecord?.metadata?.transition_effect || sceneRecord?.transition_effect || '')
-                                                const motionEffect = sceneMotion(sceneRecord)
+                                                const motionEffect = wuxiaMode ? wuxiaMotionValue(sceneRecord) : sceneMotion(sceneRecord)
                                                 const workerVideo = isWorkerSceneVideo(sceneVideos.get(Number(sNum)))
                                                 const originalVideo = Boolean(sceneVideos.get(Number(sNum)) || group.video_url) && !workerVideo
                                                 const segmentKey = vrewSegmentCacheKey(group.subtitles[0], group.firstIndex)
@@ -10076,17 +10080,18 @@ export default function StdPortalPage() {
                                                                     {ui(sceneTransitionLabel(transitionEffect))}
                                                                 </div>
                                                             )}
-                                                            {isVrewSubtitleMode && !isHook && !originalVideo && (
+                                                            {isVrewSubtitleMode && (wuxiaMode || !isHook) && !originalVideo && (
                                                                 <label className="mt-2 flex flex-col items-start gap-1 text-[9px] text-cyan-200">
-                                                                    <select aria-label={`씬 ${sNum} 이미지 모션`} value={motionEffect}
+                                                                    <select aria-label={`씬 ${sNum} 이미지 모션`} value={wuxiaMode ? splitWuxiaMotion(motionEffect).id : motionEffect}
                                                                         disabled={originalVideo || isSceneEffectSaving}
                                                                         title={originalVideo ? '영상 씬은 원본 움직임을 사용합니다.' : '씬이 재생되는 동안 적용할 이미지 움직임'}
-                                                                        onChange={event => void applySelectedSceneTransition(event.target.value, 'image_effect', [Number(sNum)])}
+                                                                        onChange={event => void applySelectedSceneTransition(event.target.value + (wuxiaMode && splitWuxiaMotion(motionEffect).heat ? '+heat' : ''), 'image_effect', [Number(sNum)])}
                                                                         className="w-full min-w-0 rounded border border-white/15 bg-[#14181f] p-1 text-white disabled:opacity-40">
-                                                                        {SCENE_MOTIONS.map(motion => <option key={motion.id} value={motion.id}>{ui(motion.label)}</option>)}
+                                                                        {(wuxiaMode ? WUXIA_MOTIONS : SCENE_MOTIONS).map(motion => <option key={motion.id} value={motion.id}>{ui(motion.label)}</option>)}
                                                                     </select>
+                                                                    {wuxiaMode && <span className="flex items-center gap-1"><input type="checkbox" aria-label={`씬 ${sNum} 열기 왜곡`} disabled={isSceneEffectSaving} checked={splitWuxiaMotion(motionEffect).heat} onChange={event=>void applySelectedSceneTransition(splitWuxiaMotion(motionEffect).id+(event.target.checked?'+heat':''),'image_effect',[Number(sNum)])}/>열기 왜곡</span>}
                                                                     <span className="flex items-center gap-1">{ui("속도")}
-                                                                        <select aria-label={`씬 ${sNum} 모션 속도`} value={sceneMotionSpeed(sceneRecord)}
+                                                                        <select aria-label={`씬 ${sNum} 모션 속도`} value={wuxiaMode ? wuxiaMotionSpeed(sceneRecord) : sceneMotionSpeed(sceneRecord)}
                                                                             disabled={originalVideo || motionEffect === 'none' || isSceneEffectSaving}
                                                                             onChange={event => void applySelectedSceneTransition(event.target.value, 'motion_speed', [Number(sNum)])}
                                                                             className="rounded border border-white/15 bg-[#14181f] p-1 text-white disabled:opacity-40">

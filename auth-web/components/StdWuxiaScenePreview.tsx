@@ -111,9 +111,7 @@ export default function StdWuxiaScenePreview({ project, sceneNumber, subtitles, 
         return () => { live = false; controller.abort() }
     }, [sourcesKey, headers])
     if (!frame) return null
-    return <div className="absolute inset-0 pointer-events-none overflow-hidden bg-black" data-wuxia-presentation="authored-graphics" data-wuxia-transition={frame.transition.kind} data-wuxia-transition-issues={frame.transition.issues.join(',')} aria-label="무협 말풍선·타이포 미리보기">
-        {frame.transition.backdrop>0&&images[backdrop]&&<img src={images[backdrop]} alt="" className="absolute inset-0 h-full w-full object-cover"/>}
-        <div className="absolute inset-0" style={{transform:`translate(${frame.transition.dx*100}%, ${frame.transition.dy*100}%) scale(${frame.transition.scale})`,opacity:frame.transition.opacity,transformOrigin:'50% 50%'}}>
+    const art=(
         <div className="absolute inset-0" data-wuxia-effect-clock="editor" data-wuxia-audio-seconds={previewSeconds} data-wuxia-effect-active={frame.effects.active.join(',')} data-wuxia-effect-issues={frame.effects.issues.join(',')} style={{transform:`translate(${frame.effects.dx/19.2}%, ${frame.effects.dy/10.8}%) scale(${frame.effects.scale})`,transformOrigin:'50% 50%'}}>
         {images[source] && <img src={images[source]} alt="" className="absolute inset-0 h-full w-full object-cover" />}
         {images[source] && frame.ambient.map(({ loop, index, frame: patch }, i) => patches[`${patch.sha256}:${loop.region.join(',')}`] &&
@@ -126,7 +124,15 @@ export default function StdWuxiaScenePreview({ project, sceneNumber, subtitles, 
             {frame.effects.overlays.map((s:any,i:number)=>s.kind==='ellipse'?<ellipse key={i} cx={s.cx} cy={s.cy} rx={s.rx} ry={s.ry} fill={s.stroke?'none':s.color} stroke={s.stroke?s.color:undefined} strokeWidth={s.stroke} opacity={s.opacity}/>:s.kind==='line'?<polyline key={i} points={s.points.map((p:number[])=>p.join(',')).join(' ')} fill="none" stroke={s.color} strokeWidth={s.width} opacity={s.opacity}/>:<polygon key={i} points={s.points.map((p:number[])=>p.join(',')).join(' ')} fill={s.color} opacity={s.opacity}/>)}
         </svg>}
         </div>
+    )
+    return <div className="absolute inset-0 pointer-events-none overflow-hidden bg-black" data-wuxia-presentation="authored-graphics" data-wuxia-transition={frame.transition.kind} data-wuxia-transition-issues={frame.transition.issues.join(',')} aria-label="무협 말풍선·타이포 미리보기">
+        {frame.transition.backdrop>0&&images[backdrop]&&<img src={images[backdrop]} alt="" className="absolute inset-0 h-full w-full object-cover"/>}
+        <div className="absolute inset-0" style={{transform:`translate(${frame.transition.dx*100}%, ${frame.transition.dy*100}%) scale(${frame.transition.scale})`,opacity:frame.transition.opacity,transformOrigin:'50% 50%'}}>
+        <div className="absolute inset-0" data-wuxia-camera-clock="editor" data-wuxia-motion-issues={frame.motion.issues.join(',')} style={{transform:`translate(${frame.motion.dx*100}%, ${frame.motion.dy*100}%) scale(${frame.motion.scale})`,transformOrigin:'50% 50%'}}>
+        {art}
+        {frame.motion.heat.map((dx:number,i:number)=>dx!==0&&<div key={i} className="absolute inset-0" data-wuxia-heat-band={i} style={{clipPath:`inset(${i/frame.motion.heat.length*100}% 0 ${(1-(i+1)/frame.motion.heat.length)*100}% 0)`}}><div className="absolute inset-0" style={{transform:`translateX(${dx/19.2}%)`}}>{art}</div></div>)}
         {(!source || images[source]) && <StdWuxiaGraphics graphics={frame.graphics} animate={playing} />}
+        </div>
         </div>
         {frame.transition.flash>0&&<div className="absolute inset-0 bg-white" data-wuxia-transition-flash style={{opacity:frame.transition.flash}}/>}
     </div>

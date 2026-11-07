@@ -21,6 +21,7 @@ export function freezeWuxiaScene(project:any,number:number,rows:any[],start:numb
  if(!first)throw Error(`${number}번 씬의 무협 상태 원화 연출을 확인해 주세요.`)
  const p=project.project_payload||project,pkg=correctedWuxiaPackage(p.structure?.wuxia_ae_package||p.wuxia_ae_package)
  const scene=pkg.scenes.find((s:any)=>Number(String(s.scene_id).match(/S(\d+)$/)?.[1])===number)
+ const hasMotion=first.motion.active,hasHeat=first.motion.heat.length>0
  const states=(scene.states||[]).map((s:any)=>{
   const url=new URL(s.media_url||s.image_url||'', 'https://studio.airing.work')
   const path=url.searchParams.get('path'),bucket=url.searchParams.get('bucket')
@@ -29,10 +30,11 @@ export function freezeWuxiaScene(project:any,number:number,rows:any[],start:numb
   if(!Array.isArray(s.ambient_loops||[])||(s.ambient_loops||[]).length>4||(s.ambient_loops||[]).some((l:any)=>!validAmbientLoop(l)||l.source_sha256!==s.sha256))throw Error(`${number}번 씬 상태의 보조 움직임 원화 연결을 확인해 주세요.`)
   const mouths=(s.dialogue_mouths||[]).filter((m:any)=>m.enabled)
   if(mouths.length>4||mouths.some((m:any)=>m.source_sha256!==s.sha256||!mouthMatchesRecording(m,project,timedRows)))throw Error(`${number}번 씬 입모양의 원화·음성·대사 시점 연결이 달라졌습니다.`)
-  return {asset_id:s.asset_id,sha256:s.sha256,...storage,ambient_loops:ambientLoopsForState(s).filter(l=>l.enabled),dialogue_mouths:mouths}
+  return {asset_id:s.asset_id,sha256:s.sha256,...storage,ambient_loops:ambientLoopsForState(s).filter(l=>l.enabled),dialogue_mouths:mouths,
+   ...(hasHeat?{heat_face_reviewed:Array.isArray(s.face_exclusion_boxes),heat_protection_boxes:[s.face_exclusion_boxes,s.hand_exclusion_boxes,s.protected_regions].flatMap(b=>Array.isArray(b)?b:[])}:{})}
  })
  const samples:any[]=[],graphics:Record<string,any>={}
- const hasTransition=first.transition.kind!=='none'
+ const hasTransition=first.transition.kind!=='none'||hasMotion
  let transitionSource:any=null
  if(hasTransition&&first.transition.source&&['wipe_left','wipe_right','wipe_up','wipe_down','dissolve'].includes(first.transition.kind)){
   const s=first.transition.source,url=new URL(s.media_url||s.image_url||'','https://studio.airing.work')
@@ -56,11 +58,13 @@ export function freezeWuxiaScene(project:any,number:number,rows:any[],start:numb
   const current=states.find((s:any)=>s.asset_id===frame.state?.asset_id)
   if(frame.effects.issues.length)throw Error(`${number}번 씬 충격 연출 검증 실패: ${frame.effects.issues.join(', ')}`)
   if(frame.transition.issues.length)throw Error(`${number}번 씬 전환 검증 실패: ${frame.transition.issues.join(', ')}`)
+  if(frame.motion.issues.length)throw Error(`${number}번 씬 이미지 모션 검증 실패: ${frame.motion.issues.join(', ')}`)
   const {source:_,...transition}=frame.transition
   samples.push({at:local,effects:frame.effects.active.length?frame.effects:{},state:frame.state?.asset_id,graphics:visible,
    ...(hasTransition?{transition}:{}),
+   ...(hasMotion?{motion:frame.motion}:{}),
    mouths:frame.mouths.map((m:any)=>({mouth:current.dialogue_mouths.indexOf(m.mouth),pose:m.pose})),
    ambient:frame.ambient.map(a=>({loop:current.ambient_loops.indexOf(a.loop),frame:a.index}))})
  }
- return {contract:hasTransition?'wuxia_native_timeline/v4':scene.effects?.length?'wuxia_native_timeline/v3':hasWuxiaMouths(project)?'wuxia_native_timeline/v2':'wuxia_native_timeline/v1',states,graphics,samples,...(transitionSource?{transition_source:transitionSource}:{})}
+ return {contract:hasMotion?'wuxia_native_timeline/v5':hasTransition?'wuxia_native_timeline/v4':scene.effects?.length?'wuxia_native_timeline/v3':hasWuxiaMouths(project)?'wuxia_native_timeline/v2':'wuxia_native_timeline/v1',states,graphics,samples,...(transitionSource?{transition_source:transitionSource}:{})}
 }

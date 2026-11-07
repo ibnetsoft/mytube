@@ -6,7 +6,7 @@ KINDS={'none','wipe_left','wipe_right','wipe_up','wipe_down','flash','punch','sn
 
 def validate(timeline):
     samples=timeline.get('samples') or []
-    enabled=timeline.get('contract')=='wuxia_native_timeline/v4'
+    enabled=timeline.get('contract') in ('wuxia_native_timeline/v4','wuxia_native_timeline/v5')
     if not enabled and any('transition' in s for s in samples):
         raise ValueError('Scene transitions require wuxia native v4')
     if not enabled:return
@@ -23,14 +23,14 @@ def validate(timeline):
                 raise ValueError('Unsafe frozen transition '+key)
 
 def jsx(timeline):
-    if timeline.get('contract')!='wuxia_native_timeline/v4':return ''
+    if timeline.get('contract') not in ('wuxia_native_timeline/v4','wuxia_native_timeline/v5'):return ''
     validate(timeline)
     data=json.dumps({'samples':[{'at':s['at'],**s['transition']} for s in timeline['samples']],
                      'backdrop':timeline.get('transition_source')},ensure_ascii=True,allow_nan=False)
     return '''
     var WTR='''+data+''';
-    var transitionChildren=[];
-    for(var ti=1;ti<=comp.numLayers;ti++){var tl=comp.layer(ti);if(!tl.parent&&tl.name!=='fade_backing')transitionChildren.push(tl);}
+    var transitionChildren=[],transitionOpacityLayers=[];
+    for(var ti=1;ti<=comp.numLayers;ti++){var tl=comp.layer(ti);if(tl.name!=='fade_backing'){if(!tl.parent)transitionChildren.push(tl);if(!tl.nullLayer)transitionOpacityLayers.push(tl);}}
     var transitionRig=comp.layers.addNull(S.duration);transitionRig.name='wuxia_scene_transition_rig';
     var tt=transitionRig.property('ADBE Transform Group');tt.property('ADBE Anchor Point').setValue([O.width/2,O.height/2]);tt.property('ADBE Position').setValue([O.width/2,O.height/2]);
     for(var ti=0;ti<transitionChildren.length;ti++)transitionChildren[ti].parent=transitionRig;
@@ -42,16 +42,16 @@ def jsx(timeline):
     }
     var flash=comp.layers.addSolid([1,1,1],'wuxia_transition_flash',O.width,O.height,1,S.duration);
     var originalOpacity=[];
-    for(var ci=0;ci<transitionChildren.length;ci++){var values=[],op=transitionChildren[ci].property('Opacity');for(var ti=0;ti<WTR.samples.length;ti++)values.push(op.valueAtTime(WTR.samples[ti].at,false));originalOpacity.push(values);}
+    for(var ci=0;ci<transitionOpacityLayers.length;ci++){var values=[],op=transitionOpacityLayers[ci].property('Opacity');for(var ti=0;ti<WTR.samples.length;ti++)values.push(op.valueAtTime(WTR.samples[ti].at,false));originalOpacity.push(values);}
     for(var ti=0;ti<WTR.samples.length;ti++){
       var f=WTR.samples[ti];tt.property('ADBE Position').setValueAtTime(f.at,[O.width/2+f.dx*O.width,O.height/2+f.dy*O.height]);
       tt.property('ADBE Scale').setValueAtTime(f.at,[f.scale*100,f.scale*100]);
       // AE null opacity does not propagate to children. Freeze opacity on each visible child.
-      for(var ci=0;ci<transitionChildren.length;ci++){var op=transitionChildren[ci].property('ADBE Transform Group').property('ADBE Opacity');op.setValueAtTime(f.at,originalOpacity[ci][ti]*f.opacity);}
+      for(var ci=0;ci<transitionOpacityLayers.length;ci++){var op=transitionOpacityLayers[ci].property('ADBE Transform Group').property('ADBE Opacity');op.setValueAtTime(f.at,originalOpacity[ci][ti]*f.opacity);}
       flash.property('Opacity').setValueAtTime(f.at,f.flash*100);
       if(back)back.property('Opacity').setValueAtTime(f.at,f.backdrop*100);
     }
     whold(tt.property('ADBE Position'));whold(tt.property('ADBE Scale'));whold(flash.property('Opacity'));
-    for(var ci=0;ci<transitionChildren.length;ci++)whold(transitionChildren[ci].property('Opacity'));
+    for(var ci=0;ci<transitionOpacityLayers.length;ci++)whold(transitionOpacityLayers[ci].property('Opacity'));
     if(back)whold(back.property('Opacity'));
 '''
