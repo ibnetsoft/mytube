@@ -27,9 +27,17 @@ export function StdWuxiaGraphics({ graphics, animate = true }: { graphics: any[]
   })}
  </svg>
 }
-export default function StdWuxiaScenePreview({ project, sceneNumber, subtitles, seconds, headers, playing = false }: {
-    project: any; sceneNumber: number; subtitles: any[]; seconds: number; headers: Record<string, string>; playing?: boolean
+export default function StdWuxiaScenePreview({ project, sceneNumber, subtitles, seconds, headers, playing = false, audioClock }: {
+    project: any; sceneNumber: number; subtitles: any[]; seconds: number; headers: Record<string, string>; playing?: boolean; audioClock?: { current: (() => number | null) | null }
 }) {
+    const [preciseSeconds,setPreciseSeconds]=useState<number|null>(null)
+    useEffect(()=>{
+        if(!playing||!audioClock){setPreciseSeconds(null);return}
+        let raf=0,lastFrame=-1
+        const tick=()=>{const time=audioClock.current?.();if(time!=null){const sample=Math.floor(time*24);if(sample!==lastFrame){lastFrame=sample;setPreciseSeconds(time)}}raf=requestAnimationFrame(tick)}
+        raf=requestAnimationFrame(tick)
+        return()=>cancelAnimationFrame(raf)
+    },[playing,audioClock])
     const [mouthUpdate,setMouthUpdate]=useState<any>(null)
     const payload=project?.project_payload||project
     const autoMouth=payload?.structure?.wuxia_mouth_policy?.auto_prepare===true
@@ -41,7 +49,7 @@ export default function StdWuxiaScenePreview({ project, sceneNumber, subtitles, 
         void poll();const timer=setInterval(poll,10000)
         return()=>{controller.abort();clearInterval(timer)}
     },[autoMouth,project?.id,headers])
-    const frame = wuxiaSceneFrame(mergeWuxiaMouthRefresh(project,mouthUpdate), sceneNumber, subtitles, seconds)
+    const frame = wuxiaSceneFrame(mergeWuxiaMouthRefresh(project,mouthUpdate), sceneNumber, subtitles, playing && preciseSeconds!==null ? preciseSeconds : seconds)
     const source = String(frame?.state?.media_url || frame?.state?.image_url || '')
     // Fetch each authored still ahead of the cut, so a slow download does not
     // leave the previous state visible over the next spoken segment.
@@ -93,7 +101,7 @@ export default function StdWuxiaScenePreview({ project, sceneNumber, subtitles, 
     }, [sourcesKey, headers])
     if (!frame) return null
     return <div className="absolute inset-0 pointer-events-none" data-wuxia-presentation="authored-graphics" aria-label="무협 말풍선·타이포 미리보기">
-        <div className="absolute inset-0" data-wuxia-effect-clock="editor" data-wuxia-effect-active={frame.effects.active.join(',')} data-wuxia-effect-issues={frame.effects.issues.join(',')} style={{transform:`translate(${frame.effects.dx/19.2}%, ${frame.effects.dy/10.8}%) scale(${frame.effects.scale})`,transformOrigin:'50% 50%'}}>
+        <div className="absolute inset-0" data-wuxia-effect-clock="editor" data-wuxia-audio-seconds={playing && preciseSeconds!==null ? preciseSeconds : seconds} data-wuxia-effect-active={frame.effects.active.join(',')} data-wuxia-effect-issues={frame.effects.issues.join(',')} style={{transform:`translate(${frame.effects.dx/19.2}%, ${frame.effects.dy/10.8}%) scale(${frame.effects.scale})`,transformOrigin:'50% 50%'}}>
         {images[source] && <img src={images[source]} alt="" className="absolute inset-0 h-full w-full object-cover" />}
         {images[source] && frame.ambient.map(({ loop, index, frame: patch }, i) => patches[`${patch.sha256}:${loop.region.join(',')}`] &&
             <img key={i} src={patches[`${patch.sha256}:${loop.region.join(',')}`]} alt="" data-ambient-frame={index} data-ambient-clock="editor"

@@ -1184,6 +1184,7 @@ export default function StdPortalPage() {
     const vrewAudioPromiseRef = useRef<Map<string, Promise<string>>>(new Map())
     const vrewFinalNarrationAudioRef = useRef<{ assetId: string; url: string } | null>(null)
     const vrewAudioRef = useRef<HTMLAudioElement | null>(null)
+    const vrewVisualClockRef = useRef<(() => number | null) | null>(null)
     const previousBgmVolumeRef = useRef(0.08)
     const [bgmLoop, setBgmLoop] = useState(true)
     const [bgmStartScene, setBgmStartScene] = useState(0)
@@ -3652,6 +3653,7 @@ export default function StdPortalPage() {
     }
 
     const stopVrewPlayback = () => {
+        vrewVisualClockRef.current = null
         speechGainCleanupRef.current?.()
         speechGainCleanupRef.current = null
         setIsNarrationPlaying(false)
@@ -3903,6 +3905,7 @@ export default function StdPortalPage() {
                     setIsNarrationPlaying(false)
                     stopPreviewBgm()
                 })
+                vrewVisualClockRef.current = () => !audio.paused && !audio.ended ? audio.currentTime : null
                 audio.preload = 'auto'
                 const cleanup = () => {
                     speechGain.dispose()
@@ -4029,6 +4032,7 @@ export default function StdPortalPage() {
                 const scheduledEnd = Number(subtitle?.end_num ?? subtitle?.end_time ?? baseStart + 1)
                 const scheduledDuration = Math.max(0.1, scheduledEnd - baseStart)
                 const tokenCount = Math.max(1, vrewTextTokens(subtitle?.text || '').length)
+                vrewVisualClockRef.current = () => !audio.paused && !audio.ended ? baseStart + scheduledDuration * Math.max(0, Math.min(1, audio.currentTime / (audio.duration || scheduledDuration))) : null
                 const unbindPlayback = bindNarrationPlayback(audio, () => {
                     if (vrewPlaybackCancelRef.current !== cancelToken) { audio.pause(); return }
                     setIsNarrationPlaying(true)
@@ -10516,7 +10520,7 @@ export default function StdPortalPage() {
                                             {selectedImageTemplatePreset && <StdTemplateOverlay locale={currentLocale} layers={textLayers}
                                                 savedImage={selectedProject?.project?.project_payload?.render_settings?.std_template_overlay_png_data_url}
                                                 savedLayers={selectedProject?.project?.project_payload?.render_settings?.std_template_overlay_layers} />}
-                                            {wuxiaMode && <StdWuxiaScenePreview project={selectedProject.project} sceneNumber={Number(currentSub.scene_number)} subtitles={localSubtitles} seconds={playbackTime} headers={authedJsonHeaders} playing={isPlayingPreview} />}
+                                            {wuxiaMode && <StdWuxiaScenePreview project={selectedProject.project} sceneNumber={Number(currentSub.scene_number)} subtitles={localSubtitles} seconds={playbackTime} headers={authedJsonHeaders} playing={isPlayingPreview} audioClock={vrewVisualClockRef} />}
                                             {/* 실시간 폰트/스타일 자막 오버레이 (항상 1줄 고정) */}
                                             {(() => {
                                                 if (!usesStandardSubtitles(selectedProject.project)) return null
