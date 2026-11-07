@@ -9,7 +9,9 @@ and publish metadata. Portraits use the native Codex image tool, never Gemini.
 from __future__ import annotations
 
 from worker.generation_validation import validated_stage, validate_sections
+from worker.wuxia_narration import applies as wuxia_visual_speech, DIRECTIVE as WUXIA_SPEECH_CONTRACT
 
+import copy
 import json
 import hashlib
 import math
@@ -1764,7 +1766,7 @@ def _scene_char_budgets(scenes: list[dict[str, Any]], payload: dict[str, Any]) -
             "scene_order": index,
             "duration_seconds": duration,
             "target_chars": target,
-            "min_chars": minimum,
+            "min_chars": 0 if wuxia_visual_speech(payload) else minimum,
             "max_chars": maximum,
         })
     # Guard against a malformed payload whose scene schedule no longer matches
@@ -2771,9 +2773,11 @@ class CodexStagedContentRunner:
             "script_rhythm_contract": script_rhythm_contract,
             "story_spine_contract": story_spine_contract,
         }
+        if wuxia_visual_speech(payload):
+            plan_context['wuxia_narration_contract'] = WUXIA_SPEECH_CONTRACT
         paragraph_draft = None
         from worker.paragraph_scene_pacing import MODE as PARAGRAPH_MODE, opening_schedule, paragraph_scenes
-        if payload.get('_scene_boundary_mode') == PARAGRAPH_MODE:
+        if payload.get('_scene_boundary_mode') == PARAGRAPH_MODE and not wuxia_visual_speech(payload):
             payload = dict(payload)
             seconds = int(payload['target_duration_seconds'])
             opening = opening_schedule(seconds, int(payload.get('_story_elapsed_seconds') or 0))
@@ -2872,6 +2876,7 @@ class CodexStagedContentRunner:
                 scene_budgets[index]['min_chars'] = max(scene_budgets[index]['min_chars'], math.ceil(18 * cps))
                 scene_budgets[index]['max_chars'] = min(scene_budgets[index]['max_chars'], math.floor(180 * cps))
                 scenes[index]['scene_boundary'] = 'paragraph'
+        visual_speech = wuxia_visual_speech(payload)
         script_context = {
             **plan_context,
             "structure": structure,
@@ -2880,103 +2885,115 @@ class CodexStagedContentRunner:
             "main_character": plan.get("main_character") or {},
             "supporting_characters": plan.get("supporting_characters") or [],
         }
-        speech_scope = _resolve_image_layer_scene_range(payload) if payload.get('concentrated_scene_effects') else None
+        if visual_speech:
+            script_context['wuxia_narration_contract'] = WUXIA_SPEECH_CONTRACT
+        speech_scope = _resolve_image_layer_scene_range(payload) if payload.get('concentrated_scene_effects') and not visual_speech else None
         speech_offset = int(payload.get('_effect_scene_offset') or 0)
         if speech_scope:
             script_context['speech_style_policy'] = {
                 'last_direct_speech_scene': speech_scope['end'], 'global_scene_offset': speech_offset,
                 'instruction': 'Prefer narrator-reported indirect speech throughout. Through the last effect scene, allow direct character dialogue only when dramatically necessary; do not force direct speech. After that scene, convey all character speech only as narrator-reported indirect speech; no spoken character quotes, first-person character utterances, or speaker labels. Preserve meaning and scene boundaries.'}
-        written = paragraph_draft or validated_stage(lambda name, context, task: self._stage(job_id, name, context, task), "02_script", script_context, f"Write narration for the supplied scene plans using scene_budgets as hard per-scene character budgets. Apply story_spine_contract, category_narration_voice, script_style_directive, and script_rhythm_contract strictly. Return {{'sections':[{{'scene_order':n,'text':'...'}}], 'script_quality_report':{{'verdict':'pass|revise','score':0-100,'story_spine_score':0-100,'anti_sermon_score':0-100,'dialogue_context_score':0-100,'category_voice_score':0-100,'rhythm_score':0-100,'repetitive_ending_score':0-100,'critical_issues':[],'revision_notes':[]}}}}. Return exactly {len(scenes)} ordered sections. Each section must fit its duration and concatenate without omissions or duplication into the finished narration. For each scene, dramatize a concrete action, choice, reveal, or consequence; do not summarize the plan. Prefer narration over direct dialogue; use quoted speech only when the surrounding action makes it necessary and never use speaker labels. End through concrete changed behavior and consequence, not a lesson sentence. Make the narration sound read aloud and category-specific, not like short scene cards. Never use headings, timestamps, camera directions, or metadata in narration.", lambda raw: validate_sections(raw, scene_budgets))
-        sections = written.get("sections") if isinstance(written.get("sections"), list) else []
-        if len(sections) != len(scenes):
-            raise CodexContentError(f"script requires {len(scenes)} sections; got {len(sections)}")
-        parts = []
-        for index, section in enumerate(sections, 1):
-            text = str((section or {}).get("text") or "").strip() if isinstance(section, dict) else ""
-            if not text:
-                raise CodexContentError(f"script section {index} is empty")
-            budget = scene_budgets[index - 1]
-            if len(text) < budget["min_chars"] or len(text) > max(budget["max_chars"] * 2, budget["max_chars"] + 30):
-                raise CodexContentError(f"script section {index} violates its duration character budget")
-            scenes[index - 1]["scene_text"] = text
-            scenes[index - 1]["narration"] = text
-            parts.append(text)
-        script = "\n\n".join(parts)
-        qa_context = {**script_context, "script": script, "sections": sections}
-        qa_task = f"Perform the legacy script QA/rewrite pass. Apply story_spine_contract, category_narration_voice, script_style_directive, and script_rhythm_contract as hard QA criteria. Score hook, title promise, story spine fidelity, protagonist/want/conflict clarity, rising tension, continuity, midpoint reversal, concrete final changed action, spoken naturalness, dialogue context, anti-sermon restraint, category voice fit, sentence rhythm, repetitive-ending control, emotion cues, and paragraph-opening variety. Before scoring, write a private first-time-listener summary of protagonist, want, obstacle, turn, and ending; if that summary is not clear from the script alone, revise. Return {{'sections':[{{'scene_order':n,'text':'final narration'}}], 'script_quality_report':{{'verdict':'pass|revise','score':0-100,'hook_score':0-100,'structure_score':0-100,'story_spine_score':0-100,'retention_score':0-100,'payoff_score':0-100,'naturalness_score':0-100,'dialogue_context_score':0-100,'anti_sermon_score':0-100,'category_voice_score':0-100,'rhythm_score':0-100,'repetitive_ending_score':0-100,'listener_summary':'5-sentence max summary of the final script','critical_issues':[],'strengths':[],'revision_notes':[]}}}} with exactly {len(scenes)} ordered sections. A pass requires score >=82, story_spine_score >=88, dialogue_context_score >=85, anti_sermon_score >=90, category_voice_score >=85, rhythm_score >=85, repetitive_ending_score >=85, and an empty critical_issues array. Preserve scene order and character budgets. Rewrite any section chain that sounds like clipped factual reports, repeats blunt endings such as 했다/였다/있었다/나왔다, inserts unmotivated dialogue, states a moral lesson directly, or loses the category-specific spoken voice. Do not add headings/timestamps/camera directions."
-        if paragraph_draft:
-            qa_task += (' Preserve paragraph scene boundaries. Each body section is one whole natural paragraph '
-                        'or a group of adjacent short paragraphs; never transfer a sentence to another scene '
-                        'or undo a sentence-boundary split made for the 180-second maximum. Body scenes must retain '
-                        '18–180 seconds of estimated narration. Do not pad with repetition or silence.')
-        qa: dict[str, Any] = {}
-        qa_sections: list[Any] = []
-        rhythm_warnings: list[str] = []
-        for qa_attempt in range(2):
-            qa = validated_stage(lambda name, context, task: self._stage(job_id, name, context, task),
-                                 "02b_script_qa", qa_context, qa_task,
-                                 lambda raw: validate_sections(raw, scene_budgets))
-            qa_sections = qa.get("sections") if isinstance(qa.get("sections"), list) else []
-            if len(qa_sections) != len(scenes):
-                raise CodexContentError(f"script QA requires {len(scenes)} sections; got {len(qa_sections)}")
-            rhythm_warnings = _script_rhythm_warnings(qa_sections)
-            rhythm_warnings += _story_flow_warnings(qa_sections)
-            rhythm_warnings += text_issues(qa_sections, payload)
-            if not rhythm_warnings:
-                review = self._stage(job_id, "02c_senior_review", _final_script_review_context(
-                    script_context, qa_sections), "Independently review the exact complete narration as an adult senior listening without images. Do NOT rewrite or trust the author's score. "
-                   "Compare the cast, timeline, object custody, character knowledge and title promise across the entire script. Check factual claims against supplied evidence. "
-                   "Return only {'script_quality_report': {...}} using EVERY mandatory field and evidence-backed check defined in the following senior listening contract."
-                   + senior_contract(payload) + _story_review_contract(include_writer_note=not quality_notes_only))
-                qa["script_quality_report"] = review.get("script_quality_report")
-                rhythm_warnings += review_issues(qa["script_quality_report"]) + _story_review_issues(qa["script_quality_report"])
-                rhythm_warnings += _japanese_fidelity_review_issues(qa["script_quality_report"], payload)
-                if rhythm_warnings:
-                    qa_context["independent_review_feedback"] = review
-            if not rhythm_warnings:
-                break
-            if qa_attempt:
+        if visual_speech:
+            from worker.wuxia_narration import produce_sections
+            qa_sections, audiovisual_audit = produce_sections(
+                lambda name, context, task: self._stage(job_id, name, context, task),
+                script_context, scenes, scene_budgets)
+            written = {'sections': copy.deepcopy(qa_sections), 'source': 'reviewed_wuxia_visual_narration'}
+            qa = {'script_quality_report': audiovisual_audit}
+            structure['wuxia_narration_review'] = audiovisual_audit
+            structure['wuxia_narration_profile'] = audiovisual_audit['profile']
+        else:
+            written = paragraph_draft or validated_stage(lambda name, context, task: self._stage(job_id, name, context, task), "02_script", script_context, f"Write narration for the supplied scene plans using scene_budgets as hard per-scene character budgets. Apply story_spine_contract, category_narration_voice, script_style_directive, and script_rhythm_contract strictly. Return {{'sections':[{{'scene_order':n,'text':'...'}}], 'script_quality_report':{{'verdict':'pass|revise','score':0-100,'story_spine_score':0-100,'anti_sermon_score':0-100,'dialogue_context_score':0-100,'category_voice_score':0-100,'rhythm_score':0-100,'repetitive_ending_score':0-100,'critical_issues':[],'revision_notes':[]}}}}. Return exactly {len(scenes)} ordered sections. Each section must fit its duration and concatenate without omissions or duplication into the finished narration. For each scene, dramatize a concrete action, choice, reveal, or consequence; do not summarize the plan. Prefer narration over direct dialogue; use quoted speech only when the surrounding action makes it necessary and never use speaker labels. End through concrete changed behavior and consequence, not a lesson sentence. Make the narration sound read aloud and category-specific, not like short scene cards. Never use headings, timestamps, camera directions, or metadata in narration.", lambda raw: validate_sections(raw, scene_budgets))
+            sections = written.get("sections") if isinstance(written.get("sections"), list) else []
+            if len(sections) != len(scenes):
+                raise CodexContentError(f"script requires {len(scenes)} sections; got {len(sections)}")
+            parts = []
+            for index, section in enumerate(sections, 1):
+                text = str((section or {}).get("text") or "").strip() if isinstance(section, dict) else ""
+                if not text:
+                    raise CodexContentError(f"script section {index} is empty")
+                budget = scene_budgets[index - 1]
+                if len(text) < budget["min_chars"] or len(text) > max(budget["max_chars"] * 2, budget["max_chars"] + 30):
+                    raise CodexContentError(f"script section {index} violates its duration character budget")
+                scenes[index - 1]["scene_text"] = text
+                scenes[index - 1]["narration"] = text
+                parts.append(text)
+            script = "\n\n".join(parts)
+            qa_context = {**script_context, "script": script, "sections": sections}
+            qa_task = f"Perform the legacy script QA/rewrite pass. Apply story_spine_contract, category_narration_voice, script_style_directive, and script_rhythm_contract as hard QA criteria. Score hook, title promise, story spine fidelity, protagonist/want/conflict clarity, rising tension, continuity, midpoint reversal, concrete final changed action, spoken naturalness, dialogue context, anti-sermon restraint, category voice fit, sentence rhythm, repetitive-ending control, emotion cues, and paragraph-opening variety. Before scoring, write a private first-time-listener summary of protagonist, want, obstacle, turn, and ending; if that summary is not clear from the script alone, revise. Return {{'sections':[{{'scene_order':n,'text':'final narration'}}], 'script_quality_report':{{'verdict':'pass|revise','score':0-100,'hook_score':0-100,'structure_score':0-100,'story_spine_score':0-100,'retention_score':0-100,'payoff_score':0-100,'naturalness_score':0-100,'dialogue_context_score':0-100,'anti_sermon_score':0-100,'category_voice_score':0-100,'rhythm_score':0-100,'repetitive_ending_score':0-100,'listener_summary':'5-sentence max summary of the final script','critical_issues':[],'strengths':[],'revision_notes':[]}}}} with exactly {len(scenes)} ordered sections. A pass requires score >=82, story_spine_score >=88, dialogue_context_score >=85, anti_sermon_score >=90, category_voice_score >=85, rhythm_score >=85, repetitive_ending_score >=85, and an empty critical_issues array. Preserve scene order and character budgets. Rewrite any section chain that sounds like clipped factual reports, repeats blunt endings such as 했다/였다/있었다/나왔다, inserts unmotivated dialogue, states a moral lesson directly, or loses the category-specific spoken voice. Do not add headings/timestamps/camera directions."
+            if paragraph_draft:
+                qa_task += (' Preserve paragraph scene boundaries. Each body section is one whole natural paragraph '
+                            'or a group of adjacent short paragraphs; never transfer a sentence to another scene '
+                            'or undo a sentence-boundary split made for the 180-second maximum. Body scenes must retain '
+                            '18–180 seconds of estimated narration. Do not pad with repetition or silence.')
+            qa: dict[str, Any] = {}
+            qa_sections: list[Any] = []
+            rhythm_warnings: list[str] = []
+            for qa_attempt in range(2):
+                qa = validated_stage(lambda name, context, task: self._stage(job_id, name, context, task),
+                                     "02b_script_qa", qa_context, qa_task,
+                                     lambda raw: validate_sections(raw, scene_budgets))
+                qa_sections = qa.get("sections") if isinstance(qa.get("sections"), list) else []
+                if len(qa_sections) != len(scenes):
+                    raise CodexContentError(f"script QA requires {len(scenes)} sections; got {len(qa_sections)}")
+                rhythm_warnings = _script_rhythm_warnings(qa_sections)
+                rhythm_warnings += _story_flow_warnings(qa_sections)
+                rhythm_warnings += text_issues(qa_sections, payload)
+                if not rhythm_warnings:
+                    review = self._stage(job_id, "02c_senior_review", _final_script_review_context(
+                        script_context, qa_sections), "Independently review the exact complete narration as an adult senior listening without images. Do NOT rewrite or trust the author's score. "
+                       "Compare the cast, timeline, object custody, character knowledge and title promise across the entire script. Check factual claims against supplied evidence. "
+                       "Return only {'script_quality_report': {...}} using EVERY mandatory field and evidence-backed check defined in the following senior listening contract."
+                       + senior_contract(payload) + _story_review_contract(include_writer_note=not quality_notes_only))
+                    qa["script_quality_report"] = review.get("script_quality_report")
+                    rhythm_warnings += review_issues(qa["script_quality_report"]) + _story_review_issues(qa["script_quality_report"])
+                    rhythm_warnings += _japanese_fidelity_review_issues(qa["script_quality_report"], payload)
+                    if rhythm_warnings:
+                        qa_context["independent_review_feedback"] = review
+                if not rhythm_warnings:
+                    break
+                if qa_attempt:
+                    if not quality_notes_only:
+                        raise CodexContentError("script QA failed senior listening contract: " + "; ".join(rhythm_warnings))
+                    structure.setdefault('quality_notes', []).append({
+                        'stage': 'senior_script_review', 'issues': rhythm_warnings,
+                        'actual_review': qa.get('script_quality_report'), 'passed': False})
+                    break
+                qa_context = {
+                    **qa_context,
+                    "script": "\n\n".join(
+                        str((section or {}).get("text") or "").strip()
+                        for section in qa_sections
+                        if isinstance(section, dict)
+                    ),
+                    "sections": qa_sections,
+                    "script_rhythm_rejection": rhythm_warnings,
+                }
+            try:
+                qa_sections, listener_audit = improve_for_listener(
+                    lambda name, context, task: self._stage(job_id, name, {
+                        **context, **({key: payload[key] for key in ('historical_sources', 'documentary_source_policy')}
+                                     if payload.get('historical_sources') else {})},
+                        task + '\n' + language_directive(output_language(payload))),
+                    str(payload.get('upload_title') or payload.get('topic') or ''), qa_sections, scene_budgets)
+            except ValueError as exc:
                 if not quality_notes_only:
-                    raise CodexContentError("script QA failed senior listening contract: " + "; ".join(rhythm_warnings))
-                structure.setdefault('quality_notes', []).append({
-                    'stage': 'senior_script_review', 'issues': rhythm_warnings,
-                    'actual_review': qa.get('script_quality_report'), 'passed': False})
-                break
-            qa_context = {
-                **qa_context,
-                "script": "\n\n".join(
-                    str((section or {}).get("text") or "").strip()
-                    for section in qa_sections
-                    if isinstance(section, dict)
-                ),
-                "sections": qa_sections,
-                "script_rhythm_rejection": rhythm_warnings,
-            }
-        try:
-            qa_sections, listener_audit = improve_for_listener(
-                lambda name, context, task: self._stage(job_id, name, {
-                    **context, **({key: payload[key] for key in ('historical_sources', 'documentary_source_policy')}
-                                 if payload.get('historical_sources') else {})},
-                    task + '\n' + language_directive(output_language(payload))),
-                str(payload.get('upload_title') or payload.get('topic') or ''), qa_sections, scene_budgets)
-        except ValueError as exc:
-            if not quality_notes_only:
-                raise CodexContentError(f'Listener quality gate rejected: {exc}') from exc
-            listener_audit = {'verdict': 'revise', 'selected': 'original', 'passed': False,
-                              'issue': str(exc), 'mode': 'text_only'}
-            structure.setdefault('quality_notes', []).append({'stage': 'listener_review', 'passed': False, 'issue': str(exc)})
-        if listener_audit['selected'] == 'revision':
-            final_review = self._stage(job_id, '02i_post_listener_review', _final_script_review_context(
-                script_context, qa_sections), 'Independently recheck the exact revised script against the complete senior listening contract. '
-               'Do not rewrite. Return {script_quality_report:{...}} with all required evidence-backed checks.' + _story_review_contract(include_writer_note=not quality_notes_only))
-            qa['script_quality_report'] = final_review.get('script_quality_report')
-            final_issues = text_issues(qa_sections, payload) + _script_rhythm_warnings(qa_sections) + _story_flow_warnings(qa_sections) + review_issues(qa['script_quality_report']) + _story_review_issues(qa['script_quality_report']) + _japanese_fidelity_review_issues(qa['script_quality_report'], payload)
-            if final_issues:
-                if not quality_notes_only:
-                    raise CodexContentError('Post-listener continuity gate rejected: ' + '; '.join(final_issues))
-                structure.setdefault('quality_notes', []).append({'stage': 'post_listener_review',
-                    'passed': False, 'issues': final_issues, 'actual_review': qa.get('script_quality_report')})
-        structure['listener_quality_report'] = listener_audit
+                    raise CodexContentError(f'Listener quality gate rejected: {exc}') from exc
+                listener_audit = {'verdict': 'revise', 'selected': 'original', 'passed': False,
+                                  'issue': str(exc), 'mode': 'text_only'}
+                structure.setdefault('quality_notes', []).append({'stage': 'listener_review', 'passed': False, 'issue': str(exc)})
+            if listener_audit['selected'] == 'revision':
+                final_review = self._stage(job_id, '02i_post_listener_review', _final_script_review_context(
+                    script_context, qa_sections), 'Independently recheck the exact revised script against the complete senior listening contract. '
+                   'Do not rewrite. Return {script_quality_report:{...}} with all required evidence-backed checks.' + _story_review_contract(include_writer_note=not quality_notes_only))
+                qa['script_quality_report'] = final_review.get('script_quality_report')
+                final_issues = text_issues(qa_sections, payload) + _script_rhythm_warnings(qa_sections) + _story_flow_warnings(qa_sections) + review_issues(qa['script_quality_report']) + _story_review_issues(qa['script_quality_report']) + _japanese_fidelity_review_issues(qa['script_quality_report'], payload)
+                if final_issues:
+                    if not quality_notes_only:
+                        raise CodexContentError('Post-listener continuity gate rejected: ' + '; '.join(final_issues))
+                    structure.setdefault('quality_notes', []).append({'stage': 'post_listener_review',
+                        'passed': False, 'issues': final_issues, 'actual_review': qa.get('script_quality_report')})
+            structure['listener_quality_report'] = listener_audit
         if speech_scope:
             # Apply after all optional rewrites, including paragraph-first drafting and listener edits.
             speech_context = {**script_context, 'sections': qa_sections, 'scene_budgets': scene_budgets}
@@ -2991,7 +3008,7 @@ class CodexStagedContentRunner:
             if len(qa_sections) != len(scenes):
                 raise CodexContentError('Speech style rewrite must preserve every scene.')
             structure['speech_style_policy'] = script_context['speech_style_policy']
-        if paragraph_draft:
+        if paragraph_draft and not visual_speech:
             for section in qa_sections[len(opening):]:
                 length = len(re.sub(r'\s', '', str((section or {}).get('text') or '')))
                 if not math.ceil(18 * cps) <= length <= math.floor(180 * cps):
@@ -2999,15 +3016,23 @@ class CodexStagedContentRunner:
         parts = []
         for index, section in enumerate(qa_sections, 1):
             text = str((section or {}).get("text") or "").strip() if isinstance(section, dict) else ""
-            if not text:
+            if not text and not visual_speech:
                 raise CodexContentError(f"script QA section {index} is empty")
             budget = scene_budgets[index - 1]
             if len(text) < budget["min_chars"] or len(text) > max(budget["max_chars"] * 2, budget["max_chars"] + 30):
                 raise CodexContentError(f"script QA section {index} violates its duration character budget")
             scenes[index - 1]["scene_text"] = text
             scenes[index - 1]["narration"] = text
+            if visual_speech:
+                scenes[index - 1].update(visual_action=section['visual_action'],
+                    spoken_blocks=copy.deepcopy(section['spoken_blocks']),
+                    narration_text='\n'.join(b['text'] for b in section['spoken_blocks'] if b['kind'] == 'narration'),
+                    silent_visual=not section['spoken_blocks'],
+                    speech_contract='wuxia_visual_narration/v1')
             parts.append(text)
         script = "\n\n".join(parts)
+        if visual_speech:
+            script = script.strip()
         if payload.get('historical_sources'):
             from worker.japanese_historical_documentary import review_final_script
             try:
@@ -3056,7 +3081,7 @@ class CodexStagedContentRunner:
                 **{key: scene.get(key) for key in (
                     "scene_number", "duration_seconds", "scene_summary", "scene_situation", "parallax_mode", "has_character_dialogue", "direction_policy_version", "dialogue_spans",
                     "scene_purpose", "scene_emotion", "character_choice", "emotional_shift",
-                    "reveal_or_question", "scene_text", "narration",
+                    "reveal_or_question", "scene_text", "narration", "visual_action", "spoken_blocks", "silent_visual",
                 )},
                 "eligible_for_eye_blink": (int(scene.get("scene_number") or scene.get("scene_order") or 0) + int(payload.get("_effect_scene_offset") or 0) >= 19
                     and (not payload.get("concentrated_scene_effects") or (_resolve_image_layer_scene_range(payload)["start"]
@@ -3218,7 +3243,7 @@ class CodexStagedContentRunner:
                          "scene_cast": identity["scene_cast"],
                          "character_reference_rule": "These are verified actual reference images. Preserve their facial identity, age, wardrobe and era in every applicable scene. Copy the exact hair_design_en, including shaved-scalp boundary, hairline, hair length and topknot/braid shape/position/direction. Never substitute a different character or swap siblings' hairstyles."}
         media_task = (
-            f"Create prompts only from each final scene_text. Story setting: {setting['setting_country_en']} ({setting['era_region']}). "
+            f"Create prompts from each scene visual_action (when present) together with its final scene_text. visual_action is image-only staging and must never be copied into speech. Silent cuts still require their full artwork. Story setting: {setting['setting_country_en']} ({setting['era_region']}). "
             f"Visual style: {setting['image_style_en']}. Maintain authentic local architecture, interior spaces, streetscape, vehicles, and props without caricature. "
             "Use scene_cast to include only the actual scene participants. Repeat each visible person's locked hair_design_en verbatim in their image/video prompt and applicable grid panel; do not improvise haircuts or redraw shaved areas. "
             "For every scene, choose a story-grounded shot design before writing the prompt: shot size (extreme_wide, wide, medium, close_up, detail), camera angle (eye_level, high_angle, low_angle, overhead, oblique), subject_presence (character_required, character_optional, environment_only, object_insert), subject_scale (none, small, medium, large, detail), and specific composition. Vary framing and angle between adjacent scenes when narration permits; repeat only for meaningful continuity and state repetition_reason. Allow environmental establishing/transition shots with no people; when environment_only, forbid people, silhouettes, faces, and human reflections. Never add a person just to fill the frame. "
@@ -3227,7 +3252,7 @@ class CodexStagedContentRunner:
             f"Explicit layer scene range is {json.dumps(image_layer_scene_range, ensure_ascii=False)}. Every existing scene inside that range must receive independently authored registered background and foreground PNG layers for PSD assembly; preserve the ordinary mode outside the range. "
             "Treat each scene's ae_directorial_plan as authoritative. For each directed_performance template, create separately authored full-canvas PNG role layers exactly matching asset_requirements.required_layers, including a complete independently generated clean background and aligned alternate pose/prop layers. Do not derive or inpaint hidden background pixels from the flattened scene. Keep separate actions and poses in separate files; do not bake them into one flattened still. "
             "For a scene carrying ae_template, describe each required character, hand, wall state, reflection source, training apparatus or talisman as separable full cutouts with consistent identity, perspective and lighting; keep panel lines, animated qi, flying debris, glasses reflections, backlight rays, timed titles, ink impacts and all Korean sound lettering out of the base image. "
-            f"Every scene needs a unique 120+ character English image_prompt grounded in its final scene_text. Make compact strict 2x2 grids for every four-scene window, with exactly four panels at Top-Left, Top-Right, Bottom-Left, Bottom-Right. Scenes 1-{required_video_scene_count} also need a 300+ character English video_prompt, exactly one approved camera movement, and the literal guards 'no dialogue, no narration, no subtitles, no captions, no music, no sound effects, no audio'. Scenes 1-{required_video_scene_count} use video_generation_mode=user_upload. Scenes after {required_video_scene_count} must not contain video_prompt."
+            f"Every scene needs a unique 120+ character English image_prompt grounded in its visual_action and final scene_text. Make compact strict 2x2 grids for every four-scene window, with exactly four panels at Top-Left, Top-Right, Bottom-Left, Bottom-Right. Scenes 1-{required_video_scene_count} also need a 300+ character English video_prompt, exactly one approved camera movement, and the literal guards 'no dialogue, no narration, no subtitles, no captions, no music, no sound effects, no audio'. Scenes 1-{required_video_scene_count} use video_generation_mode=user_upload. Scenes after {required_video_scene_count} must not contain video_prompt."
         )
         media = {}
         for media_attempt in range(2):

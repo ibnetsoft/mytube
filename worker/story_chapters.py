@@ -64,7 +64,14 @@ def validate_package(package, seconds):
     if not scenes or not isinstance(package.get('script'), str) or not package['script'].strip():
         raise ValueError('장별 대본·씬이 없습니다.')
     texts = [str(s.get('scene_text') or s.get('narration') or '').strip() for s in scenes]
-    if not all(texts) or package['script'].strip() != '\n\n'.join(texts):
+    separated = package.get('structure', {}).get('wuxia_narration_profile') == 'wuxia_visual_narration/v1'
+    valid_cuts = all(text or (separated and s.get('speech_contract') == 'wuxia_visual_narration/v1'
+                             and s.get('spoken_blocks') == [] and str(s.get('visual_action') or '').strip())
+                     for s, text in zip(scenes, texts))
+    expected_script = '\n\n'.join(texts)
+    if separated:
+        expected_script = expected_script.strip()
+    if not valid_cuts or package['script'].strip() != expected_script:
         raise ValueError('장별 씬 본문과 최종 대본이 다릅니다.')
     if abs(sum(float(s.get('duration_seconds') or 0) for s in scenes) - seconds) > .05:
         raise ValueError('장별 씬 길이가 목표 분량과 다릅니다.')

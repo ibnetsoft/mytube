@@ -198,7 +198,9 @@ def complete_candidate(identity, candidate, request, runner, directory, notify=l
                    'required_video_scene_count': required, 'scenes': batch,
                    'user_requirements': request.get('notes', '')}
         task = (
-            'Author production prompts for these EXACT final narration scenes; do not rewrite narration or scene order. '
+            'Author production prompts for these EXACT final scenes; do not rewrite speech or scene order. '
+            'When visual_action exists, use it as authoritative image-making staging alongside spoken text. '
+            'Silent visual cuts still need artwork. Never copy image instructions into narration or add speech to fill duration. '
             'Return {scenes:[{scene_number,shot_design:{shot_size,camera_angle,subject_presence,subject_scale,composition,repetition_reason},'
             'image_prompt,video_prompt,grid_panel_prompt}]}. Preserve names, locked visual DNA, clothing, hair and historical setting. '
             'Use ONLY actually present participants; scenery/object-only scenes need no person. Image prompts must be unique '
