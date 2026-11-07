@@ -15,3 +15,9 @@ def test_unknown_native_contract_is_never_treated_as_a_still():
 
 def test_other_productions_keep_existing_claim():
  assert claim_acknowledgement({'scenes':[{'source_kind':'image'}]}, {},'lease')=={}
+
+def test_sword_aura_requires_reviewable_source_bound_patches():
+ snapshot={'scenes':[{'wuxia_timeline':{'contract':'wuxia_native_timeline/v5','auto_motion_policy':{'actual_output_review_required':True},'states':[{'ambient_loops':[{'sword_aura':{'contract':'wuxia_sword_aura/v1'}}]}]}}]}
+ assert claim_acknowledgement(snapshot,{'input':{'required_worker_contract':'wuxia_sword_aura/v1'}},'lease')['worker_contract_ack']['contract']=='wuxia_sword_aura/v1'
+ snapshot['scenes'][0]['wuxia_timeline']['states']=[]
+ with pytest.raises(ValueError,match='no matching'):claim_acknowledgement(snapshot,{'input':{'required_worker_contract':'wuxia_sword_aura/v1'}},'lease')

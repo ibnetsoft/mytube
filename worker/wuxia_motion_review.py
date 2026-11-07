@@ -20,7 +20,12 @@ def review_source(runner,scene,runtime,fresh):
         if not isinstance(rows,list) or [s.get('asset_id') for s in rows]!=[s['asset_id'] for s in batch] or any(type(s.get('passed')) is not bool or not str(s.get('evidence') or '').strip() or not isinstance(s.get('issues'),list) or (s['passed'] and s['issues']) for s in rows):raise ValueError('Incomplete actual motion source review')
         results.extend({**row,'source_sha256':state['sha256']} for row,state in zip(rows,batch))
     return {'contract':'wuxia_motion_source_review/v1','passed':all(s['passed'] for s in results),'states':results}
-TASK='''For wuxia_motion_fit compare the scene's planned choice with ACTUAL source and
+TASK='''For wuxia_sword_aura_execution, when requested, compare different decoded
+phases of the SAME source state: blue sword energy must visibly ripple/flow, while
+people, steel blade, grip, background geometry and lettering remain stationary.
+Check protected polygon edges, detached/duplicate old wisps, clean-plate seams,
+and absence on other states. Source PNGs alone or frame metadata cannot prove it.
+For wuxia_motion_fit compare the scene's planned choice with ACTUAL source and
 rendered pixels. Inspect visible action, gaze, composition and readability; a fixed
 choice is valid and no quota applies. Heat needs actual visible flames/hot-air context,
 not metaphor or narration alone. For wuxia_camera_execution compare sampled frozen
@@ -74,10 +79,17 @@ def evidence(scene,duration,fps):
         times.update((transition[0]['at'],transition[len(transition)//2]['at'],transition[-1]['at']))
         settled=next((s for s in samples if s['at']>transition[-1]['at']),None)
         if settled:times.add(settled['at'])
+    aura_states={s['asset_id']:s for s in t.get('states',[]) if any(l.get('sword_aura') for l in s.get('ambient_loops',[]))}
+    for state_id in aura_states:
+        visible=[s for s in samples if s['state']==state_id and s.get('ambient')]
+        if visible:
+            a=visible[len(visible)//3]
+            b=next((s for s in visible if s['at']>=a['at']+.2 and s['ambient']!=a['ambient']),visible[-1])
+            times.update((a['at'],b['at']))
     times=sorted(min(samples[-1]['at'],max(0,at)) for at in times)
     selected=[min(samples,key=lambda s:abs(s['at']-at)) for at in times]
-    return {'contract':'wuxia_motion_output_review/v1','required_checks':CHECKS,'sample_times':times,
+    return {'contract':'wuxia_motion_output_review/v1','required_checks':CHECKS+(('wuxia_sword_aura_execution',) if aura_states else ()),'sample_times':times,
         'selection':t.get('motion_selection'),'policy':t['auto_motion_policy'],
-        'frozen_samples':[{'at':s['at'],'state':s['state'],'motion':s['motion'],'transition':s.get('transition')} for s in selected],
-        'source_states':[{'asset_id':s['asset_id'],'sha256':s['sha256'],'heat_protection_boxes':s.get('heat_protection_boxes',[])} for s in t.get('states',[])],
+        'frozen_samples':[{'at':s['at'],'state':s['state'],'motion':s['motion'],'transition':s.get('transition'),'ambient':s.get('ambient',[])} for s in selected],
+        'source_states':[{'asset_id':s['asset_id'],'sha256':s['sha256'],'heat_protection_boxes':s.get('heat_protection_boxes',[]),'sword_aura':[l['sword_aura'] for l in s.get('ambient_loops',[]) if l.get('sword_aura')]} for s in t.get('states',[])],
         'proof_scope':'actual decoded samples plus source comparison; not exhaustive full-frame approval'}

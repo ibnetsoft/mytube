@@ -38,6 +38,9 @@ def validate(loop):
             or not isinstance(f.get('media_url'),str) or not f['media_url'].startswith(('https://','/api/std/'))
             or not isinstance(f.get('gcs_bucket'),str) or not f['gcs_bucket'] or not isinstance(f.get('gcs_path'),str) or not f['gcs_path']):
             raise ValueError('Invalid prepared ambient frame')
+    if 'sword_aura' in loop:
+        from worker.wuxia_sword_aura import validate_contract
+        validate_contract(loop)
     return loop
 
 def frame_index(loop, local_ms):
@@ -109,6 +112,9 @@ def prepare_runtime(source, loops, directory, fresh, download):
             with Image.open(path) as image:
                 if image.format!='PNG' or getattr(image,'n_frames',1)!=1 or image.size!=size or image.mode!='RGBA': raise ValueError('Ambient frame canvas/alpha mismatch')
                 alpha=image.getchannel('A');bounds=alpha.getbbox()
+                if 'sword_aura' in loop:
+                    from worker.wuxia_sword_aura import validate_alpha
+                    validate_alpha(loop,alpha)
                 if bounds and (bounds[0]<box[0] or bounds[1]<box[1] or bounds[2]>box[2] or bounds[3]>box[3]):
                     raise ValueError('Ambient pixels escaped the approved region')
             files.append(str(path.resolve()))

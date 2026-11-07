@@ -348,6 +348,7 @@ def renderer_cache_is_current(snapshot,record):
 def native_cache_covers_frame_clock(snapshot,scene,record):
     if not scene.get('wuxia_timeline'):return True
     if scene['wuxia_timeline'].get('auto_motion_policy',{}).get('actual_output_review_required') is True and record.get('review',{}).get('wuxia_motion_review',{}).get('contract')!='wuxia_motion_output_review/v1':return False
+    if any(l.get('sword_aura') for s in scene['wuxia_timeline'].get('states',[]) for l in s.get('ambient_loops',[])) and 'wuxia_sword_aura_execution' not in record.get('review',{}).get('wuxia_motion_review',{}).get('required_checks',[]):return False
     from ae_scene_production import _video_info
     fps=snapshot['motion']['fps']
     required=math.ceil(scene['end']*fps-1e-7)-math.ceil(scene['start']*fps-1e-7)

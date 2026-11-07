@@ -37,3 +37,9 @@ test('native submission freezes all state cuts and the same editable bubble cont
  assert.equal(result.states[1].gcs_path,'b.png');assert.equal(result.samples[23].graphics.length,1);assert.equal(result.samples[24].graphics.length,0);
  assert.ok(result.graphics['0'].points.length>100);assert.equal(result.graphics['0'].text,'대사');
 });
+test('sword energy keeps the same patch clock and rejects unbound protection metadata',()=>{
+ const sword_aura={contract:'wuxia_sword_aura/v1',source_reviewed:true,source_sha256:loop.source_sha256,clean_plate_sha256:'c'.repeat(64),reason:'visible blue sword energy',amplitude_px:5,protected_polygons:[[[.4,.3],[.7,.3],[.7,.8]]]};
+ const a={...loop,sword_aura};assert.equal(validAmbientLoop(a),true);assert.equal(ambientFrameIndex(a,200),1);
+ assert.equal(validAmbientLoop({...a,sword_aura:{...sword_aura,source_sha256:'b'.repeat(64)}}),false);
+ assert.equal(validAmbientLoop({...a,sword_aura:{...sword_aura,protected_polygons:[[[2,0],[1,0],[0,1]]]}}),false);
+});

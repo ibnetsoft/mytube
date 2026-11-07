@@ -7,6 +7,7 @@ export type AmbientLoop = {
     region: number[]; protected_regions: number[][];
     start_ms: number; end_ms: number; phase_ms: number; repeat: boolean;
     frames: { media_url: string; sha256: string; duration_ms: number; gcs_bucket: string; gcs_path: string }[];
+    sword_aura?: {contract:'wuxia_sword_aura/v1';source_sha256:string;source_reviewed:boolean;clean_plate_sha256:string;reason:string;amplitude_px:number;protected_polygons:number[][][]};
 }
 const sha = (v: any) => typeof v === 'string' && /^[a-f0-9]{64}$/.test(v)
 const number = (v: any, min: number, max: number) => typeof v === 'number' && Number.isFinite(v) && v >= min && v <= max
@@ -21,6 +22,10 @@ export function validAmbientLoop(v: any): v is AmbientLoop {
         || !number(v.start_ms, 0, 3600000) || !number(v.end_ms, v.start_ms+1, 3600000)
         || !number(v.phase_ms, 0, 3600000) || typeof v.repeat !== 'boolean'
         || !Array.isArray(v.frames) || v.frames.length < 2 || v.frames.length > 16) return false
+    const a=v.sword_aura
+    if(a && (a.contract!=='wuxia_sword_aura/v1'||a.source_reviewed!==true||a.source_sha256!==v.source_sha256||!sha(a.clean_plate_sha256)
+        ||typeof a.reason!=='string'||!a.reason.trim()||!number(a.amplitude_px,.001,16)||!Array.isArray(a.protected_polygons)||!a.protected_polygons.length
+        ||!a.protected_polygons.every((p:any)=>Array.isArray(p)&&p.length>=3&&p.every((xy:any)=>Array.isArray(xy)&&xy.length===2&&xy.every((x:any)=>number(x,0,1))))))return false
     return v.frames.every((f: any) => sha(f.sha256) && Number.isInteger(f.duration_ms) && number(f.duration_ms, 20, 2000)
         && typeof f.media_url === 'string' && /^(https:\/\/|\/api\/std\/)/.test(f.media_url)
         && typeof f.gcs_bucket === 'string' && !!f.gcs_bucket && typeof f.gcs_path === 'string' && !!f.gcs_path)
