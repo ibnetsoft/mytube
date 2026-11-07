@@ -345,6 +345,16 @@ def renderer_cache_is_current(snapshot,record):
     return record.get('effectcraft_compatibility')==VERSION
 
 
+def native_cache_covers_frame_clock(snapshot,scene,record):
+    if not scene.get('wuxia_timeline'):return True
+    from ae_scene_production import _video_info
+    fps=snapshot['motion']['fps']
+    required=math.ceil(scene['end']*fps-1e-7)-math.ceil(scene['start']*fps-1e-7)
+    try:info=_video_info(Path(record['path']))
+    except Exception:return False
+    return abs(info['fps']-fps)<1e-6 and info['frames']>=required
+
+
 def render_base(snapshot,scene,plan,source,preview,runner,directory,fresh):
     from camera_speed_policy import constrain, VERSION as CAMERA_POLICY
     keys,suppressed=constrain(plan.get('scene',{}).get('keys'),scene['end']-scene['start'])
@@ -409,7 +419,8 @@ def render_base(snapshot,scene,plan,source,preview,runner,directory,fresh):
             prepared['plan']['ambient_runtime']=prepare_runtime(source,scene['ambient_loops'],directory/'ambient',fresh,download_patch)
         validate_purpose_native(scene,prepared['plan'])
         native=_render_native(prepared,directory,duration)
-        run([ffmpeg(),'-v','error','-y','-i',str(native),'-an','-t',str(duration),'-r',str(snapshot['motion']['fps']),'-c:v','libx264','-pix_fmt','yuv420p',str(output)])
+        trim_args=['-frames:v',str(len(scene['wuxia_timeline']['samples']))] if scene.get('wuxia_timeline') else ['-t',str(duration)]
+        run([ffmpeg(),'-v','error','-y','-i',str(native),'-an',*trim_args,'-r',str(snapshot['motion']['fps']),'-c:v','libx264','-pix_fmt','yuv420p',str(output)])
     if scene.get('wuxia_timeline'):
         from wuxia_render_cache import release_temporary_movie
         release_temporary_movie(native,output,directory)
@@ -779,7 +790,7 @@ def process_one(engine='ae', job_id=None):
             expected_repair,refresh_plan=restore_attempt(scene,plan)
             if refresh_plan:plan=None
             neighbors=[previews[s['number']] for s in snapshot['scenes'][max(0,index-1):index+2] if s['number']!=number]
-            if old and old.get('purpose_repair')==expected_repair and (not scene.get('_source_repair') or old.get('source_execution_sha256')==digest(sources[number])) and renderer_cache_is_current(snapshot,old) and (old.get('review',{}).get('passed') is True or (snapshot.get('_advisory_review') and old.get('review',{}).get('status')=='completed_with_notes') or (scene.get('_skip_review') and old.get('review',{}).get('skipped') is True)) and old.get('input_fingerprint')==meta['fingerprint'] and Path(old['path']).exists() and Path(old['last_frame']).exists() and digest(old['path'])==old['sha256'] and old.get('review',{}).get('render_sha256')==old['sha256'] and old['review'].get('final_voice_sha256')==digest(voice) and old['review'].get('source_preview_sha256')==digest(references.get(number,previews[number])):
+            if old and old.get('purpose_repair')==expected_repair and (not scene.get('_source_repair') or old.get('source_execution_sha256')==digest(sources[number])) and renderer_cache_is_current(snapshot,old) and (old.get('review',{}).get('passed') is True or (snapshot.get('_advisory_review') and old.get('review',{}).get('status')=='completed_with_notes') or (scene.get('_skip_review') and old.get('review',{}).get('skipped') is True)) and old.get('input_fingerprint')==meta['fingerprint'] and Path(old['path']).exists() and Path(old['last_frame']).exists() and digest(old['path'])==old['sha256'] and old.get('review',{}).get('render_sha256')==old['sha256'] and old['review'].get('final_voice_sha256')==digest(voice) and old['review'].get('source_preview_sha256')==digest(references.get(number,previews[number])) and native_cache_covers_frame_clock(snapshot,scene,old):
                 results=[r for r in results if r['number']!=number]+[old]
                 if engine=='filmcraft' and old.get('filmcraft_ai_source'):filmcraft_ai_sources[number]=Path(old['filmcraft_ai_source'])
                 previous=Path(old['last_frame']);continue
@@ -856,7 +867,9 @@ def process_one(engine='ae', job_id=None):
                         from speech_bubbles import apply as apply_speech_bubbles
                         visual=apply_speech_bubbles(runner,snapshot,scene,visual,attempt_dir,fresh)
                         output=media_directory(attempt_dir)/'voice-synced.mp4'
-                        run([ffmpeg(),'-v','error','-y','-i',str(visual),'-ss',str(scene['start']),'-i',str(voice),'-map','0:v:0','-map','1:a:0','-t',str(scene['end']-scene['start']),'-c:v','copy','-c:a','aac','-b:a','192k',str(output)])
+                        audio_trim=['-t',str(scene['end']-scene['start'])] if scene.get('wuxia_timeline') else []
+                        output_trim=[] if scene.get('wuxia_timeline') else ['-t',str(scene['end']-scene['start'])]
+                        run([ffmpeg(),'-v','error','-y','-i',str(visual),'-ss',str(scene['start']),*audio_trim,'-i',str(voice),'-map','0:v:0','-map','1:a:0',*output_trim,'-c:v','copy','-c:a','aac','-b:a','192k',str(output)])
                 save(phase='production' if scene.get('_skip_review') else 'review',progress=f'{index+1}/{len(snapshot["scenes"])}씬 EC 작업 완료' if scene.get('_skip_review') else f'{index+1}/{len(snapshot["scenes"])}씬 실제 출력 검수')
                 review_plan=plan
                 if snapshot.get('renderer',{}).get('engine')=='effectcraft':
@@ -962,6 +975,12 @@ def process_one(engine='ae', job_id=None):
         ordered=apply_transitions(snapshot,ordered,plans,final_dir/'transitions',fresh)
         output=assemble_master(snapshot,sources=sources,plans=plans,voice=voice,ordered=ordered,settings=settings,
             cues=cues,overlay=overlay,final_dir=media_directory(final_dir),fresh=fresh,ai_sources=filmcraft_ai_sources)
+        if any(s.get('wuxia_timeline') for s in snapshot['scenes']):
+            from ae_scene_production import _video_info
+            clock=_video_info(output);expected_frames=math.ceil(snapshot['scenes'][-1]['end']*snapshot['motion']['fps']-1e-7)
+            if clock['frames']!=expected_frames or abs(clock['fps']-snapshot['motion']['fps'])>1e-6:
+                raise ValueError(f'Wuxia master frame clock mismatch: expected {expected_frames} frames, got {clock["frames"]}')
+            save(native_master_clock={**clock,'expected_frames':expected_frames,'verified':True})
         # Review the actual assembled output as well; captions/boundaries can fail after good individual clips.
         save(phase='finalizing' if video_postwork_review_bypass(meta,snapshot) else 'final_review',progress='최종 파일 저장 준비' if video_postwork_review_bypass(meta,snapshot) else '최종 자막·장면 연결·음향 검수')
         import numpy as np

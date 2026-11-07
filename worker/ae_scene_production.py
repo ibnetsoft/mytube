@@ -190,7 +190,11 @@ def _render_native(prepared, directory, duration):
     if prepared.get('flat_media'):
         from ae_flat_scene import write_jsx
         writer = write_jsx
-    writer(prepared['plan'], prepared['layers'], project, native, jsx, duration, prepared.get('fps', 24))
+    render_duration = duration
+    if prepared['plan'].get('wuxia_runtime'):
+        # AE quantizes fractional composition lengths; include every frozen sample.
+        render_duration = math.ceil(duration * prepared.get('fps', 24) - 1e-7) / prepared.get('fps', 24)
+    writer(prepared['plan'], prepared['layers'], project, native, jsx, render_duration, prepared.get('fps', 24))
     ae._run_afterfx_script(afterfx, jsx, project, timeout=240)
     render_args=[str(aerender), '-project', str(project), '-comp', 'ae_scene', '-output', str(native)]
     if prepared['plan'].get('speech_bubbles'):
@@ -202,7 +206,7 @@ def _render_native(prepared, directory, duration):
     if len(candidates) != 1:
         raise ValueError('AE did not produce exactly one scene render')
     info = _video_info(candidates[0])
-    if abs(info['duration'] - duration) > 1 / prepared.get('fps', 24) + .01:
+    if abs(info['duration'] - render_duration) > (1e-5 if prepared['plan'].get('wuxia_runtime') else 1 / prepared.get('fps', 24) + .01):
         raise ValueError('Native AE output does not cover the approved scene duration')
     return candidates[0]
 
