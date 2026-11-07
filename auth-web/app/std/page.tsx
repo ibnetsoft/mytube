@@ -1,4 +1,5 @@
 'use client'
+import { WUXIA_TRANSITIONS } from '@/lib/stdWuxiaTransition'
 import StdWuxiaScenePreview from '@/components/StdWuxiaScenePreview'
 import { isWuxiaMovingtoon, usesStandardSubtitles } from '@/lib/stdWuxiaPresentation'
 import { mapVoicePerformance, voicePerformanceKey, elevenLabsVoiceSettings } from '@/lib/stdVoicePerformance'
@@ -153,7 +154,7 @@ const SCENE_TRANSITION_EFFECTS = [
 ] as const
 
 const sceneTransitionLabel = (effectId: string) => (
-    SCENE_TRANSITION_EFFECTS.find(effect => effect.id === effectId)?.label || effectId
+    WUXIA_TRANSITIONS.find(effect => effect.id === effectId)?.label || SCENE_TRANSITION_EFFECTS.find(effect => effect.id === effectId)?.label || effectId
 )
 
 const TRANSITION_PREVIEW_BACKGROUNDS: Record<string, string> = {
@@ -3446,7 +3447,7 @@ export default function StdPortalPage() {
                         </div>
                         <div className="overflow-y-auto p-4">
                             <div className="flex flex-wrap justify-center gap-x-4 gap-y-4">
-                                {SCENE_TRANSITION_EFFECTS.map(effect => {
+                                {(isWuxiaMovingtoon(selectedProject?.project) ? WUXIA_TRANSITIONS : SCENE_TRANSITION_EFFECTS).map(effect => {
                                     const selected = activeTransition === effect.id
                                     return (
                                         <button
@@ -7577,7 +7578,7 @@ export default function StdPortalPage() {
         }
         previewTransitionVisualRef.current = nextVisual
         setPreviewTransition(null)
-        if (currentNav !== 'subtitle_vrew' || !isPlayingPreview) return
+        if (currentNav !== 'subtitle_vrew' || !isPlayingPreview || isWuxiaMovingtoon(selectedProject?.project)) return
         if (!previousVisual || previousVisual.sceneNumber === nextVisual.sceneNumber) return
 
         const incomingScene = selectedProject?.scenes?.find((scene: any) => (

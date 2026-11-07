@@ -5,12 +5,12 @@ import re
 
 def validate_samples(timeline):
     samples=timeline.get('samples') or []
-    if any(s.get('effects',{}).get('active') for s in samples) and timeline.get('contract')!='wuxia_native_timeline/v3':
+    if any(s.get('effects',{}).get('active') for s in samples) and timeline.get('contract') not in ('wuxia_native_timeline/v3','wuxia_native_timeline/v4'):
         raise ValueError('Wuxia impacts require v3; never silently omit effects')
     for sample in samples:
         f=sample.get('effects')
         if f is None:
-            if timeline.get('contract')=='wuxia_native_timeline/v3':raise ValueError('Missing frozen effect sample')
+            if timeline.get('contract') in ('wuxia_native_timeline/v3','wuxia_native_timeline/v4'):raise ValueError('Missing frozen effect sample')
             continue
         if f == {}:continue # Explicit identity frame; missing v3 fields still fail above.
         def number(v,lo,hi):return type(v) in (int,float) and math.isfinite(v) and lo<=v<=hi

@@ -32,6 +32,14 @@ export function freezeWuxiaScene(project:any,number:number,rows:any[],start:numb
   return {asset_id:s.asset_id,sha256:s.sha256,...storage,ambient_loops:ambientLoopsForState(s).filter(l=>l.enabled),dialogue_mouths:mouths}
  })
  const samples:any[]=[],graphics:Record<string,any>={}
+ const hasTransition=first.transition.kind!=='none'
+ let transitionSource:any=null
+ if(hasTransition&&first.transition.source&&['wipe_left','wipe_right','wipe_up','wipe_down','dissolve'].includes(first.transition.kind)){
+  const s=first.transition.source,url=new URL(s.media_url||s.image_url||'','https://studio.airing.work')
+  const gcs_path=s.gcs_path||url.searchParams.get('path'),gcs_bucket=s.gcs_bucket||url.searchParams.get('bucket')
+  if(!gcs_path||!gcs_bucket||!/^[a-f0-9]{64}$/.test(s.sha256||''))throw Error(`${number}번 씬 전환 배경의 저장 위치·SHA를 확인해 주세요.`)
+  transitionSource={asset_id:s.asset_id,sha256:s.sha256,gcs_path,gcs_bucket}
+ }
  for(let i=0;i<Math.ceil((end-start)*fps);i++){
   const local=i/fps,frame=wuxiaSceneFrame(project,number,timedRows,start+local,fps)!
   const visible:any[]=[]
@@ -47,9 +55,12 @@ export function freezeWuxiaScene(project:any,number:number,rows:any[],start:numb
   }
   const current=states.find((s:any)=>s.asset_id===frame.state?.asset_id)
   if(frame.effects.issues.length)throw Error(`${number}번 씬 충격 연출 검증 실패: ${frame.effects.issues.join(', ')}`)
+  if(frame.transition.issues.length)throw Error(`${number}번 씬 전환 검증 실패: ${frame.transition.issues.join(', ')}`)
+  const {source:_,...transition}=frame.transition
   samples.push({at:local,effects:frame.effects.active.length?frame.effects:{},state:frame.state?.asset_id,graphics:visible,
+   ...(hasTransition?{transition}:{}),
    mouths:frame.mouths.map((m:any)=>({mouth:current.dialogue_mouths.indexOf(m.mouth),pose:m.pose})),
    ambient:frame.ambient.map(a=>({loop:current.ambient_loops.indexOf(a.loop),frame:a.index}))})
  }
- return {contract:scene.effects?.length?'wuxia_native_timeline/v3':hasWuxiaMouths(project)?'wuxia_native_timeline/v2':'wuxia_native_timeline/v1',states,graphics,samples}
+ return {contract:hasTransition?'wuxia_native_timeline/v4':scene.effects?.length?'wuxia_native_timeline/v3':hasWuxiaMouths(project)?'wuxia_native_timeline/v2':'wuxia_native_timeline/v1',states,graphics,samples,...(transitionSource?{transition_source:transitionSource}:{})}
 }

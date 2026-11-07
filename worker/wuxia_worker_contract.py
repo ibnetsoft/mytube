@@ -1,5 +1,5 @@
 """Bind native timeline support to this particular worker lease."""
-SUPPORTED = {'wuxia_native_timeline/v1', 'wuxia_native_timeline/v2', 'wuxia_native_timeline/v3'}
+SUPPORTED = {'wuxia_native_timeline/v1', 'wuxia_native_timeline/v2', 'wuxia_native_timeline/v3', 'wuxia_native_timeline/v4'}
 
 def claim_acknowledgement(snapshot, metadata, token):
     required = metadata.get('required_worker_contract') or (metadata.get('input') or {}).get('required_worker_contract')

@@ -31,13 +31,14 @@ export default function StdWuxiaScenePreview({ project, sceneNumber, subtitles, 
     project: any; sceneNumber: number; subtitles: any[]; seconds: number; headers: Record<string, string>; playing?: boolean; audioClock?: { current: (() => number | null) | null }
 }) {
     const [preciseSeconds,setPreciseSeconds]=useState<number|null>(null)
+    const fps=project?.project_payload?.render_settings?.motion?.fps||24
     useEffect(()=>{
         if(!playing||!audioClock){setPreciseSeconds(null);return}
         let raf=0,lastFrame=-1
-        const tick=()=>{const time=audioClock.current?.();if(time!=null){const sample=Math.floor(time*24);if(sample!==lastFrame){lastFrame=sample;setPreciseSeconds(time)}}raf=requestAnimationFrame(tick)}
+        const tick=()=>{const time=audioClock.current?.();if(time!=null){const sample=Math.floor(time*fps);if(sample!==lastFrame){lastFrame=sample;setPreciseSeconds(time)}}raf=requestAnimationFrame(tick)}
         raf=requestAnimationFrame(tick)
         return()=>cancelAnimationFrame(raf)
-    },[playing,audioClock])
+    },[playing,audioClock,fps])
     const [mouthUpdate,setMouthUpdate]=useState<any>(null)
     const payload=project?.project_payload||project
     const autoMouth=payload?.structure?.wuxia_mouth_policy?.auto_prepare===true
@@ -54,6 +55,7 @@ export default function StdWuxiaScenePreview({ project, sceneNumber, subtitles, 
     const previewScene=Number(audibleRow?.scene_number)||sceneNumber
     const frame = wuxiaSceneFrame(mergeWuxiaMouthRefresh(project,mouthUpdate), previewScene, subtitles, previewSeconds)
     const source = String(frame?.state?.media_url || frame?.state?.image_url || '')
+    const backdrop=String(frame?.transition.source?.media_url||frame?.transition.source?.image_url||'')
     // Fetch each authored still ahead of the cut, so a slow download does not
     // leave the previous state visible over the next spoken segment.
     const nextScene=payload?.structure?.wuxia_ae_package?.scenes?.find((s:any)=>Number(String(s.scene_id).match(/S(\d+)$/)?.[1])===previewScene+1)
@@ -109,7 +111,9 @@ export default function StdWuxiaScenePreview({ project, sceneNumber, subtitles, 
         return () => { live = false; controller.abort() }
     }, [sourcesKey, headers])
     if (!frame) return null
-    return <div className="absolute inset-0 pointer-events-none" data-wuxia-presentation="authored-graphics" aria-label="무협 말풍선·타이포 미리보기">
+    return <div className="absolute inset-0 pointer-events-none overflow-hidden bg-black" data-wuxia-presentation="authored-graphics" data-wuxia-transition={frame.transition.kind} data-wuxia-transition-issues={frame.transition.issues.join(',')} aria-label="무협 말풍선·타이포 미리보기">
+        {frame.transition.backdrop>0&&images[backdrop]&&<img src={images[backdrop]} alt="" className="absolute inset-0 h-full w-full object-cover"/>}
+        <div className="absolute inset-0" style={{transform:`translate(${frame.transition.dx*100}%, ${frame.transition.dy*100}%) scale(${frame.transition.scale})`,opacity:frame.transition.opacity,transformOrigin:'50% 50%'}}>
         <div className="absolute inset-0" data-wuxia-effect-clock="editor" data-wuxia-audio-seconds={previewSeconds} data-wuxia-effect-active={frame.effects.active.join(',')} data-wuxia-effect-issues={frame.effects.issues.join(',')} style={{transform:`translate(${frame.effects.dx/19.2}%, ${frame.effects.dy/10.8}%) scale(${frame.effects.scale})`,transformOrigin:'50% 50%'}}>
         {images[source] && <img src={images[source]} alt="" className="absolute inset-0 h-full w-full object-cover" />}
         {images[source] && frame.ambient.map(({ loop, index, frame: patch }, i) => patches[`${patch.sha256}:${loop.region.join(',')}`] &&
@@ -123,5 +127,7 @@ export default function StdWuxiaScenePreview({ project, sceneNumber, subtitles, 
         </svg>}
         </div>
         {(!source || images[source]) && <StdWuxiaGraphics graphics={frame.graphics} animate={playing} />}
+        </div>
+        {frame.transition.flash>0&&<div className="absolute inset-0 bg-white" data-wuxia-transition-flash style={{opacity:frame.transition.flash}}/>}
     </div>
 }

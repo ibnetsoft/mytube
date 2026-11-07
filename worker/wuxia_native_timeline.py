@@ -5,8 +5,8 @@ from PIL import Image
 from ambient_loop import digest,prepare_runtime,frame_index
 
 def prepare(timeline,directory,fresh,download,duration,fps,audio=None):
- if timeline.get('contract') not in ('wuxia_native_timeline/v1','wuxia_native_timeline/v2','wuxia_native_timeline/v3'):raise ValueError('Invalid wuxia timeline')
- if any(s.get('dialogue_mouths') for s in timeline.get('states',[])) and timeline['contract'] not in ('wuxia_native_timeline/v2','wuxia_native_timeline/v3'):raise ValueError('Mouth patches require the updated native timeline contract')
+ if timeline.get('contract') not in ('wuxia_native_timeline/v1','wuxia_native_timeline/v2','wuxia_native_timeline/v3','wuxia_native_timeline/v4'):raise ValueError('Invalid wuxia timeline')
+ if any(s.get('dialogue_mouths') for s in timeline.get('states',[])) and timeline['contract'] not in ('wuxia_native_timeline/v2','wuxia_native_timeline/v3','wuxia_native_timeline/v4'):raise ValueError('Mouth patches require the updated native timeline contract')
  result=copy.deepcopy(timeline);directory=Path(directory);directory.mkdir(parents=True,exist_ok=True)
  states=result.get('states') or [];samples=result.get('samples') or []
  if not 1<=len(states)<=100 or len(samples)!=__import__('math').ceil(duration*fps):raise ValueError('Wuxia schedule does not match finalized timing')
@@ -16,6 +16,8 @@ def prepare(timeline,directory,fresh,download,duration,fps,audio=None):
   if abs(sample['at']-i/fps)>1e-7 or sample['state'] not in ids:raise ValueError('Invalid wuxia output frame clock')
  from wuxia_effects import validate_samples
  validate_samples(timeline)
+ from wuxia_transition import validate as validate_transitions
+ validate_transitions(timeline)
  for state in states:
   fresh();path=directory/(state['sha256']+'.png')
   if not path.exists() or digest(path)!=state['sha256']:download(state,path)
@@ -28,6 +30,14 @@ def prepare(timeline,directory,fresh,download,duration,fps,audio=None):
   state['ambient_runtime']=prepare_runtime(path,state.get('ambient_loops',[]),directory/'ambient',fresh,download)
   from wuxia_mouth import prepare as prepare_mouths
   state['mouth_runtime']=prepare_mouths(path,state.get('dialogue_mouths',[]),directory/'mouths',fresh,download,audio)
+ backdrop=result.get('transition_source')
+ if backdrop:
+  fresh();path=directory/('transition-'+backdrop['sha256']+'.png')
+  if not path.exists() or digest(path)!=backdrop['sha256']:download(backdrop,path)
+  if digest(path)!=backdrop['sha256']:raise ValueError('Transition source checksum mismatch')
+  with Image.open(path) as image:
+   if image.format!='PNG' or getattr(image,'n_frames',1)!=1 or image.width*image.height>16_000_000:raise ValueError('Invalid transition source PNG')
+  backdrop['file']=str(path.resolve())
  result['size']=[1920,1080]
  return result
 
@@ -80,7 +90,7 @@ def jsx(timeline,duration,fps):
    pose=next((p for p in sample['graphics'] if p['id']==identity),None)
    keys.append([sample['at'],pose['opacity']*100 if pose else 0,pose['scale']*100 if pose else 100,pose['rotation'] if pose else 0])
   graphics.append({**g,'keys':keys})
- data=json.dumps({'states':states,'graphics':graphics,'effect_samples':[{'at':sample['at'],**({'dx':0,'dy':0,'scale':1,'overlays':[]}|sample.get('effects',{}))} for sample in timeline['samples']] if timeline.get('contract')=='wuxia_native_timeline/v3' else []},ensure_ascii=True,allow_nan=False)
+ data=json.dumps({'states':states,'graphics':graphics,'effect_samples':[{'at':sample['at'],**({'dx':0,'dy':0,'scale':1,'overlays':[]}|sample.get('effects',{}))} for sample in timeline['samples']] if timeline.get('contract') in ('wuxia_native_timeline/v3','wuxia_native_timeline/v4') else []},ensure_ascii=True,allow_nan=False)
  source_js='''
     var WT='''+data+''';
     function whold(p){for(var k=1;k<=p.numKeys;k++)p.setInterpolationTypeAtKey(k,KeyframeInterpolationType.HOLD,KeyframeInterpolationType.HOLD);}
@@ -115,4 +125,5 @@ def jsx(timeline,duration,fps):
       var tr=text.property('ADBE Transform Group'),op=tr.property('ADBE Opacity'),sc=tr.property('ADBE Scale'),rot=tr.property('ADBE Rotate Z');for(var ki=0;ki<g.keys.length;ki++){var a=g.keys[ki];op.setValueAtTime(a[0],a[1]);sc.setValueAtTime(a[0],[a[2],a[2]]);rot.setValueAtTime(a[0],a[3]);}whold(op);whold(sc);whold(rot);
     }
 '''
- return source_js,graphic_js
+ from wuxia_transition import jsx as transition_jsx
+ return source_js,graphic_js+transition_jsx(timeline)
