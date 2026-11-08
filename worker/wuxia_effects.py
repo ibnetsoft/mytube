@@ -32,3 +32,6 @@ def validate_samples(timeline):
                         or any(not isinstance(p,list) or len(p)!=2 or not number(p[0],-1920,3840) or not number(p[1],-1080,2160) for p in points)):
                     raise ValueError('Invalid impact points')
                 if q['kind']=='line' and not number(q.get('width'),.1,6):raise ValueError('Invalid impact stroke')
+
+        from wuxia_attack_accents import validate_frozen
+        validate_frozen(timeline, sample, f)

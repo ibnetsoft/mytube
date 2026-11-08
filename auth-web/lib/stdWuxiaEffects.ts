@@ -1,7 +1,8 @@
+import { ATTACK_ACCENT_TYPES, attackAccentReviewError, attackAccentShapes } from './stdWuxiaAttackAccents'
 import { wuxiaGraphicBounds } from './stdWuxiaGraphic'
 /** Deterministic accents and fixed-rate shakes; AE executes the same frozen samples. */
 export const WUXIA_FX_CONTRACT='wuxia_effect_samples/v1'
-const types=new Set(['impact_shake','impact_flash','debris_burst','particle_burst','speedline_burst','focus_glow','shock_ring'])
+const types=new Set(['impact_shake','impact_flash','debris_burst','particle_burst','speedline_burst','focus_glow','shock_ring',...ATTACK_ACCENT_TYPES])
 const overlaps=(a:number[],b:number[])=>a[0]<b[2]&&a[2]>b[0]&&a[1]<b[3]&&a[3]>b[1]
 const finite=(v:any)=>typeof v==='number'&&Number.isFinite(v)
 export function wuxiaEffectFrame(scene:any,state:any,graphics:any[],seconds:number,start:number,end:number,resolve:(g:any)=>any,fps=24){
@@ -19,12 +20,15 @@ export function wuxiaEffectFrame(scene:any,state:any,graphics:any[],seconds:numb
   if((repeated&&((rateShake?(e.shake_hz!==10||e.shake_cycles!=null):(!Number.isInteger(cycles)||cycles<1||cycles>12))||!['vertical','horizontal'].includes(e.shake_axis)||!finite(fps)||fps<cycles/e.duration_seconds*2))||(!repeated&&e.shake_axis!=null)){frame.issues.push(`invalid_shake_repeat:${index}`);continue}
   if(e.delay_seconds!=null&&(!finite(e.delay_seconds)||e.delay_seconds<0||e.delay_seconds>.3)){frame.issues.push(`invalid_effect_delay:${index}`);continue}
   if(e.amplitude_px!=null&&(!finite(e.amplitude_px)||e.amplitude_px<=0||e.amplitude_px>16)){frame.issues.push(`invalid_amplitude:${index}`);continue}
+  const accent=ATTACK_ACCENT_TYPES.has(e.type)
   const target=e.asset_id||scene.states?.[Math.max(0,(e.state||1)-1)]?.asset_id
   const range=resolve({voice_binding:e.voice_binding,text:e.quote})
-  const from=(range?(e.voice_binding?.phase==='after'?range.end:range.start):start+Number(e.preview_at||0)*(end-start))+Number(e.delay_seconds||0)
+  const contact=accent&&e.action_review?.timing_basis==='scene_local'?start+e.contact_at_seconds:(range?(e.voice_binding?.phase==='after'?range.end:range.start):start+Number(e.preview_at||0)*(end-start))
+  const from=accent&&e.type==='attack_speedline'?contact-e.duration_seconds:contact+Number(e.delay_seconds||0)
   if(e.voice_binding?.exact_anchor&&!range){frame.issues.push(`unmatched_effect_anchor:${index}`);continue}
+  if(accent&&target===(state?.parent_asset_id||state?.asset_id)){const error=attackAccentReviewError(e,state);if(error||contact<start||contact>=end){frame.issues.push(`invalid_attack_accent:${index}:${error||'contact_range'}`);continue}}
   const t=(at-from)/e.duration_seconds
-  if(t<0||t>=1||target!==(state?.parent_asset_id||state?.asset_id))continue
+  if(t<0||at>=from+e.duration_seconds-1e-7||target!==(state?.parent_asset_id||state?.asset_id))continue
   if(e.camera_face_boxes && (e.source_sha256!==state?.sha256 || !Array.isArray(e.camera_face_boxes) || e.camera_face_boxes.some((b:any)=>!Array.isArray(b)||b.length!==4||b.some((v:any)=>!finite(v)||v<0||v>1)||b[0]>=b[2]||b[1]>=b[3]))){frame.issues.push(`invalid_camera_face_review:${index}`);continue}
   if(!Array.isArray(heads)){frame.issues.push(`missing_head_review:${index}`);continue}
   frame.active.push(`${e.type}:${index}`)
@@ -42,6 +46,7 @@ export function wuxiaEffectFrame(scene:any,state:any,graphics:any[],seconds:numb
    frame.dx+=dx;frame.dy+=dy;frame.scale=scale;continue
   }
   const add=(shape:any,box:number[])=>{if(!protectedBoxes.some(b=>overlaps(box,b)))frame.overlays.push(shape)}
+  if(accent){const offset=frame.overlays.length,shapes=attackAccentShapes(e,t,Math.max(0,Math.round((at-from)*fps)),fps,protectedBoxes);frame.overlays.push(...shapes);(frame.action_accents??=[]).push({type:e.type,asset_id:target,source_sha256:state.sha256,contact_at:contact-start,from:from-start,duration_seconds:e.duration_seconds,attack_path:e.attack_path,review:e.action_review,protected_boxes:[...protectedBoxes,...e.action_review.protected_boxes],shape_offset:offset,shape_count:shapes.length});if(frame.overlays.length>96){frame.issues.push(`overlay_budget:${index}`);frame.overlays=[]}continue}
   const color=e.type==='debris_burst'?'#b7a38a':e.type==='focus_glow'?'#e7bc68':'#fff5dc'
   if(['impact_flash','focus_glow','shock_ring'].includes(e.type)){
    const r=radius*(e.type==='shock_ring'?.3+.7*t:1),opacity=fade*strength*(e.type==='impact_flash'?.35:.18)
