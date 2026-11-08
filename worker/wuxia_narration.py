@@ -6,6 +6,7 @@ import json
 from worker.generation_validation import validated_stage
 
 PROFILE = 'wuxia_visual_narration/v1'
+REVIEW_CHECKS = {'continuity','story_clarity','no_padding','narrator_conductor','narration_rhythm','character_agency'}
 DIRECTIVE = '''WUXIA WEBTOON OVERRIDE: Images and dialogue carry the story together.
 Store image-making action/pose/prop/continuity instructions ONLY in visual_action.
 spoken_blocks contains ONLY audible narration or character dialogue; text is their concatenation,
@@ -67,7 +68,7 @@ def validate_review(raw, sections):
     if raw.get('mode') != 'planned_visuals_and_speech':
         raise ValueError('Review must distinguish planned visuals from actual artwork')
     checks = raw.get('checks')
-    if not isinstance(checks, dict) or set(checks) != {'continuity', 'story_clarity', 'no_padding'}:
+    if not isinstance(checks, dict) or set(checks) != REVIEW_CHECKS:
         raise ValueError('Missing whole-episode audiovisual checks')
     for check in checks.values():
         if (not isinstance(check, dict) or type(check.get('passed')) is not bool
@@ -103,7 +104,7 @@ def validate_review(raw, sections):
             if not isinstance(evidence, str) or not evidence.strip() or evidence not in s['visual_action']:
                 raise ValueError('Removal requires exact evidence from the same cut visual_action')
         elif d.get('decision') == 'keep':
-            if d.get('adds') not in ('new_fact', 'time_transition', 'unseen_cause', 'essential_meaning'):
+            if d.get('adds') not in ('new_fact', 'time_transition', 'unseen_cause', 'essential_meaning', 'scene_bridge', 'contrast', 'information_release', 'stakes'):
                 raise ValueError('Retained narration must add information beyond the image')
         else:
             raise ValueError('Unknown narration review decision')
@@ -120,10 +121,11 @@ spoken_blocks:[{id:"s1n1",kind:"narration",text:"one audible sentence"},
 Use newlines to join block texts. Silent scenes are allowed; never fill min_chars.''',
                             lambda raw: validate_draft(raw, budgets))
     sections = copy.deepcopy(draft['sections'])
+    from worker.wuxia_narration_audit import diagnose
     rounds, removed = [], []
     for attempt in range(3):
         report = validated_stage(stage, f'02w_wuxia_visual_review_{attempt + 1}',
-            {'sections': sections, 'title': context.get('topic'), 'contract': DIRECTIVE},
+            {'sections': sections, 'title': context.get('topic'), 'contract': DIRECTIVE, 'narration_diagnostics': diagnose(sections)},
             DIRECTIVE + '''
 Independently review every narration sentence alongside its SAME CUT planned visual_action and
 neighboring cuts. Never infer actual image/audio inspection. Keep essential unseen information;
@@ -132,9 +134,12 @@ Do not rewrite dialogue or invent dialogue to explain actions. Review the entire
 causality, injuries, object custody, comprehension from visuals+speech and padding.
 Return {mode:"planned_visuals_and_speech",checks:{continuity:{passed:true,reason:"specific finding",evidence:{scene_order:1,channel:"visual_action|text",quote:"exact substring"}},
 story_clarity:{passed:true,reason:"specific finding",evidence:{scene_order:1,channel:"visual_action|text",quote:"exact substring"}},
-no_padding:{passed:true,reason:"specific finding",evidence:{scene_order:1,channel:"visual_action|text",quote:"exact substring"}}},
+no_padding:{passed:true,reason:"specific finding",evidence:{scene_order:1,channel:"visual_action|text",quote:"exact substring"}},
+narrator_conductor:{passed:true,reason:"how narration controls the neighboring scene flow and information release",evidence:{scene_order:1,channel:"visual_action|text",quote:"exact substring"}},
+narration_rhythm:{passed:true,reason:"assess repetitive report-like endings AND whether narration earns its airtime; suffix swapping is not a repair",evidence:{scene_order:1,channel:"visual_action|text",quote:"exact substring"}},
+character_agency:{passed:true,reason:"important choices, warnings, refusals and relationship turns use motivated character speech or justified silence, not exposition filler",evidence:{scene_order:1,channel:"visual_action|text",quote:"exact substring"}}},
 narration_decisions:[{scene_order:1,block_id:"id",quote:"exact block text",decision:"keep",
-adds:"new_fact|time_transition|unseen_cause|essential_meaning",reason:"specific added information"},
+adds:"new_fact|time_transition|unseen_cause|essential_meaning|scene_bridge|contrast|information_release|stakes",reason:"specific added information"},
 {scene_order:1,block_id:"id",quote:"exact block text",decision:"remove_visible_repeat",
 visual_evidence:"exact substring of SAME scene visual_action",reason:"why image already conveys it"}]}.
 One decision for EVERY narration block. Zero narration blocks means narration_decisions:[].''',
@@ -146,7 +151,7 @@ One decision for EVERY narration block. Zero narration blocks means narration_de
             if not all(c['passed'] for c in report['checks'].values()):
                 raise ValueError('Wuxia audiovisual review rejected continuity/clarity/padding; checkpoints preserved')
             return sections, {'profile': PROFILE, 'verdict': 'pass', 'mode': report['mode'],
-                'actual_artwork_reviewed': False, 'rounds': rounds, 'removed': removed,
+                'actual_artwork_reviewed': False, 'actual_audio_auditioned': False, 'review_checks': sorted(REVIEW_CHECKS), 'narration_diagnostics': diagnose(sections), 'rounds': rounds, 'removed': removed,
                 'script_sha256': hashlib.sha256(json.dumps(sections, ensure_ascii=False, sort_keys=True).encode()).hexdigest()}
         for s in sections:
             kept = []
@@ -190,3 +195,28 @@ Never send this shot list into spoken_blocks or TTS. After final audio, add and
 prepare needed real reaction/detail/environment cuts instead of extending a still.
 This is a planned shot contract, not actual artwork, preview or AE approval.
 Preserve finalized episodes and existing running-job settings.'''
+
+
+# New Wuxia generation only: semantic directing, not a blanket change to other genres.
+DIRECTIVE += '''\nNARRATOR AS CONDUCTOR, NOT A SHOT-BY-SHOT REPORTER:
+Compose and review the entire event sequence, including previous and next cuts.
+Narration earns airtime by orienting a change in time/place, connecting cause and
+consequence, creating grounded contrast/stakes or controlling information release.
+Do not read out visible gestures, blows, movement, wounds, facial expressions and
+prop positions. Leave action/impact beats silent when the picture and sound carry them.
+Avoid chains of Korean report-like past endings such as '~했습니다/~었습니다/~였습니다'
+and equivalent monotonous reporting in the target language. Fix the information
+and dramatic function first; swapping endings, sprinkling rhetorical questions,
+adding '그때/하지만/아직 몰랐다' everywhere, or randomly switching politeness is not a repair.
+Keep one coherent storytelling voice and vary phrase length, pauses and emphasis.
+Let a character speak when a warning, demand, refusal, decision, discovery or
+relationship turn actually changes what happens. Their speech must be in character,
+not narration disguised as explanatory dialogue and not a mandatory dialogue quota.
+Do not remove their decisive utterance and let the narrator report it instead.
+Do not reveal a later discovery before its intended character/action reveal,
+invent motives or stakes, or add a new plot fact solely to justify narration.
+Use narration_diagnostics as a review signal, never as an automatic suffix-based
+rewrite. Review narrator_conductor, narration_rhythm and character_agency explicitly
+with exact-source evidence as well as continuity, clarity and no padding.
+These are script-stage text/planned-visual checks. Actual artwork comparison and
+final audio audition are separate; do not label them complete from this report.'''

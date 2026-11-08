@@ -6,7 +6,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT), str(ROOT / 'worker')]
-from worker.wuxia_narration import applies, produce_sections, spoken_text, validate_draft, validate_review
+from worker.wuxia_narration import applies, produce_sections, spoken_text, validate_draft, validate_review, REVIEW_CHECKS
 
 
 def sections():
@@ -36,7 +36,7 @@ def report(rows, remove=True):
     return dict(mode='planned_visuals_and_speech',
                 checks={k:dict(passed=True, reason='장부 기록과 부상 및 소품 연속성을 시각 정보와 발화로 검토',
                                evidence=dict(scene_order=1, channel='visual_action',quote=rows[0]['visual_action']))
-                        for k in ('continuity','story_clarity','no_padding')}, narration_decisions=decisions)
+                        for k in REVIEW_CHECKS}, narration_decisions=decisions)
 
 
 @pytest.mark.parametrize('payload', [{'category_id':18},{'category':'무협 웹툰'}, {'image_style':'wuxia_webtoon'}, {'content_setting':{'image_style':'wuxia_webtoon'}}])
@@ -169,3 +169,24 @@ def test_visual_instructions_participate_in_image_integrity_without_changing_leg
     changed={**split,'visual_action':'서진이 부상 부위를 누른다.'}
     assert current!=_template_source_snapshot(changed,1)
     assert {k:v for k,v in current.items() if k not in ('visual_action','spoken_blocks')}==legacy
+
+
+@pytest.mark.parametrize('check',['narrator_conductor','narration_rhythm','character_agency'])
+def test_semantic_voice_checks_cannot_be_omitted_or_failed_but_reported_pass(check):
+    def stage(name,context,task):
+        if name=='02w_wuxia_script':return {'sections':sections()}
+        assert 'narration_diagnostics' in context
+        r=report(context['sections'],False);r['checks'][check]['passed']=False;return r
+    with pytest.raises(ValueError,match='rejected continuity'):
+        produce_sections(stage,{},[{}]*2,BUDGETS)
+    r=report(sections(),False);r['checks'].pop(check)
+    with pytest.raises(ValueError,match='Missing whole-episode'):validate_review(r,sections())
+
+
+def test_suffix_diagnostics_are_read_only_and_dialogue_never_becomes_narration():
+    from worker.wuxia_narration_audit import diagnose
+    rows=[{'spoken_blocks':[{'kind':'narration','text':'문이 닫혔습니다. 칼을 들었습니다. 뒤로 물러섰습니다.'},{'kind':'dialogue','speaker':'서진','text':'문부터 잡아요!'}]}]
+    original=copy.deepcopy(rows);d=diagnose(rows)
+    assert d['narration_sentences']==d['formal_korean_ending_sentences']==3
+    assert d['longest_formal_narration_run']==3 and d['dialogue_blocks']==1
+    assert d['automatic_rewrite'] is False and rows==original

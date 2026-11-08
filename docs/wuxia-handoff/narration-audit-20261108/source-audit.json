@@ -1,0 +1,320 @@
+{
+  "scope": "Explicit local saved snapshots, not a live DB readback or final audio audition",
+  "scripts": [
+    {
+      "source": "output/wuxia-series-rebuild/episode-01/script-final.json",
+      "source_sha256": "9b267807a04d10b4557ec63e5986dc5ca65a3b4e4f5f2050bcaea3ea88d0ef89",
+      "episode": 1,
+      "language": "ko",
+      "scene_count": 26,
+      "separate_visual_scene_count": 26,
+      "actual_audio_auditioned": false,
+      "scope": "text diagnostics, not semantic deletion or audio audition",
+      "narration_sentences": 146,
+      "formal_korean_ending_sentences": 143,
+      "formal_korean_ending_ratio": 0.9794520547945206,
+      "longest_formal_narration_run": 50,
+      "narration_characters": 4060,
+      "dialogue_characters": 603,
+      "narration_character_share": 0.8706841089427407,
+      "dialogue_blocks": 36,
+      "formal_examples": [
+        {
+          "scene_order": 1,
+          "scene_id": "E01_S01",
+          "block_id": null,
+          "quote": "돌문이 열렸을 때, 밖에서 기다리던 사람들은 검부터 세었습니다.",
+          "formal_korean_ending": true
+        },
+        {
+          "scene_order": 1,
+          "scene_id": "E01_S01",
+          "block_id": null,
+          "quote": "검이 여섯 자루 돌아왔으니 무사한 탐사였다고 했습니다.",
+          "formal_korean_ending": true
+        },
+        {
+          "scene_order": 1,
+          "scene_id": "E01_S01",
+          "block_id": null,
+          "quote": "마지막으로 나온 서진의 등에는 지게가 두 개 겹쳐 있었습니다.",
+          "formal_korean_ending": true
+        },
+        {
+          "scene_order": 1,
+          "scene_id": "E01_S01",
+          "block_id": null,
+          "quote": "들어갈 때 그중 하나를 메고 있던 사람은 끝내 나오지 않았습니다.",
+          "formal_korean_ending": true
+        },
+        {
+          "scene_order": 2,
+          "scene_id": "E01_S02",
+          "block_id": null,
+          "quote": "중개소 서리는 지게를 확인하고 동전을 밀어 주었습니다.",
+          "formal_korean_ending": true
+        },
+        {
+          "scene_order": 2,
+          "scene_id": "E01_S02",
+          "block_id": null,
+          "quote": "서진은 받지 않고 손가락으로 장부의 다른 이름을 짚었습니다.",
+          "formal_korean_ending": true
+        },
+        {
+          "scene_order": 2,
+          "scene_id": "E01_S02",
+          "block_id": null,
+          "quote": "그 이름 옆에도 품삯이 적혀 있었습니다.",
+          "formal_korean_ending": true
+        },
+        {
+          "scene_order": 3,
+          "scene_id": "E01_S03",
+          "block_id": null,
+          "quote": "서진은 자기 몫의 절반을 따로 쌌습니다.",
+          "formal_korean_ending": true
+        },
+        {
+          "scene_order": 3,
+          "scene_id": "E01_S03",
+          "block_id": null,
+          "quote": "박 노인의 집에 가져갈 돈이었습니다.",
+          "formal_korean_ending": true
+        },
+        {
+          "scene_order": 3,
+          "scene_id": "E01_S03",
+          "block_id": null,
+          "quote": "도겸은 그걸 보고도 말리지 않았습니다.",
+          "formal_korean_ending": true
+        },
+        {
+          "scene_order": 3,
+          "scene_id": "E01_S03",
+          "block_id": null,
+          "quote": "대신 물주머니를 건네고, 지게 끈에 눌려 터진 어깨를 살폈습니다.",
+          "formal_korean_ending": true
+        },
+        {
+          "scene_order": 3,
+          "scene_id": "E01_S03",
+          "block_id": null,
+          "quote": "도겸은 웃었지만 서진은 웃지 않았습니다.",
+          "formal_korean_ending": true
+        }
+      ],
+      "automatic_rewrite": false
+    },
+    {
+      "source": "output/wuxia-series-rebuild/episode-02/script-final.json",
+      "source_sha256": "e1e91985576a098a0207a78a569645421822527d052e7a7c270ef8568b48e1dd",
+      "episode": 2,
+      "language": "ko",
+      "scene_count": 24,
+      "separate_visual_scene_count": 24,
+      "actual_audio_auditioned": false,
+      "scope": "text diagnostics, not semantic deletion or audio audition",
+      "narration_sentences": 156,
+      "formal_korean_ending_sentences": 154,
+      "formal_korean_ending_ratio": 0.9871794871794872,
+      "longest_formal_narration_run": 75,
+      "narration_characters": 4005,
+      "dialogue_characters": 338,
+      "narration_character_share": 0.9221736127101082,
+      "dialogue_blocks": 21,
+      "formal_examples": [
+        {
+          "scene_order": 1,
+          "scene_id": "E02_S01",
+          "block_id": null,
+          "quote": "짧은 칼끝이 틈 안으로 들어갔습니다.",
+          "formal_korean_ending": true
+        },
+        {
+          "scene_order": 1,
+          "scene_id": "E02_S01",
+          "block_id": null,
+          "quote": "돌과 쇠가 맞물리며 손잡이가 서진의 손바닥을 파고들었습니다.",
+          "formal_korean_ending": true
+        },
+        {
+          "scene_order": 1,
+          "scene_id": "E02_S01",
+          "block_id": null,
+          "quote": "돌아오던 손목이 덜컥 멎었습니다.",
+          "formal_korean_ending": true
+        },
+        {
+          "scene_order": 1,
+          "scene_id": "E02_S01",
+          "block_id": null,
+          "quote": "머리 위의 거대한 팔도 한순간 붙들렸습니다.",
+          "formal_korean_ending": true
+        },
+        {
+          "scene_order": 1,
+          "scene_id": "E02_S01",
+          "block_id": null,
+          "quote": "서진이 밀어낸 게 아니었습니다.",
+          "formal_korean_ending": true
+        },
+        {
+          "scene_order": 1,
+          "scene_id": "E02_S01",
+          "block_id": null,
+          "quote": "검 끝은 여전히 그의 발 바로 뒤에 있었습니다.",
+          "formal_korean_ending": true
+        },
+        {
+          "scene_order": 2,
+          "scene_id": "E02_S02",
+          "block_id": null,
+          "quote": "손목 위의 팔은 멈추지 않았습니다.",
+          "formal_korean_ending": true
+        },
+        {
+          "scene_order": 2,
+          "scene_id": "E02_S02",
+          "block_id": null,
+          "quote": "어깨가 내려오자 얇은 칼날부터 휘었습니다.",
+          "formal_korean_ending": true
+        },
+        {
+          "scene_order": 2,
+          "scene_id": "E02_S02",
+          "block_id": null,
+          "quote": "서진은 손잡이를 잡아당기며 몸을 던졌습니다.",
+          "formal_korean_ending": true
+        },
+        {
+          "scene_order": 2,
+          "scene_id": "E02_S02",
+          "block_id": null,
+          "quote": "빠져나온 칼끝에서 쇳가루가 떨어졌고, 뒤늦게 돌아간 돌검이 방금 있던 바닥을 눌렀습니다.",
+          "formal_korean_ending": true
+        },
+        {
+          "scene_order": 2,
+          "scene_id": "E02_S02",
+          "block_id": null,
+          "quote": "옆구리가 접히며 숨이 끊겼습니다.",
+          "formal_korean_ending": true
+        },
+        {
+          "scene_order": 2,
+          "scene_id": "E02_S02",
+          "block_id": null,
+          "quote": "벌어놓은 시간은 몸 하나 빼낼 만큼이었습니다.",
+          "formal_korean_ending": true
+        }
+      ],
+      "automatic_rewrite": false
+    },
+    {
+      "source": "output/wuxia-series-rebuild/episode-03/script-final.json",
+      "source_sha256": "7434dbee015e8a2903eae5d78bc61c6df103b81aea5d36b472ca55160e505bc5",
+      "episode": 3,
+      "language": "ko",
+      "scene_count": 24,
+      "separate_visual_scene_count": 24,
+      "actual_audio_auditioned": false,
+      "scope": "text diagnostics, not semantic deletion or audio audition",
+      "narration_sentences": 153,
+      "formal_korean_ending_sentences": 150,
+      "formal_korean_ending_ratio": 0.9803921568627451,
+      "longest_formal_narration_run": 60,
+      "narration_characters": 4363,
+      "dialogue_characters": 224,
+      "narration_character_share": 0.9511663396555483,
+      "dialogue_blocks": 18,
+      "formal_examples": [
+        {
+          "scene_order": 1,
+          "scene_id": "E03_S01",
+          "block_id": null,
+          "quote": "명령 끝의 숨이 가시기도 전에 등불이 내려왔습니다.",
+          "formal_korean_ending": true
+        },
+        {
+          "scene_order": 1,
+          "scene_id": "E03_S01",
+          "block_id": null,
+          "quote": "통로 바닥은 바깥 보행로보다 낮았고, 기존 쇠살의 두꺼운 하단 턱은 엎드린 등보다 높았습니다.",
+          "formal_korean_ending": true
+        },
+        {
+          "scene_order": 1,
+          "scene_id": "E03_S01",
+          "block_id": null,
+          "quote": "무사의 눈과 등불에서 두 사람으로 향하는 선을 그 턱이 막았습니다.",
+          "formal_korean_ending": true
+        },
+        {
+          "scene_order": 1,
+          "scene_id": "E03_S01",
+          "block_id": null,
+          "quote": "빛은 바깥 돌과 안쪽 윗벽에 닿았습니다.",
+          "formal_korean_ending": true
+        },
+        {
+          "scene_order": 1,
+          "scene_id": "E03_S01",
+          "block_id": null,
+          "quote": "서진은 붙잡고 있던 손목을 놓았습니다.",
+          "formal_korean_ending": true
+        },
+        {
+          "scene_order": 1,
+          "scene_id": "E03_S01",
+          "block_id": null,
+          "quote": "도겸이 턱을 낮추자 서진도 팔을 몸 안으로 거뒀습니다.",
+          "formal_korean_ending": true
+        },
+        {
+          "scene_order": 1,
+          "scene_id": "E03_S01",
+          "block_id": null,
+          "quote": "밖에서는 등불 손잡이가 작게 울렸습니다.",
+          "formal_korean_ending": true
+        },
+        {
+          "scene_order": 2,
+          "scene_id": "E03_S02",
+          "block_id": null,
+          "quote": "무사는 쇠살에 얼굴부터 들이밀지 않았습니다.",
+          "formal_korean_ending": true
+        },
+        {
+          "scene_order": 2,
+          "scene_id": "E03_S02",
+          "block_id": null,
+          "quote": "등불을 먼저 내밀고 젖은 테두리와 안쪽 천장을 살폈습니다.",
+          "formal_korean_ending": true
+        },
+        {
+          "scene_order": 2,
+          "scene_id": "E03_S02",
+          "block_id": null,
+          "quote": "낮게 엎드린 두 사람은 두꺼운 하단 턱 뒤에 있었습니다.",
+          "formal_korean_ending": true
+        },
+        {
+          "scene_order": 2,
+          "scene_id": "E03_S02",
+          "block_id": null,
+          "quote": "하지만 무사가 더 쪼그려 눈을 쇠살 가까이 대고 등불을 낮춰 기울이면, 턱 너머 낮은 바닥까지 살필 수 있었습니다.",
+          "formal_korean_ending": true
+        },
+        {
+          "scene_order": 2,
+          "scene_id": "E03_S02",
+          "block_id": null,
+          "quote": "서진은 장화 옆으로 내려오기 시작한 무릎을 보았습니다.",
+          "formal_korean_ending": true
+        }
+      ],
+      "automatic_rewrite": false
+    }
+  ]
+}
