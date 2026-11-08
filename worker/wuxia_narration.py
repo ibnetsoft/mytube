@@ -161,3 +161,32 @@ One decision for EVERY narration block. Zero narration blocks means narration_de
             s['text'] = spoken_text(s)
         validate_draft({'sections': sections}, budgets)
     raise ValueError('Wuxia narration review did not converge after three rounds; checkpoints preserved')
+
+
+# User correction 2026-11-08: applies to newly generated Wuxia directions only.
+DIRECTIVE += '''\nFULL-SCREEN SHOT RHYTHM: A narrative/voice scene is not a single screen cut.
+Plan multiple story-motivated full-screen shots inside a scene when necessary.
+No new Wuxia full-screen shot may dwell longer than 3.0 seconds. Start with
+0.3-1.2s action connectors and 1-2.5s normal/reaction shots; vary the rhythm,
+never make all shots exactly 3s or split on an arbitrary metronome. Preserve
+continuous finalized dialogue/narration; cut the picture to a motivated listener
+reaction, hand/prop insert, reverse/rear view or environment instead of speeding
+up, truncating or padding speech. Keep text readable on its actual audio clock.
+A fixed camera means fixed WITHIN a shot, not the same angle across every shot.
+Avoid repeating medium-distance eye-level group tableaux showing 3-4 people.
+Choose distance, viewpoint, visible cast and subject size from the depicted event:
+establishing wide, single/two-person shot, face/eyes close-up, hands/weapon/contact
+detail, people-free environment or prop, rear, over-shoulder reverse, low angle,
+high angle/overhead or POV. Do not rotate through this list as a quota. Preserve
+spatial axis, gaze/action direction, identity, injuries and prop custody.
+A new viewpoint requires matching new artwork; rotating/zooming an old flat image
+is not a new camera angle. Reuse a crop only for a readable story-relevant detail
+actually present at sufficient resolution. Tiny motion and popup overlays do not
+replace full-screen shot changes. Use short impact-only shake AFTER actual contact
+in the contact-detail shot, not a whole-scene shake across faces/backgrounds.
+In visual_action record each cut_id, distance, angle, subject/visible cast, purpose,
+planned dwell <=3s, required artwork or justified crop, and event/audio timing anchor.
+Never send this shot list into spoken_blocks or TTS. After final audio, add and
+prepare needed real reaction/detail/environment cuts instead of extending a still.
+This is a planned shot contract, not actual artwork, preview or AE approval.
+Preserve finalized episodes and existing running-job settings.'''
