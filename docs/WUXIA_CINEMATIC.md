@@ -18,3 +18,5 @@
 ## 검증 범위
 
 자동 선택, 실제 원화 검토, 웹 미리보기, 실제 Adobe 렌더 파일은 각각 별도 증거다. 기술 QA용 단일 원화 비교 렌더는 새 회차나 기존 1화 전체 완료를 뜻하지 않는다. 관리자 게시와 YouTube 업로드는 별도 작업이다.
+
+2026-11-08 실제 Adobe 비교 렌더와 기존 이동 조합 검증은 [검증 기록](wuxia-handoff/cinematic-20261108/VERIFICATION.json) 및 [품질 기록](wuxia-handoff/cinematic-20261108/QUALITY_NOTES.md)에 보존했다.

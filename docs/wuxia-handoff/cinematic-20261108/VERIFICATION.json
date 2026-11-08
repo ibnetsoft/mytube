@@ -1,0 +1,472 @@
+{
+  "contract": "wuxia_cinematic_verification/v1",
+  "verified_at": "2026-11-08T01:08:54.418904+00:00",
+  "implementation_commits": [
+    "4926bea9cdfa86b02b73e33ad8f245e5d1a9e1ce",
+    "cd80560f8ae7791342e3f60fc3ca5ff81120170a"
+  ],
+  "scope": "Future new/grounded Wuxia only. Actual short silent Adobe technical fixtures, not whole episode or final voice verification.",
+  "source_sha256": "0ff0a6bc34aad9ef592a4ff6d2c0fc9d0c9bf0cc2055c0ead9ffe88061d9a6de",
+  "semantic_selection": {
+    "1": {
+      "scene_number": 1,
+      "vignette": true,
+      "panel": true,
+      "bounce": true,
+      "slide_blur": true,
+      "panel_text": "입문 조건 충족",
+      "reason": "불길한 시선과 배경 암전 지시가 위험감을 뒷받침한다. 새로 확정된 입문 자격은 기존 글자 없이 명시되어 정보 패널로 표시하며, 한 번의 짧은 등장 후 읽을 시간을 확보한다. 이미 선택된 왼쪽 와이프에만 그림 블러를 적용하고 글자는 선명하게 유지한다. 계획 단계의 선택이다.",
+      "evidence_quote": "인물은 선명하게 두고 주변 배경을 어둡게 눌러 긴장감을 표현한다. 입문 자격이 확정되어 화면에 '입문 조건 충족' 안내 정보를 표시한다. 반투명 정보 창은 짧게 한 번 튀어나온 뒤 읽을 수 있게 고정한다. 이전 장소에서 빠른 왼쪽 슬라이드로 넘어오는 장면이다.",
+      "contract": "wuxia_cinematic/v1",
+      "plan_id": "44bc1728d767606028515825921ca2c31698e7b9742ffe3a93abdc397c6b8ca5"
+    }
+  },
+  "source_review": {
+    "source_sha256": "0ff0a6bc34aad9ef592a4ff6d2c0fc9d0c9bf0cc2055c0ead9ffe88061d9a6de",
+    "passed": true,
+    "evidence": "Actual source shows seven people, including small heads inside the gate, visible hands, carried equipment and sheathed weapons. No baked text or speech bubbles are visible. The plan explicitly requests '입문 조건 충족', and panel_already_selected is false. The selected upper stone-background panel rectangle accommodates its full 108% bounce with padding clear of protected people and screen edges. Background-only vignette is suitable with protected-area masking. A brief left-slide exposure of 0.24 seconds at no more than 12 pixels is suitable; moving figures may briefly soften. This is source-image review, not rendered-output verification.",
+    "vignette_allowed": true,
+    "panel_allowed": true,
+    "slide_blur_allowed": true,
+    "protected_boxes": [
+      [
+        0.025,
+        0.125,
+        0.43,
+        1.0
+      ],
+      [
+        0.48,
+        0.36,
+        0.603,
+        0.895
+      ],
+      [
+        0.555,
+        0.325,
+        0.626,
+        0.692
+      ],
+      [
+        0.615,
+        0.292,
+        0.688,
+        0.632
+      ],
+      [
+        0.672,
+        0.265,
+        0.735,
+        0.43
+      ],
+      [
+        0.725,
+        0.273,
+        0.78,
+        0.444
+      ],
+      [
+        0.645,
+        0.355,
+        0.786,
+        0.905
+      ]
+    ],
+    "lettering_boxes": [],
+    "focus": [
+      0.7,
+      0.56
+    ],
+    "panel_rect": [
+      0.46,
+      0.06,
+      0.69,
+      0.22
+    ],
+    "quality_notes": [
+      "The foreground figure already touches the bottom source edge. During the full slide, preserve the intended source crop and provide background coverage so movement and blur reveal no empty edges or additional unintended clipping.",
+      "Verify transition readability and the complete bounce envelope in the rendered result; only the supplied source and plan were inspected."
+    ],
+    "contract": "wuxia_cinematic/v1",
+    "graphics": [],
+    "plan": {
+      "scene_number": 1,
+      "vignette": true,
+      "panel": true,
+      "bounce": true,
+      "slide_blur": true,
+      "panel_text": "입문 조건 충족",
+      "reason": "불길한 시선과 배경 암전 지시가 위험감을 뒷받침한다. 새로 확정된 입문 자격은 기존 글자 없이 명시되어 정보 패널로 표시하며, 한 번의 짧은 등장 후 읽을 시간을 확보한다. 이미 선택된 왼쪽 와이프에만 그림 블러를 적용하고 글자는 선명하게 유지한다. 계획 단계의 선택이다.",
+      "evidence_quote": "인물은 선명하게 두고 주변 배경을 어둡게 눌러 긴장감을 표현한다. 입문 자격이 확정되어 화면에 '입문 조건 충족' 안내 정보를 표시한다. 반투명 정보 창은 짧게 한 번 튀어나온 뒤 읽을 수 있게 고정한다. 이전 장소에서 빠른 왼쪽 슬라이드로 넘어오는 장면이다.",
+      "contract": "wuxia_cinematic/v1",
+      "plan_id": "44bc1728d767606028515825921ca2c31698e7b9742ffe3a93abdc397c6b8ca5"
+    },
+    "plan_id": "44bc1728d767606028515825921ca2c31698e7b9742ffe3a93abdc397c6b8ca5"
+  },
+  "actual_native_probes": {
+    "probes": [
+      {
+        "scene": 1,
+        "renderer": "actual_adobe_afterfx_and_aerender",
+        "frames": 96,
+        "fps": 24,
+        "sha256": "30d41923b778879f30bebad990bb12f87e7602c5b821c89bfc357e50827ba5c3",
+        "snapshot_sha256": "6e71a7ba2dddac3aefc5956c89de43602a1087597060baa58c310f6b8a0c991c",
+        "gcs_bucket": "air-studio-prod",
+        "gcs_path": "std-motion-cinematic-qa/20261108-v2/1/30d41923b778879f30bebad990bb12f87e7602c5b821c89bfc357e50827ba5c3.mp4",
+        "contract": "wuxia_native_timeline/v6"
+      },
+      {
+        "scene": 2,
+        "renderer": "actual_adobe_afterfx_and_aerender",
+        "frames": 96,
+        "fps": 24,
+        "sha256": "7d7b6017940425e11733a7c3cada6b98588c752c1ea337096a19df89f746bf3f",
+        "snapshot_sha256": "6e71a7ba2dddac3aefc5956c89de43602a1087597060baa58c310f6b8a0c991c",
+        "gcs_bucket": "air-studio-prod",
+        "gcs_path": "std-motion-cinematic-qa/20261108-v2/2/7d7b6017940425e11733a7c3cada6b98588c752c1ea337096a19df89f746bf3f.mp4",
+        "contract": "wuxia_native_timeline/v4"
+      }
+    ]
+  },
+  "combined_camera_probe": {
+    "probes": [
+      {
+        "scene": 1,
+        "renderer": "actual_adobe_afterfx_and_aerender",
+        "frames": 96,
+        "fps": 24,
+        "sha256": "3c16bbda31766ae8489ff395f0b7e973c26fc2a49201e36aaadd01e56b106b43",
+        "snapshot_sha256": "ab514a40f6a3004bca36dcb32f4c264f14dd2af9cf035a2e2c31919534a96701",
+        "gcs_bucket": "air-studio-prod",
+        "gcs_path": "std-motion-cinematic-qa/20261108-camera/1/3c16bbda31766ae8489ff395f0b7e973c26fc2a49201e36aaadd01e56b106b43.mp4",
+        "contract": "wuxia_native_timeline/v6"
+      }
+    ]
+  },
+  "actual_output_review": {
+    "batches": [
+      {
+        "passed": true,
+        "checks": [
+          {
+            "id": "wuxia_partial_vignette",
+            "passed": true,
+            "evidence": "Effect frames show smoothly darkened background corners relative to the original and matched controls. Protected faces and hands retain their source appearance in sharp settled frames. No rectangular mask seams are visible. The source contains no baked lettering to verify."
+          },
+          {
+            "id": "wuxia_information_panel",
+            "passed": true,
+            "evidence": "The translucent panel displays exactly '입문 조건 충족'. Background stone remains visible through it, and placement clears faces and hands. Text is sharp and readable in the supplied held samples at 0.375, 0.4583 and 0.625 seconds."
+          },
+          {
+            "id": "wuxia_scale_bounce",
+            "passed": true,
+            "evidence": "The faint, smaller panel at 0.2083 seconds expands to an overshoot at 0.2917 seconds, then settles near its held size at 0.375–0.625 seconds. Supplied pixels show one entrance and no repeated pulse within this batch."
+          },
+          {
+            "id": "wuxia_slide_blur",
+            "passed": true,
+            "evidence": "At 0.0833 seconds, actual moving artwork shows horizontal directional softening absent from the matched sharp control. Softening diminishes at 0.2083 seconds and is absent in settled samples from 0.2917 seconds onward. People retain source anatomy without persistent blur; visible panel lettering remains sharp. Entry black is expected for this fixture."
+          }
+        ],
+        "quality_notes": [
+          "Evidence is limited to the supplied decoded frames through 0.625 seconds; later hold duration and behavior are outside this batch.",
+          "No baked source lettering is present, so its protection cannot be demonstrated by this fixture."
+        ]
+      },
+      {
+        "passed": true,
+        "checks": [
+          {
+            "id": "wuxia_partial_vignette",
+            "passed": true,
+            "evidence": "Compared original, effect and matching control pixels. Held effect frames show smooth background-edge darkening without visible rectangular seams; faces and hands retain their shapes and clarity. Darkening is reduced at 3.958s. No baked lettering is present."
+          },
+          {
+            "id": "wuxia_information_panel",
+            "passed": true,
+            "evidence": "At 0.625s, 1.0s and 2.0s, the translucent upper panel displays the exact approved text '입문 조건 충족'. Placement clears faces and hands, and text remains sharp and readable at a stable size. The panel is absent at 2.708s and 3.958s."
+          },
+          {
+            "id": "wuxia_scale_bounce",
+            "passed": true,
+            "evidence": "Available post-entrance samples show a settled panel with consistent position and scale at 0.625s, 1.0s and 2.0s, followed by absence in the end samples. No repeated pulse is visible in these samples. Entrance undershoot and overshoot are outside this batch."
+          },
+          {
+            "id": "wuxia_slide_blur",
+            "passed": true,
+            "evidence": "All supplied output samples are after the opening slide. Artwork is sharp in the held and end frames, with no persistent directional blur or visible nonrigid anatomy changes. Panel lettering remains sharp. During-slide blur is outside this batch."
+          }
+        ],
+        "quality_notes": [
+          "Approval is limited to the supplied hold and end pixels; sampling is not exhaustive.",
+          "This batch does not establish the bounce entrance sequence, exactly one entrance, or directional finite-exposure blur during the slide. Those phases require their own decoded-frame batch.",
+          "No audio assessment was performed."
+        ]
+      }
+    ],
+    "scope": "actual decoded short Adobe probes, not a full production episode"
+  },
+  "combined_output_review": {
+    "passed": true,
+    "checks": [
+      {
+        "id": "wuxia_motion_fit",
+        "passed": true,
+        "evidence": "The short horizontal move suits the wide gate composition. Faces, extended hand and carried load remain readable; no added zoom or heat is visible."
+      },
+      {
+        "id": "wuxia_camera_execution",
+        "passed": true,
+        "evidence": "Artwork shifts right between the supplied opening-move samples and 1.0s, consistent with frozen positive dx progression. Framing holds at 1.0s, 2.0s and 3.958s without visible scale drift. Supplied pixel matching reports 22px displacement against 21.69px expected."
+      },
+      {
+        "id": "wuxia_heat_execution",
+        "passed": true,
+        "evidence": "No heat was requested. Supplied frames show no visible localized refraction or whole-image heat wobble."
+      },
+      {
+        "id": "wuxia_transition_execution",
+        "passed": true,
+        "evidence": "At 0.208s the entry is nearly settled, consistent with the frozen residual horizontal offset. Subsequent samples show a clean settled image without duplicate edges. Earlier slide direction and preceding backdrop are outside this batch's visible evidence."
+      },
+      {
+        "id": "wuxia_motion_protection",
+        "passed": true,
+        "evidence": "Compared with the source, sampled faces, hands, weapons and load retain their shapes and relationships. No patch detachment, exposed crop gaps or rectangular protection boundaries are visible. Panel and protected image regions remain aligned through the sampled move and hold."
+      },
+      {
+        "id": "wuxia_partial_vignette",
+        "passed": true,
+        "evidence": "Background corners and upper gate darken smoothly relative to the source, while protected faces and hands retain readable detail. No rectangular mask seams are visible. Darkening relaxes in the final sample."
+      },
+      {
+        "id": "wuxia_information_panel",
+        "passed": true,
+        "evidence": "The translucent panel displays exactly '입문 조건 충족'. Its upper-gate placement clears faces and hands. Text is sharp and readable in the supplied 0.375s–2.0s samples; the panel is absent at 3.958s."
+      },
+      {
+        "id": "wuxia_slide_blur",
+        "passed": true,
+        "evidence": "The actual 0.208s DURING-slide image shows mild horizontal softening on artwork edges, contrasting with sharp settled samples from 0.292s onward. Emerging authored text remains comparatively sharp. No persistent blur or nonrigid anatomy change is visible; the source contains no baked lettering to test."
+      },
+      {
+        "id": "wuxia_scale_bounce",
+        "passed": true,
+        "evidence": "The faint small entrance at 0.208s becomes visibly oversized at 0.292s, contracts by 0.375s and settles in later samples. One entrance is visible, followed by stable readable information through 2.0s, without a repeated pulse in the supplied samples."
+      }
+    ],
+    "quality_notes": [
+      "Approval is limited to the seven supplied decoded output frames and original source; it is not exhaustive temporal verification.",
+      "The initial transition, strongest slide-blur phase and preceding backdrop are not shown in this batch.",
+      "No baked lettering or mouth patches are present for corresponding protection checks."
+    ]
+  },
+  "pixel_measurements": {
+    "protected_main_face": {
+      "mean_absolute_rgb_difference": 1.4426947368421053,
+      "mean_brightness_delta": -0.037782456140350876,
+      "pixel_box": [
+        300,
+        160,
+        395,
+        285
+      ],
+      "frame": 24
+    },
+    "protected_hand": {
+      "mean_absolute_rgb_difference": 1.6957894736842105,
+      "mean_brightness_delta": -0.04307992202729045,
+      "pixel_box": [
+        676,
+        535,
+        790,
+        610
+      ],
+      "frame": 24
+    },
+    "background_corner": {
+      "mean_absolute_rgb_difference": 22.493015873015874,
+      "mean_brightness_delta": -22.493015873015874,
+      "pixel_box": [
+        1840,
+        970,
+        1910,
+        1060
+      ],
+      "frame": 24
+    },
+    "blur": {
+      "2": {
+        "effect_horizontal_detail": 1.3654292084726867,
+        "control_horizontal_detail": 3.351248606465998
+      },
+      "5": {
+        "effect_horizontal_detail": 2.487948717948718,
+        "control_horizontal_detail": 3.2309996283909324
+      },
+      "15": {
+        "effect_horizontal_detail": 3.4582051282051283,
+        "control_horizontal_detail": 3.496989966555184
+      },
+      "24": {
+        "effect_horizontal_detail": 3.5476477146042362,
+        "control_horizontal_detail": 3.565247120029728
+      },
+      "95": {
+        "effect_horizontal_detail": 3.5891118543292455,
+        "control_horizontal_detail": 3.587599405425492
+      }
+    },
+    "method": "Effect minus matched no-effect actual Adobe decoded RGB pixels on 0..255 channels. Blur metric is mean absolute horizontal first difference of channel-mean pixels in a frozen-dx-aligned protected torso crop."
+  },
+  "camera_pixel_measurements": {
+    "method": "same protected torso pixels, exhaustive horizontal template match on actual decoded Adobe frames",
+    "measured_dx_pixels": 22,
+    "frozen_expected_dx_pixels": 21.686374028349334,
+    "matching_mean_rgb_error": 1.4916,
+    "held_frame_24_48_mean_rgb_error": 0.8077666666666666
+  },
+  "browser_review": {
+    "passed": true,
+    "scope": "Actual production React component and SHA-bound actual source; separate from live user project and native Adobe output",
+    "frames": [
+      {
+        "frame": 0,
+        "blur_taps": 9,
+        "panel_scale": 1,
+        "panel_opacity": 0
+      },
+      {
+        "frame": 1,
+        "blur_taps": 9,
+        "panel_scale": 1,
+        "panel_opacity": 0
+      },
+      {
+        "frame": 2,
+        "blur_taps": 9,
+        "panel_scale": 1,
+        "panel_opacity": 0
+      },
+      {
+        "frame": 4,
+        "blur_taps": 9,
+        "panel_scale": 1,
+        "panel_opacity": 0
+      },
+      {
+        "frame": 5,
+        "blur_taps": 9,
+        "panel_scale": 0.9027241405178327,
+        "panel_opacity": 0.06944444444444443
+      },
+      {
+        "frame": 7,
+        "blur_taps": 0,
+        "panel_scale": 1.077104177383402,
+        "panel_opacity": 0.763888888888889
+      },
+      {
+        "frame": 9,
+        "blur_taps": 0,
+        "panel_scale": 0.9891125,
+        "panel_opacity": 1
+      },
+      {
+        "frame": 11,
+        "blur_taps": 0,
+        "panel_scale": 0.9953099074074074,
+        "panel_opacity": 1
+      },
+      {
+        "frame": 15,
+        "blur_taps": 0,
+        "panel_scale": 1,
+        "panel_opacity": 1
+      },
+      {
+        "frame": 24,
+        "blur_taps": 0,
+        "panel_scale": 1,
+        "panel_opacity": 1
+      },
+      {
+        "frame": 48,
+        "blur_taps": 0,
+        "panel_scale": 1,
+        "panel_opacity": 1
+      },
+      {
+        "frame": 65,
+        "blur_taps": 0,
+        "panel_scale": 1,
+        "panel_opacity": 0
+      },
+      {
+        "frame": 95,
+        "blur_taps": 0,
+        "panel_scale": 1,
+        "panel_opacity": 0
+      }
+    ],
+    "page_errors": []
+  },
+  "shared_mask_rgba_sha256": "1ddeaae94db2dd3ffd742806f20e6e00c17843340f1a7c8eba4acf3fbdae1ae4",
+  "primary_windows_runtime": {
+    "scope": "v6 cinematic native runtime; unrelated custom worker changes preserved by 3-way merge",
+    "files": {
+      "worker/wuxia_cinematic.py": "a81d5012c555357d5ebaefaadac2f984a04df7deecbd8e56af1b3ab9e0bd9ad0",
+      "worker/wuxia_cinematic_runtime.py": "146ed133cc4f65765c37e65e56f75c2095e086c11f6e54d77f23a27f20f6e53f",
+      "worker/wuxia_native_timeline.py": "00cefc6d45e44452ea13b357a1296fb8851acbfe42dca7eafd6de28d5a5ba138",
+      "worker/wuxia_motion_review.py": "61cb885cc2c03744bf8e7caca9135514a6536c5e3e23e9d1b361c35673b035f2",
+      "worker/wuxia_motion.py": "b20f61f42fed9aa3812bd9678a7d917694bf10a656c6b0b7fdfc7d580a81d917",
+      "worker/wuxia_transition.py": "d431a9692a4da98159d3bff4b2397686115d6422fef398110a2e256eff54e201",
+      "worker/wuxia_effects.py": "a397ae3488ca6ae10d4b988aada09a5b9ae1b23420529f0ec56f1ac67bfb89ec",
+      "worker/wuxia_worker_contract.py": "3592d0675e6540f87301dde4d3bbcf2f8438f02a168c195b1e734f0bea46084d",
+      "worker/motion_automation_worker.py": "8bbaea91a2a67b24aa0937f38ac1c881bb8b46544cfe18ab139e22867691397a"
+    },
+    "renderer_signature": "6f758677c3ddb0f706f8ba180dbea494a3f5c36761b68253b706345af86d1dd4",
+    "ack": {
+      "worker_contract_ack": {
+        "contract": "wuxia_cinematic/v1",
+        "lease_token": "read-only-runtime-probe"
+      }
+    }
+  },
+  "local_script_worker": {
+    "restarted_pid": 7512,
+    "health_confirmed": true,
+    "no_active_work_at_restart": true
+  },
+  "database": {
+    "migration": "20261108010400_wuxia_cinematic_preparation",
+    "applied": true,
+    "transaction_test": "actual cinematic source review publication + cinematic-only gate + changed-SHA rejection; rolled back without QA project creation"
+  },
+  "validation": {
+    "python_tests_passed": 41,
+    "javascript_tests_passed": 50,
+    "isolated_production_build": "passed",
+    "browser_native_mask": "exact RGBA byte equality",
+    "output_downloads": "SHA equality and complete video decode, 96 frames / 24 fps / 4 seconds per probe"
+  },
+  "production_web": {
+    "project": "mytube",
+    "deployment": "dpl_5uMYNWUM7X9xZ9ZMFtTfMbq8jSuc",
+    "commit": "cd80560f8ae7791342e3f60fc3ca5ff81120170a",
+    "state": "READY",
+    "alias": "studio.airing.work",
+    "authenticated_browser_version_observed": "cd80560f"
+  },
+  "resumed_existing_work": {
+    "job_id": "61ee2c8e-4d85-4523-ba24-30b77b2bfc45",
+    "manager": "normal installed local media supervisor",
+    "readback_phase": "direction",
+    "readback_scene": 18,
+    "readback_state": "processing",
+    "scope": "continuation resumed; not a completion claim"
+  },
+  "quality_notes_file": "QUALITY_NOTES.md"
+}
