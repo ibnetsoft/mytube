@@ -31,7 +31,7 @@ def validate(timeline):
                 if dx!=0 and any(i/48<b[3]+.025 and (i+1)/48>b[1]-.025 for b in boxes):raise ValueError('Heat displacement overlaps reviewed anatomy')
 
 def jsx(timeline):
-    if timeline.get('contract')!='wuxia_native_timeline/v5':return ''
+    if timeline.get('contract') not in ('wuxia_native_timeline/v5','wuxia_native_timeline/v6'):return ''
     validate(timeline)
     data=json.dumps([{'at':s['at'],**motion_frame(s)} for s in timeline['samples']],allow_nan=False)
     return '''

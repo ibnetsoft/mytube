@@ -47,3 +47,11 @@ def test_real_web_frozen_camera_and_heat_samples_pass_native_validation_for_ever
  timelines=json.loads(subprocess.check_output(['node','-e',script],cwd=root/'auth-web'))
  assert len(timelines)==15
  for t in timelines:validate(t)
+
+
+def test_cinematic_v6_keeps_frozen_camera_and_heat_execution():
+ t=timeline();t['contract']='wuxia_native_timeline/v6';t['samples'][0]['motion']['heat'][0]=2.5
+ text=jsx(t)
+ assert 'wuxia_opening_camera_rig' in text and 'wuxia_heat_band_' in text
+ data=json.loads(text.split('var WMC=',1)[1].split(';\n',1)[0])
+ assert data[0]['heat'][0]==2.5
