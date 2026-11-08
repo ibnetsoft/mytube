@@ -6,11 +6,11 @@ KINDS={'none','wipe_left','wipe_right','wipe_up','wipe_down','flash','punch','sn
 
 def validate(timeline):
     samples=timeline.get('samples') or []
-    enabled=timeline.get('contract') in ('wuxia_native_timeline/v4','wuxia_native_timeline/v5')
+    enabled=timeline.get('contract') in ('wuxia_native_timeline/v4','wuxia_native_timeline/v5','wuxia_native_timeline/v6')
     if not enabled and any('transition' in s for s in samples):
         raise ValueError('Scene transitions require wuxia native v4')
     if not enabled:return
-    if timeline.get('contract')=='wuxia_native_timeline/v5' and not any('transition' in s for s in samples):return
+    if timeline.get('contract') in ('wuxia_native_timeline/v5','wuxia_native_timeline/v6') and not any('transition' in s for s in samples):return
     kind=None
     for sample in samples:
         f=sample.get('transition')
@@ -24,7 +24,7 @@ def validate(timeline):
                 raise ValueError('Unsafe frozen transition '+key)
 
 def jsx(timeline):
-    if timeline.get('contract') not in ('wuxia_native_timeline/v4','wuxia_native_timeline/v5'):return ''
+    if timeline.get('contract') not in ('wuxia_native_timeline/v4','wuxia_native_timeline/v5','wuxia_native_timeline/v6'):return ''
     validate(timeline)
     if not any('transition' in s for s in timeline['samples']):return ''
     data=json.dumps({'samples':[{'at':s['at'],**s['transition']} for s in timeline['samples']],

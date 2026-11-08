@@ -347,6 +347,12 @@ def renderer_cache_is_current(snapshot,record):
 
 def native_cache_covers_frame_clock(snapshot,scene,record):
     if not scene.get('wuxia_timeline'):return True
+    if scene['wuxia_timeline'].get('contract')=='wuxia_native_timeline/v6':
+        from wuxia_cinematic_runtime import signature
+        from wuxia_motion_review import evidence
+        if record.get('cinematic_renderer_signature')!=signature():return False
+        expected=evidence(scene,scene['end']-scene['start'],snapshot['motion']['fps'])
+        if expected and not set(expected['required_checks']).issubset(record.get('review',{}).get('wuxia_motion_review',{}).get('required_checks',[])):return False
     if scene['wuxia_timeline'].get('auto_motion_policy',{}).get('actual_output_review_required') is True and record.get('review',{}).get('wuxia_motion_review',{}).get('contract')!='wuxia_motion_output_review/v1':return False
     if any(l.get('sword_aura') for s in scene['wuxia_timeline'].get('states',[]) for l in s.get('ambient_loops',[])) and 'wuxia_sword_aura_execution' not in record.get('review',{}).get('wuxia_motion_review',{}).get('required_checks',[]):return False
     from ae_scene_production import _video_info
@@ -420,6 +426,7 @@ def render_base(snapshot,scene,plan,source,preview,runner,directory,fresh):
                 try:
                     source_review=review_source(runner,scene,runtime,fresh)
                     scene['_wuxia_motion_source_review']=source_review
+                    if source_review and source_review.get('quality_notes'):note(snapshot,scene,'wuxia_cinematic_source_notes',json.dumps(source_review['quality_notes'],ensure_ascii=False))
                     if source_review and not source_review['passed']:note(snapshot,scene,'wuxia_motion_source_review',json.dumps(source_review,ensure_ascii=False))
                 except (ProjectClosed,LeaseLost):raise
                 except (ValueError,RuntimeError,OSError,NeedsReview) as issue:
@@ -957,6 +964,9 @@ def process_one(engine='ae', job_id=None):
             record['camera_speed_policy']=CAMERA_POLICY
             record['mouth_applied']=bool((scene.get('_mouth_runtime') or {}).get('enabled'))
             if scene.get('ambient_loops') or scene.get('wuxia_timeline'):record['ambient_renderer']='ambient_loop/v1'
+            if (scene.get('wuxia_timeline') or {}).get('contract')=='wuxia_native_timeline/v6':
+                from wuxia_cinematic_runtime import signature
+                record['cinematic_renderer_signature']=signature()
             if scene.get('saved_direction_binding'):record['saved_direction_binding']=copy.deepcopy(scene['saved_direction_binding'])
             if video_postwork_enabled(scene):
                 from submitted_video_postwork import result_receipt

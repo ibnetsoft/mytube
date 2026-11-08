@@ -1,3 +1,4 @@
+import { cinematicFrame } from './stdWuxiaCinematic'
 import { wuxiaEffectFrame } from './stdWuxiaEffects'
 import { wuxiaTransitionFrame } from './stdWuxiaTransition'
 import { wuxiaMotionFrame } from './stdWuxiaMotion'
@@ -94,5 +95,6 @@ export function wuxiaSceneFrame(project: any, number: number, rows: any[], secon
     const effects=wuxiaEffectFrame(scene,state,graphics,seconds,start,end,rowRange,fps||p.render_settings?.motion?.fps||24)
     const transition=wuxiaTransitionFrame(project,scene,number,seconds,start,end,fps||p.render_settings?.motion?.fps||24)
     const motion=wuxiaMotionFrame(project,scene,state,number,seconds,start,end,fps||p.render_settings?.motion?.fps||24)
-    return { state, graphics, fraction, effects, transition, motion, ambient, ambientSources, mouths, mouthSources, sources: [...(scene.states || []),...(transition.source?[transition.source]:[])].map((item: any) => String(item.media_url || item.image_url || '')).filter(Boolean), timingBasis: voiced?'subtitle_row_bound_or_authored_preview':'authored_silent_scene_clock' }
+    const cinematic=cinematicFrame(project,scene,state,number,seconds,start,end,transition,motion,fps||p.render_settings?.motion?.fps||24)
+    return { state, graphics, fraction, effects, transition, motion, cinematic, ambient, ambientSources, mouths, mouthSources, sources: [...(scene.states || []),...(transition.source?[transition.source]:[])].map((item: any) => String(item.media_url || item.image_url || '')).filter(Boolean), timingBasis: voiced?'subtitle_row_bound_or_authored_preview':'authored_silent_scene_clock' }
 }

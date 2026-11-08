@@ -1,6 +1,7 @@
 import { validAmbientLoop } from './stdAmbientLoop'
 const ENERGY='wuxia_energy_auto/v1'
-function enabled(policy:any){return (policy?.auto_prepare===true&&policy?.enabled!==false)||(policy?.energy_auto?.auto_prepare===true&&policy?.energy_auto?.enabled===true)}
+export function preparationEnabled(policy:any){return (policy?.auto_prepare===true&&policy?.enabled!==false)||(policy?.energy_auto?.auto_prepare===true&&policy?.energy_auto?.enabled===true)||(policy?.cinematic_auto?.auto_prepare===true&&policy?.cinematic_auto?.enabled===true)}
+function cinematicFields(local:any,remote:any){const c=remote?.cinematic_review;return c?.contract==='wuxia_cinematic/v1'&&c.source_sha256===local.sha256?{cinematic_review:c}:{}}
 function energyFields(local:any,remote:any){
  if(remote?.energy_preparation?.source_sha256!==local.sha256)return {}
  const raw=(remote.ambient_loops||[]).filter((l:any)=>l.automation===ENERGY)
@@ -13,15 +14,15 @@ function energyFields(local:any,remote:any){
 export function mergeWuxiaMouthRefresh(project:any,update:any):any {
  const p=project?.project_payload||project
  if(!update?.success||!p?.structure?.wuxia_ae_package||update.project_id!==project.id
-  ||!enabled(p.structure.wuxia_mouth_policy))return project
+  ||!preparationEnabled(p.structure.wuxia_mouth_policy))return project
  const voiceMatches=update.audio_id===p.subtitle_source_audio_id
- if(!voiceMatches&&!update.states?.some((s:any)=>s.energy_preparation))return project
+ if(!voiceMatches&&!update.states?.some((s:any)=>(s.energy_preparation||s.cinematic_review)))return project
  const pkg=p.structure.wuxia_ae_package
  const next={...p,structure:{...p.structure,wuxia_ae_package:{...pkg,scenes:pkg.scenes.map((sc:any)=>({...sc,states:sc.states.map((st:any)=>{
   const remote=update.states.find((r:any)=>r.scene_id===sc.scene_id&&r.asset_id===st.asset_id&&r.sha256===st.sha256)
   if(!remote)return st
-  if(!voiceMatches||JSON.stringify(remote.graphics)!==JSON.stringify(sc.graphics))return {...st,...energyFields(st,remote)}
-  return {...st,...energyFields(st,remote),dialogue_mouths:[...(st.dialogue_mouths||[]).filter((m:any)=>m.automation!=='wuxia_mouth_auto/v1'),
+  if(!voiceMatches||JSON.stringify(remote.graphics)!==JSON.stringify(sc.graphics))return {...st,...energyFields(st,remote),...cinematicFields(st,remote)}
+  return {...st,...energyFields(st,remote),...cinematicFields(st,remote),dialogue_mouths:[...(st.dialogue_mouths||[]).filter((m:any)=>m.automation!=='wuxia_mouth_auto/v1'),
    ...remote.dialogue_mouths.filter((m:any)=>m.automation==='wuxia_mouth_auto/v1'&&m.source_sha256===st.sha256)]}
  })}))}}}
  return project.project_payload?{...project,project_payload:next}:next
@@ -29,7 +30,7 @@ export function mergeWuxiaMouthRefresh(project:any,update:any):any {
 
 /** A stale editor save must not erase results published by the preparation worker. */
 export function preserveWuxiaMouthPreparation(current:any,next:any):any {
- if(!enabled(current?.wuxia_mouth_policy)||!current?.wuxia_ae_package||!next?.wuxia_ae_package)return next
+ if(!preparationEnabled(current?.wuxia_mouth_policy)||!current?.wuxia_ae_package||!next?.wuxia_ae_package)return next
  const previous=current.wuxia_ae_package
  let unchanged=true
  const scenes=next.wuxia_ae_package.scenes.map((sc:any)=>{
@@ -37,8 +38,8 @@ export function preserveWuxiaMouthPreparation(current:any,next:any):any {
   const sameGraphics=JSON.stringify(old?.graphics)===JSON.stringify(sc.graphics)
   return {...sc,states:sc.states.map((st:any)=>{
    const original=old?.states.find((p:any)=>p.asset_id===st.asset_id&&p.sha256===st.sha256)
-   if(!original||!sameGraphics){unchanged=false;return {...st,...(original?energyFields(st,original):{energy_preparation:undefined,energy_only_motion:undefined,ambient_loops:(st.ambient_loops||[]).filter((l:any)=>l.automation!==ENERGY)}),dialogue_mouth_preparation:undefined,dialogue_mouths:(st.dialogue_mouths||[]).filter((m:any)=>m.automation!=='wuxia_mouth_auto/v1')}}
-   return {...st,...energyFields(st,original),dialogue_mouth_preparation:original.dialogue_mouth_preparation,
+   if(!original||!sameGraphics){unchanged=false;return {...st,...(original?{...energyFields(st,original),...cinematicFields(st,original)}:{cinematic_review:undefined,energy_preparation:undefined,energy_only_motion:undefined,ambient_loops:(st.ambient_loops||[]).filter((l:any)=>l.automation!==ENERGY)}),dialogue_mouth_preparation:undefined,dialogue_mouths:(st.dialogue_mouths||[]).filter((m:any)=>m.automation!=='wuxia_mouth_auto/v1')}}
+   return {...st,...energyFields(st,original),...cinematicFields(st,original),dialogue_mouth_preparation:original.dialogue_mouth_preparation,
     dialogue_mouths:[...(st.dialogue_mouths||[]).filter((m:any)=>m.automation!=='wuxia_mouth_auto/v1'),
      ...(original.dialogue_mouths||[]).filter((m:any)=>m.automation==='wuxia_mouth_auto/v1')]}
   })}

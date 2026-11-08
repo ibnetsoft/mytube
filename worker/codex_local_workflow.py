@@ -73,6 +73,9 @@ def produce(identity, request, snapshot, output, notify, sources=None):
         package = enable_new_package(package, request)
         from worker.wuxia_energy_preparation import enable_new_package as enable_energy
         package = enable_energy(package, request)
+        from worker.codex_content_runner import CodexStagedContentRunner
+        from worker.wuxia_cinematic import plan_new_package as plan_cinematic
+        package = plan_cinematic(CodexStagedContentRunner()._stage, 'local-' + identity, package, request, notify)
     package['applied_guidelines'] = [{k: row[k] for k in ('id','version','title','instruction')} for row in rows]
     return package
 

@@ -24,3 +24,13 @@ test('energy refresh and stale-save protection work with mouth automation disabl
  const saved=preserveWuxiaMouthPreparation(merged,p.project_payload.structure);
  assert.equal(saved.wuxia_ae_package.scenes[0].states[0].energy_preparation.decision,'absent');
 });
+test('cinematic-only preparation refreshes before final voice and survives stale saves',()=>{
+ const {p,u}=fixture();p.project_payload.structure.wuxia_mouth_policy={enabled:false,auto_prepare:false,cinematic_auto:{enabled:true,auto_prepare:true}};
+ u.audio_id='before-voice';u.states[0].cinematic_review={contract:'wuxia_cinematic/v1',source_sha256:'a',passed:true};
+ const merged=mergeWuxiaMouthRefresh(p,u).project_payload.structure;
+ assert.equal(merged.wuxia_ae_package.scenes[0].states[0].cinematic_review.passed,true);
+ const saved=preserveWuxiaMouthPreparation(merged,p.project_payload.structure);
+ assert.equal(saved.wuxia_ae_package.scenes[0].states[0].cinematic_review.passed,true);
+ const changed=structuredClone(saved);changed.wuxia_ae_package.scenes[0].states[0].sha256='changed';
+ assert.equal(preserveWuxiaMouthPreparation(saved,changed).wuxia_ae_package.scenes[0].states[0].cinematic_review,undefined);
+});

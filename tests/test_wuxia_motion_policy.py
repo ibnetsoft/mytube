@@ -64,10 +64,15 @@ def test_real_new_script_workflow_invokes_the_motion_selector_and_repair_preserv
  monkeypatch.setattr(elevenlabs_performance,'annotate_new_package',lambda p,*a:p)
  monkeypatch.setattr(workflow,'_produce',lambda *a:package())
  class Runner:
-  _stage=staticmethod(stage)
+  @staticmethod
+  def _stage(identity,name,context,task):
+   if name.startswith('wuxia_cinematic_plan'):
+    return {'scenes':[dict(scene_number=sc['scene_number'],vignette=False,panel=False,bounce=False,slide_blur=False,panel_text='',reason='No extra accent needed',evidence_quote=sc['planned_visuals']) for sc in context['scenes']]}
+   return stage(identity,name,context,task)
  monkeypatch.setattr(codex_content_runner,'CodexStagedContentRunner',Runner)
  new=workflow.produce('id',{'mode':'new','image_style':'wuxia_webtoon'},None,tmp_path,lambda _:None)
  assert new['structure']['wuxia_motion_policy']['enabled'] is True
+ assert new['structure']['wuxia_mouth_policy']['cinematic_auto']['enabled'] is True
  old=workflow.produce('id',{'mode':'repair'},None,tmp_path,lambda _:None)
  assert 'wuxia_motion_policy' not in old['structure']
 

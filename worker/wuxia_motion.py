@@ -7,7 +7,7 @@ def motion_frame(sample):
     return {'contract':'wuxia_motion_samples/v1','active':False,'dx':0,'dy':0,'scale':1,'heat':[],'issues':[]} if isinstance(value,dict) and value=={} else value
 
 def validate(timeline):
-    enabled=timeline.get('contract')=='wuxia_native_timeline/v5'
+    enabled=timeline.get('contract') in ('wuxia_native_timeline/v5','wuxia_native_timeline/v6')
     if not enabled:
         if any('motion' in s for s in timeline.get('samples',[])):raise ValueError('Image motion requires native v5')
         return

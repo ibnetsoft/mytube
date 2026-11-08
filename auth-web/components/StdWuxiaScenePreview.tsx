@@ -1,6 +1,7 @@
 'use client'
+import StdWuxiaCinematic from './StdWuxiaCinematic'
 import { useEffect, useRef, useState } from 'react'
-import { mergeWuxiaMouthRefresh } from '@/lib/stdWuxiaMouthRefresh'
+import { mergeWuxiaMouthRefresh, preparationEnabled } from '@/lib/stdWuxiaMouthRefresh'
 import { wuxiaSceneFrame } from '@/lib/stdWuxiaPresentation'
 import { wuxiaBubbleContour } from '@/lib/stdWuxiaBubble'
 
@@ -41,7 +42,7 @@ export default function StdWuxiaScenePreview({ project, sceneNumber, subtitles, 
     },[playing,audioClock,fps])
     const [mouthUpdate,setMouthUpdate]=useState<any>(null)
     const payload=project?.project_payload||project
-    const autoMouth=payload?.structure?.wuxia_mouth_policy?.auto_prepare===true
+    const autoMouth=preparationEnabled(payload?.structure?.wuxia_mouth_policy)
     useEffect(()=>{
         if(!autoMouth||!project?.id)return
         const controller=new AbortController()
@@ -129,8 +130,10 @@ export default function StdWuxiaScenePreview({ project, sceneNumber, subtitles, 
         {frame.transition.backdrop>0&&images[backdrop]&&<img src={images[backdrop]} alt="" className="absolute inset-0 h-full w-full object-cover"/>}
         <div className="absolute inset-0" style={{transform:`translate(${frame.transition.dx*100}%, ${frame.transition.dy*100}%) scale(${frame.transition.scale})`,opacity:frame.transition.opacity,transformOrigin:'50% 50%'}}>
         <div className="absolute inset-0" data-wuxia-camera-clock="editor" data-wuxia-motion-issues={frame.motion.issues.join(',')} style={{transform:`translate(${frame.motion.dx*100}%, ${frame.motion.dy*100}%) scale(${frame.motion.scale})`,transformOrigin:'50% 50%'}}>
-        {art}
+        {frame.cinematic.blur_radius>0?[0,1,2,3,4,5,6,7,8].map(i=><div key={i} className="absolute inset-0" data-wuxia-slide-blur={frame.cinematic.blur_axis} style={{opacity:1/(i+1),transform:`translate(${frame.cinematic.blur_axis==='x'?(i-4)*frame.cinematic.blur_radius/4/19.2:0}%,${frame.cinematic.blur_axis==='y'?(i-4)*frame.cinematic.blur_radius/4/10.8:0}%)`}}>{art}</div>):art}
+        {frame.cinematic.blur_radius>0&&frame.cinematic.descriptor.lettering_boxes.map((b:number[],i:number)=><div key={`sharp-letter-${i}`} className="absolute inset-0" style={{clipPath:`inset(${b[1]*100}% ${(1-b[2])*100}% ${(1-b[3])*100}% ${b[0]*100}%)`}}>{art}</div>)}
         {frame.motion.heat.map((dx:number,i:number)=>dx!==0&&<div key={i} className="absolute inset-0" data-wuxia-heat-band={i} style={{clipPath:`inset(${i/frame.motion.heat.length*100}% 0 ${(1-(i+1)/frame.motion.heat.length)*100}% 0)`}}><div className="absolute inset-0" style={{transform:`translateX(${dx/19.2}%)`}}>{art}</div></div>)}
+        <StdWuxiaCinematic frame={frame.cinematic}/>
         {(!source || images[source]) && <StdWuxiaGraphics graphics={frame.graphics} animate={playing} />}
         </div>
         </div>

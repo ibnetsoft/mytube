@@ -163,12 +163,18 @@ def prepare_art(structure, identity, download, upload, check=lambda: None, runne
     result, excluded, reviewed, count = [], [], 0, 0
     for scene in package['scenes']:
         graphics = scene.get('graphics') or []
+        cinematic_policy=(structure.get('wuxia_mouth_policy') or {}).get('cinematic_auto') or {}
+        cinematic={}
+        if cinematic_policy.get('enabled') is True and cinematic_policy.get('auto_prepare') is True:
+            from worker.wuxia_cinematic import prepare_scene
+            cinematic=prepare_scene(scene,cinematic_policy,identity,download,check,runner)
         for state in scene['states']:
             check()
             graphs = [g for g in graphics if g.get('kind') == 'speech_bubble'
                       and g.get('state_asset_id') == state['asset_id'] and g.get('speaker') and g.get('text')]
             patch = {'scene_id': scene['scene_id'], 'asset_id': state['asset_id'], 'sha256': state.get('sha256'), 'art': []}
             result.append(patch)
+            if state['asset_id'] in cinematic:patch['cinematic']=cinematic[state['asset_id']]
             energy_policy=(structure.get('wuxia_mouth_policy') or {}).get('energy_auto') or {}
             if energy_policy.get('enabled') is True and energy_policy.get('auto_prepare') is True:
                 from worker.wuxia_energy_preparation import prepare_state
@@ -246,9 +252,9 @@ def prepare_art(structure, identity, download, upload, check=lambda: None, runne
                     'generation_method': 'builtin_imagegen_reviewed_three_pose',
                     'quality_notes': ['Stylized amplitude-gated three-pose speech; not phoneme-level lip sync.']})
                 count += 1
-    return {'states': result, 'report': {'state': 'prepared' if count or any(p.get('energy',{}).get('loops') or p.get('energy',{}).get('decision')=='uncertain' for p in result) else 'not_required', 'selection_complete': True,
-            'quality_notes':[{'state':p['asset_id'],'energy_review':p['energy']} for p in result if p.get('energy',{}).get('decision')=='uncertain'],
-            'energy_states_reviewed':sum('energy' in p for p in result), 'energy_states_prepared':sum(bool(p.get('energy',{}).get('loops')) for p in result), 'eligible_count': count, 'reviewed_speakers': reviewed, 'excluded': excluded, 'zero_eligible_valid': True}}
+    return {'states': result, 'report': {'state': 'prepared' if count or any(p.get('cinematic') for p in result) or any(p.get('energy',{}).get('loops') or p.get('energy',{}).get('decision')=='uncertain' for p in result) else 'not_required', 'selection_complete': True,
+            'quality_notes':[{'state':p['asset_id'],'energy_review':p['energy']} for p in result if p.get('energy',{}).get('decision')=='uncertain']+[{'state':p['asset_id'],'cinematic_review':p['cinematic']} for p in result if p.get('cinematic',{}).get('quality_notes')],
+            'cinematic_states_reviewed':sum('cinematic' in p for p in result), 'energy_states_reviewed':sum('energy' in p for p in result), 'energy_states_prepared':sum(bool(p.get('energy',{}).get('loops')) for p in result), 'eligible_count': count, 'reviewed_speakers': reviewed, 'excluded': excluded, 'zero_eligible_valid': True}}
 
 
 def bind_timing(structure, rows, audio, audio_path, art_result):
@@ -298,7 +304,7 @@ def bind_timing(structure, rows, audio, audio_path, art_result):
                 raise ValueError('Mouth motion outside actual speech')
             patch['mouths'].append(mouth)
             count += 1
-    result['report'] = {**result['report'], 'state': 'ready' if count or any(p.get('energy',{}).get('loops') or p.get('energy',{}).get('decision')=='uncertain' for p in result['states']) else 'not_required',
+    result['report'] = {**result['report'], 'state': 'ready' if count or any(p.get('cinematic') for p in result['states']) or any(p.get('energy',{}).get('loops') or p.get('energy',{}).get('decision')=='uncertain' for p in result['states']) else 'not_required',
                         'audio_asset_id': audio['id'], 'audio_sha256': audio['metadata']['sha256'],
                         'timing_review': 'exact_recorded_rows_and_waveform_gates', 'bound_count': count}
     return result
