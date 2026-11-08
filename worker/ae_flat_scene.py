@@ -73,6 +73,9 @@ def write_jsx(plan, layer_paths, project, native, jsx, duration, fps=24):
         # Each SHA-verified Wuxia state/patch is independently object-covered by wimage.
         # The generic original layer is disabled; its pixel canvas need not equal output.
         script=script.replace('if(footage.width!==W || footage.height!==H) throw new Error("Layer canvas mismatch "+L.id);','')
+        # Web vectors and PNG artwork use non-linear sRGB channel compositing.
+        script=script.replace('    ownsProject=true;', '    ownsProject=true; app.project.workingSpace=""; app.project.linearBlending=false; app.project.linearizeWorkingSpace=false; app.project.bitsPerChannel=8;')
+        script=script.replace('item.outputModule(1).file=new File(S.native);', 'var om=item.outputModule(1),lt=null; for(var ti=0;ti<om.templates.length;ti++){if(/^(Lossless|무손실|손실 없음)$/i.test(om.templates[ti])){lt=om.templates[ti];break;}} if(!lt)throw new Error("Missing lossless template: "+om.templates.join(",")); om.applyTemplate(lt); om.file=new File(S.native);')
         source_js,graphic_js=wuxia_jsx(plan['wuxia_runtime'],duration,fps)
         script=script.replace('    applySceneEffects(source,semanticLayers);',source_js+'\n    applySceneEffects(source,semanticLayers);')
     if plan.get('ambient_runtime'):

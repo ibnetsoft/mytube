@@ -35,3 +35,14 @@ def test_frozen_contact_order_source_and_face_protection_are_checked():
  for patch in [{'from':.5},{'source_sha256':'b'*64},{'protected_boxes':[[0,0,1,1]]}]:
   bad=copy.deepcopy(frame);bad['action_accents'][0].update(patch)
   with pytest.raises(ValueError):validate_frozen(timeline,sample,bad)
+
+def test_screen_wash_exception_cannot_hide_opaque_or_nonflash_protected_overlays():
+ sha='a'*64
+ accent={'type':'contact_flash','protection_mode':'exposure_wash/v1','asset_id':'a','source_sha256':sha,'contact_at':1,'from':1,'duration_seconds':.08,'shape_offset':0,'shape_count':1,'protected_boxes':[[0,0,1,1]],'review':{'contract':CONTRACT,'source_sha256':sha,'source_reviewed':True,'screen_flash_reviewed':True}}
+ frame={'action_accents':[accent],'active':['contact_flash:0'],'overlays':[{'kind':'polygon','points':[[0,0],[1920,0],[1920,1080],[0,1080]],'color':'#fff7cf','opacity':.22}]}
+ sample={'at':1.01,'state':'a'};timeline={'states':[{'asset_id':'a','sha256':sha}]}
+ validate_frozen(timeline,sample,frame)
+ for target,patch in [('accent',{'type':'electric_discharge'}),('shape',{'opacity':1}),('shape',{'points':[[0,0],[20,0],[20,20],[0,20]]})]:
+  bad=copy.deepcopy(frame)
+  (bad['action_accents'][0] if target=='accent' else bad['overlays'][0]).update(patch)
+  with pytest.raises(ValueError):validate_frozen(timeline,sample,bad)

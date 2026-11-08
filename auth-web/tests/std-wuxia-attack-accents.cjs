@@ -26,7 +26,7 @@ test('missing/stale source review, unsupported electricity, zero path and excess
  assert.equal(at([effect('electric_discharge')],1.1,{...state,energy_only_motion:true}).overlays.length,0)
 })
 test('native frozen vectors match the exact web frames, pass worker validation and survive AE JSX serialization',()=>{
- const effects=[effect('attack_speedline'),effect('electric_discharge'),{...effect('contact_flash'),flash_scope:'local'}]
+ const effects=[effect('attack_speedline'),effect('electric_discharge'),effect('contact_flash')]
  const scene={scene_id:'E99_S01',preview_start_seconds:0,preview_duration_seconds:2,states:[state],graphics:[],effects}
  const project={project_payload:{structure:{image_style:'wuxia_webtoon',wuxia_ae_package:{contract:'wuxia_still_ae_episode/v1',scenes:[scene]}}}}
  const frozen=freezeWuxiaScene(project,1,[],0,2,24,{metadata:{}})
@@ -45,4 +45,20 @@ test('two-frame delayed discharge ends on the identical exclusive web/native fra
 test('a protected contact cannot emit disconnected remote bolt fragments',()=>{
  const e={...effect('electric_discharge'),action_review:{...review,protected_boxes:[[.69,.64,.71,.66]]}}
  assert.equal(at([e],1.25).overlays.length,0)
+})
+
+test('screen exposure is one readable uniform wash with no rectangular protection holes',()=>{
+ const f=at([effect('contact_flash')],1)
+ assert.equal(f.overlays.length,1)
+ assert.deepEqual(f.overlays[0].points,[[0,0],[1920,0],[1920,1080],[0,1080]])
+ assert(f.overlays[0].opacity<=.22)
+ assert.equal(f.action_accents[0].protection_mode,'exposure_wash/v1')
+})
+test('electrical cores use connected tapered silhouettes and bounded low-opacity bloom',()=>{
+ const f=at([effect('electric_discharge')],1.125)
+ const cores=f.overlays.filter(s=>s.color==='#ffffff')
+ assert(cores.length>0)
+ assert(cores.every(s=>s.points.length>=6&&s.points.length<=64))
+ assert(f.overlays.some(s=>s.opacity>0&&s.opacity<.05))
+ assert(f.overlays.length<=96)
 })

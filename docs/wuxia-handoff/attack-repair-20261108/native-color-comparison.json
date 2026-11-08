@@ -1,0 +1,9 @@
+{
+  "native_to_web_first_frame_rgb_mae": 1.217881462191358,
+  "native_to_web_first_frame_channel_bias": [
+    -0.014482060185185185,
+    -0.020596064814814814,
+    -0.018034818672839507
+  ],
+  "previous_native_to_web_rgb_mae": 8.751664255401234
+}

@@ -42,19 +42,10 @@ export function attackAccentShapes(e: any, t: number, elapsedFrame: number, fps:
         return add([[a[0]+nx,a[1]+ny],[b[0]+nx,b[1]+ny],[b[0]-nx,b[1]-ny],[a[0]-nx,a[1]-ny]],color,opacity)
     }
     if(e.type==='contact_flash') {
-        // One brief pulse, never a repeating full-screen strobe. Faces/text are cut out.
+        // A brief exposure wash must never cut rectangular holes around faces.
+        // Keep the entire picture readable; opaque electrical cores stay excluded.
         if(e.flash_scope==='screen') {
-            let rects=[[0,0,1920,1080]]
-            for(const b of excluded) {
-                const cut=[Math.max(0,b[0]-3),Math.max(0,b[1]-3),Math.min(1920,b[2]+3),Math.min(1080,b[3]+3)]
-                rects=rects.flatMap(a=>{
-                    if(!intersects(a,cut))return[a]
-                    const x0=Math.max(a[0],cut[0]),y0=Math.max(a[1],cut[1]),x1=Math.min(a[2],cut[2]),y1=Math.min(a[3],cut[3])
-                    return [[a[0],a[1],a[2],y0],[a[0],y1,a[2],a[3]],[a[0],y0,x0,y1],[x1,y0,a[2],y1]].filter(r=>r[2]>r[0]&&r[3]>r[1])
-                })
-                if(rects.length>64)return[]
-            }
-            for(const a of rects)result.push({kind:'polygon',points:[[a[0],a[1]],[a[2],a[1]],[a[2],a[3]],[a[0],a[3]]],color:'#fff000',opacity:(1-t)*strength*.95,stroke:0})
+            result.push({kind:'polygon',points:[[0,0],[1920,0],[1920,1080],[0,1080]],color:'#fff7cf',opacity:(1-t)*strength*.22,stroke:0})
         } else {
             for(let i=0;i<8;i++) {
                 const a=i*Math.PI/4,extent=e.radius*1080*(1-t*.4),w=14+30*strength
@@ -84,24 +75,54 @@ export function attackAccentShapes(e: any, t: number, elapsedFrame: number, fps:
         }
         return result
     }
-    // Seeded, frame-stepped branching. Growth originates at the reviewed contact point.
-    const phase=Math.floor(elapsedFrame/Math.max(1,Math.round(fps/12)))
+    // Continuous tapered silhouettes, rather than disconnected constant-width bars.
+    // Several low-opacity contours approximate a soft bloom identically in SVG/AE.
+    const phase=Math.floor(elapsedFrame/Math.max(1,Math.round(fps/16)))
     const noise=(i:number)=>{const n=Math.sin((i+1)*127.1+phase*311.7)*43758.5453;return(n-Math.floor(n))*2-1}
-    const growth=Math.min(1,(elapsedFrame+1)/Math.max(1,fps*.08)),fade=(1-t*.65)*strength
+    const growth=Math.min(1,(elapsedFrame+1)/Math.max(1,fps*.09)),fade=Math.pow(1-t, .7)*strength
     const heading=Math.atan2(cy-path[path.length-2][1],cx-path[path.length-2][0])
-    for(let bolt=0;bolt<5;bolt++) {
-        const angle=heading+(bolt-2)*1.05+noise(bolt)*.24,reach=e.radius*1080*growth*(.7+.3*Math.abs(noise(bolt+5)))
-        let previous=[cx,cy]
-        for(let segment=1;segment<=5;segment++) {
-            const u=segment/5,jitter=(noise(bolt*7+segment)*.22+(segment%2?.09:-.09))*reach*u
-            const next=[cx+Math.cos(angle)*reach*u-Math.sin(angle)*jitter,cy+Math.sin(angle)*reach*u+Math.cos(angle)*jitter]
-            const segmentStart=result.length
-            ribbon(previous,next,96*strength*(1-u*.5),'#fff000',fade*.18)
-            if(!ribbon(previous,next,44*strength*(1-u*.5),'#fff000',fade*.95)){result.length=segmentStart;break}
-            ribbon(previous,next,12*strength*(1-u*.5),'#ffffff',fade)
-            if(segment===3){const fork=[next[0]+Math.cos(angle+.9)*reach*.22,next[1]+Math.sin(angle+.9)*reach*.22];ribbon(next,fork,3,'#ffffff',fade*.9)}
-            previous=next
+    const silhouette=(points:number[][],widths:number[],expand:number)=>{
+        const left:number[][]=[],right:number[][]=[]
+        for(let i=0;i<points.length;i++){
+            const before=points[Math.max(0,i-1)],after=points[Math.min(points.length-1,i+1)]
+            const len=Math.hypot(after[0]-before[0],after[1]-before[1])||1
+            const nx=-(after[1]-before[1])/len,ny=(after[0]-before[0])/len
+            const w=widths[i]+expand*Math.pow(1-i/(points.length-1),.35)
+            left.push([points[i][0]+nx*w,points[i][1]+ny*w]);right.push([points[i][0]-nx*w,points[i][1]-ny*w])
         }
+        return [...left,...right.reverse()]
+    }
+    const draw=(points:number[][],widths:number[],opacity:number)=>{
+        if(points.length<3)return
+        // Bloom has no opaque yellow outer band. The pale hot core carries the shape.
+        for(const [spread,alpha] of [[17,.025],[11,.045],[7,.075],[3.5,.13],[1,.38],[0,.94]])
+            add(silhouette(points,widths,spread),spread===0?'#ffffff':'#fff000',opacity*alpha)
+    }
+    for(let bolt=0;bolt<6;bolt++) {
+        const angle=heading+(bolt-2.5)*.91+noise(bolt)*.36
+        const reach=e.radius*1080*growth*(.48+.48*Math.abs(noise(bolt+8)))
+        const points:number[][]=[[cx,cy]],widths=[(2.5+Math.abs(noise(bolt+2))*2.5)*strength]
+        let distance=0
+        for(let segment=1;segment<=11;segment++){
+            distance+=.055+.055*(noise(bolt*19+segment)+1)/2
+            const u=Math.min(1,distance),side=noise(bolt*31+segment)*reach*(.015+.10*u)
+            const next=[cx+Math.cos(angle)*reach*u-Math.sin(angle)*side,cy+Math.sin(angle)*reach*u+Math.cos(angle)*side]
+            const previous=points[points.length-1]
+            const bounds=[Math.min(previous[0],next[0])-20,Math.min(previous[1],next[1])-20,Math.max(previous[0],next[0])+20,Math.max(previous[1],next[1])+20]
+            if(next[0]<22||next[0]>1898||next[1]<22||next[1]>1058||excluded.some(b=>intersects(bounds,b)))break
+            points.push(next);widths.push(Math.max(.12,(1-u)*(.55+Math.abs(noise(segment+bolt*13))*3.4))*strength)
+            if(u===1)break
+        }
+        if(points.length<3)continue
+        widths[widths.length-1]=0
+        draw(points,widths,fade)
+        // Fine curving offshoot, distinct from the main jagged discharge.
+        const k=Math.min(points.length-2,3+bolt%3),origin=points[k],twig:number[][]=[origin],tw:number[]=[.9*strength]
+        for(let j=1;j<=5;j++){
+            const u=j/5,turn=angle+(bolt%2?1:-1)*(.6+u*.6),len=reach*.27*u
+            twig.push([origin[0]+Math.cos(turn)*len,origin[1]+Math.sin(turn)*len]);tw.push((1-u)*.75*strength)
+        }
+        draw(twig,tw,fade*.65)
     }
     return result
 }

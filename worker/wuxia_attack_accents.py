@@ -114,10 +114,17 @@ def validate_frozen(timeline, sample, frame):
         boxes = accent.get('protected_boxes')
         if not isinstance(boxes,list) or len(boxes)>100:
             raise ValueError('Missing frozen attack protection')
+        wash = accent.get('protection_mode') == 'exposure_wash/v1'
+        if wash:
+            selected = shapes[first:first+count]
+            if (accent['type'] != 'contact_flash' or review.get('screen_flash_reviewed') is not True
+                    or len(selected) != 1 or selected[0].get('points') != [[0,0],[1920,0],[1920,1080],[0,1080]]
+                    or selected[0].get('color') != '#fff7cf' or not 0 <= selected[0].get('opacity', 1) <= .22):
+                raise ValueError('Invalid readable exposure wash')
         for b in boxes:
             if not isinstance(b,list) or len(b)!=4 or any(type(v) not in (int,float) or not math.isfinite(v) or not 0<=v<=1 for v in b) or b[0]>=b[2] or b[1]>=b[3]:
                 raise ValueError('Invalid frozen attack protection')
-            for shape in shapes[first:first+count]:
+            for shape in ([] if wash else shapes[first:first+count]):
                 points=shape.get('points') or []
                 if not points:raise ValueError('Attack vectors must retain their exact polygon geometry')
                 bounds=[min(p[0] for p in points)/1920,min(p[1] for p in points)/1080,max(p[0] for p in points)/1920,max(p[1] for p in points)/1080]
