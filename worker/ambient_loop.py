@@ -38,6 +38,9 @@ def validate(loop):
             or not isinstance(f.get('media_url'),str) or not f['media_url'].startswith(('https://','/api/std/'))
             or not isinstance(f.get('gcs_bucket'),str) or not f['gcs_bucket'] or not isinstance(f.get('gcs_path'),str) or not f['gcs_path']):
             raise ValueError('Invalid prepared ambient frame')
+    if 'attack_sprite' in loop:
+        from wuxia_attack_sprite import validate as validate_attack_sprite
+        validate_attack_sprite(loop)
     if 'sword_aura' in loop:
         from worker.wuxia_sword_aura import validate_contract
         validate_contract(loop)
@@ -112,6 +115,9 @@ def prepare_runtime(source, loops, directory, fresh, download):
             with Image.open(path) as image:
                 if image.format!='PNG' or getattr(image,'n_frames',1)!=1 or image.size!=size or image.mode!='RGBA': raise ValueError('Ambient frame canvas/alpha mismatch')
                 alpha=image.getchannel('A');bounds=alpha.getbbox()
+                if 'attack_sprite' in loop:
+                    from wuxia_attack_sprite import validate_alpha as validate_attack_alpha
+                    validate_attack_alpha(loop,alpha)
                 if 'sword_aura' in loop:
                     from worker.wuxia_sword_aura import validate_alpha
                     validate_alpha(loop,alpha)

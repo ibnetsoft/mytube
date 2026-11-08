@@ -1,0 +1,23 @@
+{
+  "frames": 60,
+  "fps": 24,
+  "source": "actual episode 1 scene 11 artwork",
+  "component": "StdWuxiaScenePreview",
+  "native_polygon_counts_equal": true,
+  "native_sprite_indices_equal": true,
+  "sprite_frames": [
+    20,
+    21,
+    22,
+    23,
+    24,
+    25,
+    26,
+    27,
+    28,
+    29,
+    30,
+    31
+  ],
+  "actual_ae_output_checked": false
+}

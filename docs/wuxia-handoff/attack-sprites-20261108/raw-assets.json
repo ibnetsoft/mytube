@@ -1,0 +1,20 @@
+[
+  {
+    "file": "key-01.png",
+    "sha256": "4c9889268189d148de620c7c9b78c8ef7f34dba5fd61b79c2eae1554749998c3",
+    "gcs_bucket": "air-studio-prod",
+    "gcs_path": "std-motion/wuxia-attack-sprites/raw/4c9889268189d148de620c7c9b78c8ef7f34dba5fd61b79c2eae1554749998c3.png"
+  },
+  {
+    "file": "key-02.png",
+    "sha256": "505543dd7dad49cf9fc84705bdcb5b1670110999163721f1a486cfbfa23423ea",
+    "gcs_bucket": "air-studio-prod",
+    "gcs_path": "std-motion/wuxia-attack-sprites/raw/505543dd7dad49cf9fc84705bdcb5b1670110999163721f1a486cfbfa23423ea.png"
+  },
+  {
+    "file": "key-03.png",
+    "sha256": "ab29f960974005ba44b33596298309689b4acde4ce8c983175ff6d00a280a9a9",
+    "gcs_bucket": "air-studio-prod",
+    "gcs_path": "std-motion/wuxia-attack-sprites/raw/ab29f960974005ba44b33596298309689b4acde4ce8c983175ff6d00a280a9a9.png"
+  }
+]

@@ -1,0 +1,62 @@
+{
+  "sprite_mask_min_iou": 0.8356360171510243,
+  "sprite_mask_mean_iou": 0.9396735980590094,
+  "sprite_bbox_max_error_px": 5,
+  "sprite_frame_indices": [
+    [
+      20,
+      0
+    ],
+    [
+      21,
+      0
+    ],
+    [
+      22,
+      1
+    ],
+    [
+      23,
+      1
+    ],
+    [
+      24,
+      2
+    ],
+    [
+      25,
+      2
+    ],
+    [
+      26,
+      3
+    ],
+    [
+      27,
+      3
+    ],
+    [
+      28,
+      4
+    ],
+    [
+      29,
+      4
+    ],
+    [
+      30,
+      5
+    ],
+    [
+      31,
+      5
+    ]
+  ],
+  "timing_identical_all_effects": true,
+  "actual_png_source_count": 3,
+  "prepared_png_count": 6,
+  "actual_ae_frames": 60,
+  "maximum_alpha_in_protected_regions": 0,
+  "lossless_pixel_equality_claimed": false,
+  "actual_ae_protected_interior_max_mean_delta": 0.24620060790273557
+}

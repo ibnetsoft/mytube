@@ -1,0 +1,97 @@
+{
+  "source_sha256": "49711c47847d963396f27c973c66558c788566457335585304dcadee36a5e317",
+  "canvas": [
+    1672,
+    941
+  ],
+  "contact": [
+    0.328,
+    0.774
+  ],
+  "scope": "isolated real E01_S11 action source; original episode unchanged",
+  "raw_sha256": [
+    "4c9889268189d148de620c7c9b78c8ef7f34dba5fd61b79c2eae1554749998c3",
+    "505543dd7dad49cf9fc84705bdcb5b1670110999163721f1a486cfbfa23423ea",
+    "ab29f960974005ba44b33596298309689b4acde4ce8c983175ff6d00a280a9a9"
+  ],
+  "frames": [
+    {
+      "frame": 0,
+      "key": 0,
+      "sha256": "b49178bcd8cc6014986cc924ec4ef99047bfef183bb4d232209b268349c88283",
+      "opacity": 1,
+      "alpha_bounds": [
+        322,
+        569,
+        782,
+        797
+      ],
+      "protected_alpha_zero": true
+    },
+    {
+      "frame": 1,
+      "key": 1,
+      "sha256": "6ad25fd0521a742783cd49462a1c5e1baf5853a3eb0068346d31f70ba325f2ce",
+      "opacity": 1,
+      "alpha_bounds": [
+        205,
+        512,
+        898,
+        865
+      ],
+      "protected_alpha_zero": true
+    },
+    {
+      "frame": 2,
+      "key": 2,
+      "sha256": "05210ae641b6169171b69a0e6806364c1bb417f8ac6cc87862d6bcb11de2f2bb",
+      "opacity": 0.9,
+      "alpha_bounds": [
+        269,
+        524,
+        877,
+        812
+      ],
+      "protected_alpha_zero": true
+    },
+    {
+      "frame": 3,
+      "key": 1,
+      "sha256": "9ae45a4c7b7637c8c1849d695cd253dd51e1bec0e06275f46718e501c2123393",
+      "opacity": 0.8,
+      "alpha_bounds": [
+        205,
+        512,
+        898,
+        865
+      ],
+      "protected_alpha_zero": true
+    },
+    {
+      "frame": 4,
+      "key": 2,
+      "sha256": "8031fbbc26013ae3ce39f14355f2f1b8bab19dbc478143e25b263e66263f44a5",
+      "opacity": 0.65,
+      "alpha_bounds": [
+        269,
+        524,
+        877,
+        812
+      ],
+      "protected_alpha_zero": true
+    },
+    {
+      "frame": 5,
+      "key": 0,
+      "sha256": "b5eacba30abf50885a346585f1fbebbfae76ff5e4669356fd7eff6989ff04a10",
+      "opacity": 0.25,
+      "alpha_bounds": [
+        324,
+        577,
+        775,
+        794
+      ],
+      "protected_alpha_zero": true
+    }
+  ]
+}

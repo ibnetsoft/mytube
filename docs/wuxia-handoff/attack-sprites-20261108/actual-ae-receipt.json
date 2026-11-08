@@ -1,0 +1,15 @@
+{
+  "probes": [
+    {
+      "scene": 1,
+      "renderer": "actual_adobe_afterfx_and_aerender",
+      "frames": 60,
+      "fps": 24,
+      "sha256": "fb6ba7a345f4abfb6409072ace710127084d149475fb6d7eae02af193154703b",
+      "snapshot_sha256": "eaaba444a4c8a42b926b50f226e4cd1cd0686c930603e2085233e4a602adfe1c",
+      "gcs_bucket": "air-studio-prod",
+      "gcs_path": "std-motion/wuxia-attack-sprites/74af874ec2d4/1/fb6ba7a345f4abfb6409072ace710127084d149475fb6d7eae02af193154703b.mp4",
+      "contract": "wuxia_native_timeline/v3"
+    }
+  ]
+}

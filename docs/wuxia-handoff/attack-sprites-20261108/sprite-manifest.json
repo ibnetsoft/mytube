@@ -1,0 +1,213 @@
+{
+  "contract": "ambient_loop/v1",
+  "enabled": true,
+  "source_sha256": "49711c47847d963396f27c973c66558c788566457335585304dcadee36a5e317",
+  "role": "environment",
+  "width": 1672,
+  "height": 941,
+  "region": [
+    0.12,
+    0.5,
+    0.58,
+    1
+  ],
+  "protected_regions": [
+    [
+      0.115,
+      0.27,
+      0.175,
+      0.39
+    ],
+    [
+      0.5,
+      0.075,
+      0.56,
+      0.18
+    ],
+    [
+      0.24,
+      0.27,
+      0.29,
+      0.38
+    ],
+    [
+      0.32,
+      0.29,
+      0.37,
+      0.39
+    ],
+    [
+      0.365,
+      0.32,
+      0.42,
+      0.415
+    ],
+    [
+      0.62,
+      0.3,
+      0.68,
+      0.4
+    ],
+    [
+      0.72,
+      0.375,
+      0.79,
+      0.47
+    ],
+    [
+      0.59,
+      0.585,
+      0.67,
+      0.715
+    ],
+    [
+      0.77,
+      0.605,
+      0.85,
+      0.755
+    ]
+  ],
+  "start_ms": 833,
+  "end_ms": 1333,
+  "phase_ms": 0,
+  "repeat": false,
+  "frames": [
+    {
+      "media_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=std-motion/wuxia-attack-sprites/b49178bcd8cc6014986cc924ec4ef99047bfef183bb4d232209b268349c88283.png",
+      "sha256": "b49178bcd8cc6014986cc924ec4ef99047bfef183bb4d232209b268349c88283",
+      "duration_ms": 83,
+      "gcs_bucket": "air-studio-prod",
+      "gcs_path": "std-motion/wuxia-attack-sprites/b49178bcd8cc6014986cc924ec4ef99047bfef183bb4d232209b268349c88283.png"
+    },
+    {
+      "media_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=std-motion/wuxia-attack-sprites/6ad25fd0521a742783cd49462a1c5e1baf5853a3eb0068346d31f70ba325f2ce.png",
+      "sha256": "6ad25fd0521a742783cd49462a1c5e1baf5853a3eb0068346d31f70ba325f2ce",
+      "duration_ms": 83,
+      "gcs_bucket": "air-studio-prod",
+      "gcs_path": "std-motion/wuxia-attack-sprites/6ad25fd0521a742783cd49462a1c5e1baf5853a3eb0068346d31f70ba325f2ce.png"
+    },
+    {
+      "media_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=std-motion/wuxia-attack-sprites/05210ae641b6169171b69a0e6806364c1bb417f8ac6cc87862d6bcb11de2f2bb.png",
+      "sha256": "05210ae641b6169171b69a0e6806364c1bb417f8ac6cc87862d6bcb11de2f2bb",
+      "duration_ms": 84,
+      "gcs_bucket": "air-studio-prod",
+      "gcs_path": "std-motion/wuxia-attack-sprites/05210ae641b6169171b69a0e6806364c1bb417f8ac6cc87862d6bcb11de2f2bb.png"
+    },
+    {
+      "media_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=std-motion/wuxia-attack-sprites/9ae45a4c7b7637c8c1849d695cd253dd51e1bec0e06275f46718e501c2123393.png",
+      "sha256": "9ae45a4c7b7637c8c1849d695cd253dd51e1bec0e06275f46718e501c2123393",
+      "duration_ms": 83,
+      "gcs_bucket": "air-studio-prod",
+      "gcs_path": "std-motion/wuxia-attack-sprites/9ae45a4c7b7637c8c1849d695cd253dd51e1bec0e06275f46718e501c2123393.png"
+    },
+    {
+      "media_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=std-motion/wuxia-attack-sprites/8031fbbc26013ae3ce39f14355f2f1b8bab19dbc478143e25b263e66263f44a5.png",
+      "sha256": "8031fbbc26013ae3ce39f14355f2f1b8bab19dbc478143e25b263e66263f44a5",
+      "duration_ms": 83,
+      "gcs_bucket": "air-studio-prod",
+      "gcs_path": "std-motion/wuxia-attack-sprites/8031fbbc26013ae3ce39f14355f2f1b8bab19dbc478143e25b263e66263f44a5.png"
+    },
+    {
+      "media_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=std-motion/wuxia-attack-sprites/b5eacba30abf50885a346585f1fbebbfae76ff5e4669356fd7eff6989ff04a10.png",
+      "sha256": "b5eacba30abf50885a346585f1fbebbfae76ff5e4669356fd7eff6989ff04a10",
+      "duration_ms": 84,
+      "gcs_bucket": "air-studio-prod",
+      "gcs_path": "std-motion/wuxia-attack-sprites/b5eacba30abf50885a346585f1fbebbfae76ff5e4669356fd7eff6989ff04a10.png"
+    }
+  ],
+  "attack_sprite": {
+    "contract": "wuxia_attack_sprite/v1",
+    "source_sha256": "49711c47847d963396f27c973c66558c788566457335585304dcadee36a5e317",
+    "source_reviewed": true,
+    "frames_reviewed": true,
+    "event": "Charged blade contacts fractured stone floor at frame 18",
+    "reason": "User-requested hand-painted white/yellow electrical discharge keys, no procedural electrical vectors",
+    "contact_ms": 750,
+    "protected_boxes": [
+      [
+        0.115,
+        0.27,
+        0.175,
+        0.39
+      ],
+      [
+        0.5,
+        0.075,
+        0.56,
+        0.18
+      ],
+      [
+        0.24,
+        0.27,
+        0.29,
+        0.38
+      ],
+      [
+        0.32,
+        0.29,
+        0.37,
+        0.39
+      ],
+      [
+        0.365,
+        0.32,
+        0.42,
+        0.415
+      ],
+      [
+        0.62,
+        0.3,
+        0.68,
+        0.4
+      ],
+      [
+        0.72,
+        0.375,
+        0.79,
+        0.47
+      ],
+      [
+        0.59,
+        0.585,
+        0.67,
+        0.715
+      ],
+      [
+        0.77,
+        0.605,
+        0.85,
+        0.755
+      ],
+      [
+        0.17,
+        0.6,
+        0.22,
+        0.66
+      ],
+      [
+        0.49,
+        0.88,
+        0.58,
+        1
+      ],
+      [
+        0.62,
+        0.79,
+        0.68,
+        0.88
+      ],
+      [
+        0.82,
+        0.92,
+        0.9,
+        1
+      ],
+      [
+        0.21,
+        0.65,
+        0.305,
+        0.75
+      ]
+    ]
+  }
+}

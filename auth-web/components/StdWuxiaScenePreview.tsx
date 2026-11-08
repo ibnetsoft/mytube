@@ -70,7 +70,7 @@ export default function StdWuxiaScenePreview({ project, sceneNumber, subtitles, 
     const ambientKey = JSON.stringify([...(frame?.ambientSources || []),...(frame?.mouthSources || [])])
     const [patches, setPatches] = useState<Record<string, string>>({})
     useEffect(() => {
-        const sources = JSON.parse(ambientKey) as { media_url: string; sha256: string; region: number[]; width: number; height: number }[]
+        const sources = JSON.parse(ambientKey) as { media_url: string; sha256: string; region: number[]; width: number; height: number; protected_boxes?: number[][] }[]
         const controller = new AbortController(), urls: string[] = []
         let live = true
         setPatches({})
@@ -91,6 +91,11 @@ export default function StdWuxiaScenePreview({ project, sceneNumber, subtitles, 
                     const context=canvas.getContext('2d');if(!context){bitmap.close();throw Error('ambient canvas unavailable')}
                     const [left,top,right,bottom]=item.region,x=Math.ceil(left*bitmap.width),y=Math.ceil(top*bitmap.height),w=Math.floor(right*bitmap.width)-x,h=Math.floor(bottom*bitmap.height)-y
                     context.drawImage(bitmap,x,y,w,h,x,y,w,h);bitmap.close()
+                    for(const b of item.protected_boxes||[]){
+                        const px=Math.floor(b[0]*canvas.width),py=Math.floor(b[1]*canvas.height),pw=Math.ceil(b[2]*canvas.width)-px,ph=Math.ceil(b[3]*canvas.height)-py
+                        const pixels=context.getImageData(px,py,pw,ph).data
+                        for(let i=3;i<pixels.length;i+=4)if(pixels[i]!==0)throw Error('electrical sprite covers protected artwork')
+                    }
                     const clipped=await new Promise<Blob>((resolve,reject)=>canvas.toBlob(value=>value?resolve(value):reject(Error('ambient frame unavailable')),'image/png'))
                     canvas.width=0;canvas.height=0
                     if (live) { const url=URL.createObjectURL(clipped); urls.push(url); setPatches(prev=>({...prev,[`${item.sha256}:${item.region.join(',')}`]:url})) }

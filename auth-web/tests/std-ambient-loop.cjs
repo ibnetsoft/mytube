@@ -43,3 +43,8 @@ test('sword energy keeps the same patch clock and rejects unbound protection met
  assert.equal(validAmbientLoop({...a,sword_aura:{...sword_aura,source_sha256:'b'.repeat(64)}}),false);
  assert.equal(validAmbientLoop({...a,sword_aura:{...sword_aura,protected_polygons:[[[2,0],[1,0],[0,1]]]}}),false);
 });
+test('reviewed attack PNG sequence retains exact half-open contact clock and source identity',()=>{
+ const sprite={...loop,start_ms:833,end_ms:1333,repeat:false,attack_sprite:{contract:'wuxia_attack_sprite/v1',source_sha256:loop.source_sha256,source_reviewed:true,frames_reviewed:true,event:'charged blade contacts stone',reason:'reviewed PNG key drawings',contact_ms:750,protected_boxes:[[.4,.3,.7,.8]]}}
+ assert(validAmbientLoop(sprite));assert.equal(ambientFrameIndex(sprite,832),null);assert.equal(ambientFrameIndex(sprite,833),0);assert.equal(ambientFrameIndex(sprite,1333),null)
+ assert(!validAmbientLoop({...sprite,repeat:true}));assert(!validAmbientLoop({...sprite,attack_sprite:{...sprite.attack_sprite,source_sha256:'b'.repeat(64)}}))
+})

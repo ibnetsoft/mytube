@@ -15,15 +15,25 @@ async function main(){
  const browser=await req('@playwright/test').chromium.launch({headless:true,channel:'chrome'})
  try{
  const page=await browser.newPage({viewport:{width:1920,height:1140},deviceScaleFactor:1});page.on('pageerror',e=>console.error(e.message))
- await page.goto('file://'+path.join(dir,'preview.html'));await page.locator('[data-wuxia-effect-overlay]').waitFor({state:'visible'})
+ await page.route('https://sprite-qa.local/**',async route=>{
+  const u=new URL(route.request().url()),file=mapping[u.pathname+u.search]
+  if(u.pathname==='/preview')return route.fulfill({status:200,contentType:'text/html',body:fs.readFileSync(path.join(dir,'preview.html'))})
+  if(file)return route.fulfill({status:200,contentType:'image/png',body:fs.readFileSync(file)})
+  return route.abort()
+ })
+ await page.goto('https://sprite-qa.local/preview');await page.locator('[data-wuxia-effect-overlay]').waitFor({state:'visible'})
  for(let i=0;i<timeline.samples.length;i++){
   await page.evaluate(t=>window.renderAt(t),i/fps)
+  const ambient=timeline.samples[i].ambient||[]
+  if(ambient.length){
+   for(const patch of ambient)await page.locator(`[data-ambient-frame="${patch.frame}"]`).waitFor({state:'visible'})
+  }else if(await page.locator('[data-ambient-frame]').count())throw Error(`Unexpected ambient sprite at ${i}`)
   const count=await page.locator('[data-wuxia-effect-overlay] polygon').count(),expected=timeline.samples[i].effects?.overlays?.length||0
   if(count!==expected)throw Error(`Web and frozen native polygon mismatch at ${i}`)
   await page.locator('#stage').screenshot({path:path.join(dir,'web-frames',`frame-${String(i).padStart(3,'0')}.png`)})
  }
  }finally{await browser.close()}
- fs.writeFileSync(path.join(dir,'web-verification.json'),JSON.stringify({frames:timeline.samples.length,fps,source:'actual episode 1 scene 11 artwork',component:'StdWuxiaScenePreview',native_polygon_counts_equal:true,actual_ae_output_checked:false},null,2))
+ fs.writeFileSync(path.join(dir,'web-verification.json'),JSON.stringify({frames:timeline.samples.length,fps,source:'actual episode 1 scene 11 artwork',component:'StdWuxiaScenePreview',native_polygon_counts_equal:true,native_sprite_indices_equal:true,sprite_frames:timeline.samples.flatMap((s,i)=>s.ambient?.length?[i]:[]),actual_ae_output_checked:false},null,2))
  console.log('WEB_ACTUAL_SCENE_CAPTURED',timeline.samples.length)
 }
 main().catch(e=>{console.error(e);process.exit(1)})

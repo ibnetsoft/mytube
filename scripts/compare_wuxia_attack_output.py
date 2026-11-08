@@ -10,7 +10,7 @@ actual=list(frames.glob('frame-*.png'));assert len(actual)==len(samples),(len(ac
 load=lambda folder,i:np.asarray(Image.open(folder/f'frame-{i:03d}.png').convert('RGB')).astype(np.int16)
 web=r/'web-frames';states={s['asset_id']:s for s in timeline['states']};quiet={}
 for i,s in enumerate(samples):
- if not s.get('effects',{}).get('overlays'):quiet.setdefault(s['state'],i)
+ if not s.get('effects',{}).get('overlays') and not s.get('ambient'):quiet.setdefault(s['state'],i)
 assert set(quiet)==set(states),'Need quiet controls for each source state'
 base={sid:(load(web,i),load(frames,i)) for sid,i in quiet.items()};records=[];visible_expected=[];visible_actual=[]
 for i,s in enumerate(samples):
@@ -26,7 +26,7 @@ for i,s in enumerate(samples):
   for b in accent['protected_boxes']:
    x0,y0,x1,y1=[int(v*(1920 if k%2==0 else 1080)) for k,v in enumerate(b)];x0+=4;y0+=4;x1-=4;y1-=4
    if x1>x0 and y1>y0:protection.append(float(np.abs(n[y0:y1,x0:x1]-bn[y0:y1,x0:x1]).mean()))
- records.append({'frame':i,'time':round(i/fps,6),'effects':s.get('effects',{}).get('active',[]),'web_effect_pixels':wp,'ae_effect_pixels':npix,'mask_iou':iou,'effect_bbox_error_px':bbox_error,'rgb_mae':float(np.abs(w-n).mean()),'protected_mean_delta':max(protection,default=0)})
+ records.append({'frame':i,'time':round(i/fps,6),'effects':s.get('effects',{}).get('active',[])+[f"ambient:{v['loop']}:{v['frame']}" for v in s.get('ambient',[])],'web_effect_pixels':wp,'ae_effect_pixels':npix,'mask_iou':iou,'effect_bbox_error_px':bbox_error,'rgb_mae':float(np.abs(w-n).mean()),'protected_mean_delta':max(protection,default=0)})
 active=[v for v in records if v['web_effect_pixels']>=100]
 report={'scope':'All decoded actual Adobe output frames vs actual production React component; isolated actual E01_S11 action state-cut probe','fps':fps,'frames':len(samples),'duration_seconds':len(samples)/fps,'expected_visible_effect_frames':visible_expected,'actual_visible_effect_frames':visible_actual,'timing_identical':visible_actual==visible_expected,'effect_mask_min_iou':min(v['mask_iou'] for v in active),'effect_mask_mean_iou':float(np.mean([v['mask_iou'] for v in active])),'maximum_effect_bbox_error_px':max(v['effect_bbox_error_px'] for v in active),'maximum_protected_mean_delta':max(v['protected_mean_delta'] for v in records),'frame_rgb_mae_mean':float(np.mean([v['rgb_mae'] for v in records])),'lossless_pixel_equality_claimed':False,'frames_detail':records}
 report['passed']=report['timing_identical'] and report['effect_mask_min_iou']>=.85 and report['maximum_effect_bbox_error_px']<=3 and report['maximum_protected_mean_delta']<=4
