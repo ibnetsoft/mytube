@@ -32,13 +32,14 @@ export function attackAccentShapes(e: any, t: number, elapsedFrame: number, fps:
     const intersects = (a: number[], b: number[]) => a[0] < b[2] && a[2] > b[0] && a[1] < b[3] && a[3] > b[1]
     const add = (points: number[][], color: string, opacity: number) => {
         const bounds = [Math.min(...points.map(p=>p[0]))-2,Math.min(...points.map(p=>p[1]))-2,Math.max(...points.map(p=>p[0]))+2,Math.max(...points.map(p=>p[1]))+2]
-        if (points.some(p=>p[0]<0||p[0]>1920||p[1]<0||p[1]>1080) || excluded.some(b=>intersects(bounds,b))) return
+        if (points.some(p=>p[0]<0||p[0]>1920||p[1]<0||p[1]>1080) || excluded.some(b=>intersects(bounds,b))) return false
         result.push({kind:'polygon',points,color,opacity:Math.min(1,Math.max(0,opacity)),stroke:0})
+        return true
     }
     const ribbon = (a: number[], b: number[], width: number, color: string, opacity: number) => {
-        const len=Math.hypot(b[0]-a[0],b[1]-a[1]); if(len<.01)return
+        const len=Math.hypot(b[0]-a[0],b[1]-a[1]); if(len<.01)return false
         const nx=-(b[1]-a[1])/len*width/2,ny=(b[0]-a[0])/len*width/2
-        add([[a[0]+nx,a[1]+ny],[b[0]+nx,b[1]+ny],[b[0]-nx,b[1]-ny],[a[0]-nx,a[1]-ny]],color,opacity)
+        return add([[a[0]+nx,a[1]+ny],[b[0]+nx,b[1]+ny],[b[0]-nx,b[1]-ny],[a[0]-nx,a[1]-ny]],color,opacity)
     }
     if(e.type==='contact_flash') {
         // One brief pulse, never a repeating full-screen strobe. Faces/text are cut out.
@@ -94,8 +95,9 @@ export function attackAccentShapes(e: any, t: number, elapsedFrame: number, fps:
         for(let segment=1;segment<=5;segment++) {
             const u=segment/5,jitter=(noise(bolt*7+segment)*.22+(segment%2?.09:-.09))*reach*u
             const next=[cx+Math.cos(angle)*reach*u-Math.sin(angle)*jitter,cy+Math.sin(angle)*reach*u+Math.cos(angle)*jitter]
+            const segmentStart=result.length
             ribbon(previous,next,96*strength*(1-u*.5),'#fff000',fade*.18)
-            ribbon(previous,next,44*strength*(1-u*.5),'#fff000',fade*.95)
+            if(!ribbon(previous,next,44*strength*(1-u*.5),'#fff000',fade*.95)){result.length=segmentStart;break}
             ribbon(previous,next,12*strength*(1-u*.5),'#ffffff',fade)
             if(segment===3){const fork=[next[0]+Math.cos(angle+.9)*reach*.22,next[1]+Math.sin(angle+.9)*reach*.22];ribbon(next,fork,3,'#ffffff',fade*.9)}
             previous=next

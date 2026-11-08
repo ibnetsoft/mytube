@@ -41,3 +41,8 @@ test('two-frame delayed discharge ends on the identical exclusive web/native fra
  const frames=Array.from({length:48},(_,i)=>at([e],i/24))
  assert.deepEqual(frames.flatMap((f,i)=>f.active.length?[i]:[]),Array.from({length:12},(_,i)=>i+26))
 })
+
+test('a protected contact cannot emit disconnected remote bolt fragments',()=>{
+ const e={...effect('electric_discharge'),action_review:{...review,protected_boxes:[[.69,.64,.71,.66]]}}
+ assert.equal(at([e],1.25).overlays.length,0)
+})

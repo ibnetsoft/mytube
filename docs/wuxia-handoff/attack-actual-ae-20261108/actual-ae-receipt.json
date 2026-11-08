@@ -1,0 +1,15 @@
+{
+  "probes": [
+    {
+      "scene": 1,
+      "renderer": "actual_adobe_afterfx_and_aerender",
+      "frames": 60,
+      "fps": 24,
+      "sha256": "c3eb58161fc563a9ebfe449a8147831dacd8e857b840f546eefb9d737f3b5203",
+      "snapshot_sha256": "f17a48dc81982d71cd5a06dd0c2d0722047412374a809a17fd75ac617428724e",
+      "gcs_bucket": "air-studio-prod",
+      "gcs_path": "std-motion/wuxia-attack-qa/3e93e0ad54d9/1/c3eb58161fc563a9ebfe449a8147831dacd8e857b840f546eefb9d737f3b5203.mp4",
+      "contract": "wuxia_native_timeline/v3"
+    }
+  ]
+}

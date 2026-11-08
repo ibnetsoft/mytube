@@ -1,0 +1,27 @@
+{
+  "original_scene": "E01_S11",
+  "original_project_id": "b45f00f7-fc8b-4d1a-9b72-f27c84fb0a02",
+  "state_sha256": [
+    "2adfdd932701addbb20e2c0dd6f340272020d7b8b4841a43ca54cada6fa4c6e7",
+    "49711c47847d963396f27c973c66558c788566457335585304dcadee36a5e317",
+    "2f2363c8ba561d66887108b2db7ef8ed655348c9efba248142552fc1371f848f"
+  ],
+  "actual_artwork_inspected": true,
+  "contact_frame": 18,
+  "speedline_frames": [
+    12,
+    17
+  ],
+  "flash_frames": [
+    18,
+    19
+  ],
+  "discharge_frames": [
+    20,
+    31
+  ],
+  "fps": 24,
+  "duration": 2.5,
+  "original_episode_changed": false,
+  "scope": "Actual series artwork and authored action state cut, silent isolated QA, no full-episode timing/narration rewrite"
+}

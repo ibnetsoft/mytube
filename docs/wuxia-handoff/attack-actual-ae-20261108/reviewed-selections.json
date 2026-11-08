@@ -1,0 +1,175 @@
+[
+  {
+    "scene_id": "QA_ATTACK_S01",
+    "asset_id": "E01_S11_STATE_01",
+    "source_file": "images/E01_S11_STATE_01.png",
+    "review": {
+      "contract": "wuxia_attack_accent/v1",
+      "source_sha256": "2adfdd932701addbb20e2c0dd6f340272020d7b8b4841a43ca54cada6fa4c6e7",
+      "source_reviewed": true,
+      "event": "Charged sword strike into the stone floor, episode 1 scene 11",
+      "materials": "steel blade and stone floor",
+      "reason": "User-authorized white/yellow electrical accent on the charged sword impact; original preceding artwork depicts blue blade energy",
+      "motion_evidence": "Source 01 shows Jangho projecting his blade rightward; source 02 shows the blade down at the newly fractured floor. Reviewed state cut is the contact anchor, not inferred speech timing. The probe is a discrete authored state-cut action, not continuous body animation.",
+      "timing_basis": "scene_local",
+      "protected_boxes": [
+        [
+          0.235,
+          0.4,
+          0.28,
+          0.46
+        ],
+        [
+          0.32,
+          0.9,
+          0.42,
+          1
+        ],
+        [
+          0.63,
+          0.75,
+          0.71,
+          0.83
+        ],
+        [
+          0.74,
+          0.9,
+          0.82,
+          1
+        ]
+      ],
+      "electricity_motivated": true,
+      "screen_flash_reviewed": true
+    },
+    "effects": [
+      {
+        "center": [
+          0.328,
+          0.774
+        ],
+        "attack_path": [
+          [
+            0.395,
+            0.5
+          ],
+          [
+            0.4,
+            0.64
+          ],
+          [
+            0.328,
+            0.774
+          ]
+        ],
+        "contact_at_seconds": 0.75,
+        "intensity": 1,
+        "radius": 0.53,
+        "type": "attack_speedline",
+        "duration_seconds": 0.25
+      }
+    ]
+  },
+  {
+    "scene_id": "QA_ATTACK_S01",
+    "asset_id": "E01_S11_STATE_02",
+    "source_file": "images/E01_S11_STATE_02.png",
+    "review": {
+      "contract": "wuxia_attack_accent/v1",
+      "source_sha256": "49711c47847d963396f27c973c66558c788566457335585304dcadee36a5e317",
+      "source_reviewed": true,
+      "event": "Charged sword strike into the stone floor, episode 1 scene 11",
+      "materials": "steel blade and stone floor",
+      "reason": "User-authorized white/yellow electrical accent on the charged sword impact; original preceding artwork depicts blue blade energy",
+      "motion_evidence": "Source 01 shows Jangho projecting his blade rightward; source 02 shows the blade down at the newly fractured floor. Reviewed state cut is the contact anchor, not inferred speech timing. The probe is a discrete authored state-cut action, not continuous body animation.",
+      "timing_basis": "scene_local",
+      "protected_boxes": [
+        [
+          0.17,
+          0.6,
+          0.22,
+          0.66
+        ],
+        [
+          0.49,
+          0.88,
+          0.58,
+          1
+        ],
+        [
+          0.62,
+          0.79,
+          0.68,
+          0.88
+        ],
+        [
+          0.82,
+          0.92,
+          0.9,
+          1
+        ],
+        [
+          0.21,
+          0.65,
+          0.305,
+          0.75
+        ]
+      ],
+      "electricity_motivated": true,
+      "screen_flash_reviewed": true
+    },
+    "effects": [
+      {
+        "center": [
+          0.328,
+          0.774
+        ],
+        "attack_path": [
+          [
+            0.395,
+            0.5
+          ],
+          [
+            0.4,
+            0.64
+          ],
+          [
+            0.328,
+            0.774
+          ]
+        ],
+        "contact_at_seconds": 0.75,
+        "intensity": 1,
+        "radius": 0.53,
+        "type": "contact_flash",
+        "flash_scope": "screen",
+        "duration_seconds": 0.08333333333333333
+      },
+      {
+        "center": [
+          0.328,
+          0.774
+        ],
+        "attack_path": [
+          [
+            0.395,
+            0.5
+          ],
+          [
+            0.4,
+            0.64
+          ],
+          [
+            0.328,
+            0.774
+          ]
+        ],
+        "contact_at_seconds": 0.75,
+        "intensity": 1,
+        "radius": 0.53,
+        "type": "electric_discharge",
+        "duration_seconds": 0.5,
+        "delay_seconds": 0.08333333333333333
+      }
+    ]
+  }
+]
