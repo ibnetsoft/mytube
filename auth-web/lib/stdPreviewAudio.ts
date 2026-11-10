@@ -9,11 +9,28 @@ export function isSavedAudioRequiredError(error: any): boolean {
 export function savedAudioRequiredMessage(locale: string): string {
     const language = String(locale || '').toLowerCase().split(/[-_]/)[0]
     return ({
-        ko: '이 구간에 저장된 음성이 없습니다. [저장+TTS]로 음성을 생성해 주세요. 볼륨 변경은 별도로 저장됩니다.',
-        en: 'This segment has no saved audio. Use [Save + TTS] to generate it. Volume changes are saved separately.',
-        th: 'ส่วนนี้ยังไม่มีเสียงที่บันทึกไว้ โปรดใช้ [บันทึก + TTS] เพื่อสร้างเสียง การปรับระดับเสียงจะบันทึกแยกต่างหาก',
-        vi: 'Đoạn này chưa có âm thanh đã lưu. Hãy dùng [Lưu + TTS] để tạo âm thanh. Thay đổi âm lượng được lưu riêng.',
-    } as Record<string, string>)[language] || 'This segment has no saved audio. Use [Save + TTS] to generate it. Volume changes are saved separately.'
+        ko: '이 구간의 음성을 준비 중이거나 아직 저장되지 않았습니다. 잠시 후 재생을 다시 눌러 주세요. 볼륨 변경은 별도로 저장됩니다.',
+        en: 'Audio for this segment is being prepared or has not been saved yet. Please try playback again shortly.',
+        th: 'เสียงส่วนนี้กำลังเตรียมหรือยังไม่ได้บันทึก โปรดลองเล่นอีกครั้งในอีกสักครู่',
+        vi: 'Âm thanh đoạn này đang được chuẩn bị hoặc chưa được lưu. Vui lòng thử phát lại sau. Thay đổi âm lượng được lưu riêng.',
+    } as Record<string, string>)[language] || 'Audio for this segment is being prepared or has not been saved yet. Please try playback again shortly.'
+}
+
+/** Generate only an explicitly previewed missing clip; wait for a concurrent owner without duplicating synthesis. */
+export async function prepareScenePreviewClip(read: () => Promise<string>, generate: () => Promise<string>, pause: () => Promise<void>): Promise<string> {
+    try { return await read() } catch (error: any) {
+        if (error?.code !== 'audio_not_cached') throw error
+    }
+    try { return await generate() } catch (error: any) {
+        if (error?.code !== 'audio_generation_claimed' && error?.status !== 409) throw error
+        for (let attempt = 0; attempt < 8; attempt++) {
+            await pause()
+            try { return await read() } catch (retry: any) {
+                if (retry?.code !== 'audio_not_cached') throw retry
+            }
+        }
+        throw error
+    }
 }
 
 // Loading a file is not playback: auxiliary tracks follow the narration media clock.

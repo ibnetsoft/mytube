@@ -46,7 +46,7 @@ import { mapDialogueAnnotations, splitSubtitleDialogueBlocks } from '@/lib/stdDi
 import SubtitleSfxEditor from '@/components/SubtitleSfxEditor'
 import SubtitleSfxPicker from '@/components/SubtitleSfxPicker'
 import SubtitleSfxPreview from '@/components/SubtitleSfxPreview'
-import { narrationDurationMatchesTimeline, alignedNarrationSubtitles, bindNarrationPlayback, narrationLoadError, resolveStoredSegmentAudio, isSavedAudioRequiredError, savedAudioRequiredMessage } from '@/lib/stdPreviewAudio'
+import { narrationDurationMatchesTimeline, alignedNarrationSubtitles, bindNarrationPlayback, narrationLoadError, resolveStoredSegmentAudio, isSavedAudioRequiredError, savedAudioRequiredMessage, prepareScenePreviewClip } from '@/lib/stdPreviewAudio'
 import BackgroundAudioWaveform from '@/components/BackgroundAudioWaveform'
 import VoiceStudioPicker from '@/components/VoiceStudioPicker'
 import UnifiedVoiceDialog from '@/components/UnifiedVoiceDialog'
@@ -3853,8 +3853,10 @@ export default function StdPortalPage() {
         vrewAudioPromiseRef.current.set(requestKey, generationPromise)
         try {
             return await generationPromise
-        } catch (error) {
-            setVrewSegmentStatus(prev => ({ ...prev, [cacheKey]: 'error' }))
+        } catch (error: any) {
+            const status = error?.code === 'audio_not_cached' ? 'stale'
+                : error?.code === 'audio_generation_claimed' || error?.status === 409 ? 'loading' : 'error'
+            setVrewSegmentStatus(prev => ({ ...prev, [cacheKey]: status }))
             throw error
         } finally {
             if (vrewAudioPromiseRef.current.get(requestKey) === generationPromise) {
@@ -4008,8 +4010,17 @@ export default function StdPortalPage() {
             let audioUrl = ''
             try {
                 const voiceId = String(subtitle?.voice_id || selectedVoice || '').trim()
-                // Google free TTS can be generated on first playback; paid voices keep the saved-audio requirement.
-                audioUrl = await getOrCreateVrewSegmentAudioUrl(subtitle, index, undefined, !voiceId.startsWith('google_'))
+                // The play button explicitly requests a preview. Generate only
+                // missing lines in the selected scene; later scenes stay read-only.
+                const selectedScene = localSubtitles[Math.max(0, startIndex)]?.scene_number
+                const ensurePreviewActive = () => {
+                    if (vrewPlaybackCancelRef.current !== cancelToken) throw new Error('Preview stopped')
+                }
+                const readClip = () => { ensurePreviewActive(); return getOrCreateVrewSegmentAudioUrl(subtitle, index, undefined, true) }
+                const generateClip = () => { ensurePreviewActive(); return getOrCreateVrewSegmentAudioUrl(subtitle, index, undefined, false) }
+                audioUrl = (selectedScene != null ? subtitle?.scene_number === selectedScene : index === startIndex)
+                    ? await prepareScenePreviewClip(readClip, generateClip, () => new Promise(resolve => setTimeout(resolve, 1000)))
+                    : await getOrCreateVrewSegmentAudioUrl(subtitle, index, undefined, !voiceId.startsWith('google_'))
             } catch (err: any) {
                 if (vrewPlaybackCancelRef.current !== cancelToken) return
                 const isDriveError = err?.code === 'legacy_drive_auth_failed'
@@ -4019,7 +4030,6 @@ export default function StdPortalPage() {
                     stopPreviewBgm()
                     setIsPlayingPreview(false)
                     setIsNarrationPlaying(false)
-                    setHighlightSaveTts(true)
                     setPreviewAudioError('')
                     setMessage(savedAudioRequiredMessage(currentLocale))
                     return
@@ -4125,7 +4135,6 @@ export default function StdPortalPage() {
             const isDriveError = error?.code === 'legacy_drive_auth_failed'
                 || legacyStorageErrorPattern.test(String(error?.message || ''))
             if (isClaimedOrSaveNeeded) {
-                setHighlightSaveTts(true)
                 setPreviewAudioError('')
                 setMessage(savedAudioRequiredMessage(currentLocale))
             } else if (isDriveError || !error?.message) {
