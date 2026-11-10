@@ -288,6 +288,8 @@ async function generateSingleElevenLabsChunk(input: {
     const voiceSettings = elevenLabsVoiceSettings(input.modelId, input)
 
     let lastError = 'ElevenLabs API key is not configured'
+    let definiteRejection = true
+    let paymentIssue = false
     const quotaErrors: Array<{ remaining: number; required: number }> = []
     const modelCandidates = buildElevenLabsModelCandidates(input.modelId)
     for (let keyIndex = 0; keyIndex < input.apiKeys.length; keyIndex += 1) {
@@ -324,6 +326,8 @@ async function generateSingleElevenLabsChunk(input: {
             }
 
             const errText = await res.text()
+            if (res.status >= 500 || res.status === 408 || res.status === 429) definiteRejection = false
+            if (/payment_issue|payment_required|failed or incomplete payment/i.test(errText)) paymentIssue = true
             lastError = `ElevenLabs TTS API error (${res.status}): ${errText}`
             const quotaError = parseElevenLabsQuotaError(errText)
             if (quotaError) quotaErrors.push(quotaError)
@@ -339,7 +343,7 @@ async function generateSingleElevenLabsChunk(input: {
             }
 
             if (!shouldRotateElevenLabsKey(res.status, errText)) {
-                throw new Error(lastError)
+                throw Object.assign(new Error(lastError), { noAudioProduced: definiteRejection })
             }
             break
         }
@@ -348,12 +352,13 @@ async function generateSingleElevenLabsChunk(input: {
     if (quotaErrors.length) {
         const totalRemaining = quotaErrors.reduce((sum, item) => sum + item.remaining, 0)
         const required = Math.max(...quotaErrors.map((item) => item.required))
-        throw new Error(
+        throw Object.assign(new Error(
             `ElevenLabs 크레딧이 부족합니다. 등록된 키 ${input.apiKeys.length}개 중 확인된 총 잔여 크레딧은 ${totalRemaining.toLocaleString('ko-KR')}이고, 현재 음성 청크 생성에는 ${required.toLocaleString('ko-KR')}크레딧이 필요합니다. 관리자 페이지에서 키를 충전하거나 잔여 크레딧이 충분한 백업 키를 추가해 주세요.`
-        )
+        ), { noAudioProduced: definiteRejection })
     }
 
-    throw new Error(lastError)
+    if (paymentIssue && definiteRejection) lastError = 'ElevenLabs 결제가 실패했거나 완료되지 않아 음성을 생성하지 못했습니다. 등록된 API 키 계정의 청구서와 결제 상태를 확인해 주세요. (payment_issue)'
+    throw Object.assign(new Error(lastError), { noAudioProduced: definiteRejection })
 }
 
 async function generateElevenLabsMp3(input: {
@@ -998,7 +1003,7 @@ export async function runTts(body: any, auth: any, project: any, finalizeSubtitl
             stage = 'load_elevenlabs_key'
             const apiKeys = needsElevenLabs ? await getConfiguredElevenLabsKeys() : []
             if (needsElevenLabs && !apiKeys.length) {
-                return NextResponse.json({ success: false, error: 'ElevenLabs API key is not configured' }, { status: 500 })
+                throw Object.assign(new Error('ElevenLabs API key is not configured'), { noAudioProduced: true })
             }
             const keySelection = needsElevenLabs ? await selectUsableElevenLabsKeys(apiKeys, largestChunkChars) : {usableKeys:[],usableSlots:[],inspections:[]}
             elevenLabsKeyInspections = keySelection.inspections
@@ -1008,9 +1013,12 @@ export async function runTts(body: any, auth: any, project: any, finalizeSubtitl
                     (sum, item) => sum + (Number.isFinite(item.remaining) ? Number(item.remaining) : 0),
                     0
                 )
-                throw new Error(
+                if (elevenLabsKeyInspections.some(item => /payment_issue|payment_required|failed or incomplete payment/i.test(String(item.reason || '')))) {
+                    throw Object.assign(new Error('ElevenLabs 결제가 실패했거나 완료되지 않아 음성을 생성하지 못했습니다. 등록된 API 키 계정의 청구서와 결제 상태를 확인해 주세요. (payment_issue)'), { noAudioProduced: true })
+                }
+                throw Object.assign(new Error(
                     `ElevenLabs 사용 가능한 키가 없습니다. 현재 대본은 ${text.length.toLocaleString('ko-KR')}자, ${chunkCount}개 청크이며 가장 긴 청크는 ${largestChunkChars.toLocaleString('ko-KR')}자입니다. 확인된 총 잔여 크레딧은 ${totalRemaining.toLocaleString('ko-KR')}자입니다.`
-                )
+                ), { noAudioProduced: true })
             }
 
             stage = needsElevenLabs ? 'generate_elevenlabs' : 'generate_voice_studio'
@@ -1161,9 +1169,10 @@ export async function runTts(body: any, auth: any, project: any, finalizeSubtitl
             message: multiVoice ? '등장인물 멀티 보이스 TTS 음성이 성공적으로 생성되었습니다!' : 'TTS 음성이 성공적으로 생성되었습니다!',
         })
     } catch (error: any) {
-        // Explicit Google rejection returned no audio. Let the user retry this
-        // segment immediately; timeouts and persistence failures keep their claim.
-        if (error?.name === 'VoiceStudioCloudError' && error.noAudioProduced === true) {
+        // Only release when no paid audio could have been produced. A later
+        // chunk failure, timeout, or persistence failure has an uncertain outcome.
+        const singleSegmentRequest = ttsDebug.chunkCount <= 1 && !body?.multi_voice && !(Array.isArray(body?.voice_segments) && body.voice_segments.length)
+        if (stage === 'load_elevenlabs_key' || (error?.noAudioProduced === true && (stage !== 'generate_elevenlabs' || singleSegmentRequest))) {
             await releaseOwnedTtsClaim(ownedSegmentClaim)
         }
         const failedProvider = String(error?.ttsProvider

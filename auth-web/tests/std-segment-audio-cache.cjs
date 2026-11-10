@@ -6,7 +6,7 @@ const performance=load('auth-web/lib/stdVoicePerformance.ts');
 const helper=load('auth-web/lib/stdSegmentAudioCache.ts',{'@/lib/gcsStorage':gcs,'./stdContentIdentity':contentIdentity,'./stdVoicePerformance':performance});
 const batches=load('auth-web/lib/stdNarrationBatch.ts');
 const mp3=load('auth-web/lib/stdJoinMp3.ts');
-const stored=new Map(); let failDownload=false; const claims=new Set();const assets=[];let generated=0,uploads=0,failUpload=false,providerHook=null;const removedClaims=[];
+const stored=new Map(); let failDownload=false; const claims=new Set();const assets=[];let generated=0,uploads=0,failUpload=false,providerHook=null,elevenKeys=[];const removedClaims=[];
 const project={id:'10b3d223-1457-415a-ba40-7b947c6c1b3d',language:'ko'};
 const db={storage:{from:()=>({
     remove:async(paths)=>{for(const path of paths){removedClaims.push(path);claims.delete(path);stored.delete(path)}return {error:null}},
@@ -38,7 +38,7 @@ function route(){return load('auth-web/lib/stdTtsGenerate.ts',{
     '@/lib/stdGoogleDrive':{driveFileLink:()=>'',ensureStdProjectDriveFolders:()=>{throw Error('Must not use Drive')}},
     '@/lib/stdVoiceStudio':{generateVoiceStudioMp3:async(input)=>{generated++;if(providerHook)await providerHook(input);const frame=Buffer.alloc(417);frame.set([0xff,0xfb,0x90,0x00]);return frame}},
     '@/lib/voiceStudioCatalog':{isVoiceStudioVoice:v=>v!=='eleven-test-voice',mergeVoiceStudioSegments:s=>s},
-    '@/lib/stdTtsCompletion':{completedScriptTtsProgress:p=>p},'@/lib/stdLegacySync':{},'@/lib/stdMultiVoice':{},'@/lib/elevenLabsKeys':{getConfiguredElevenLabsKeys:async()=>[]}
+    '@/lib/stdTtsCompletion':{completedScriptTtsProgress:p=>p},'@/lib/stdLegacySync':{},'@/lib/stdMultiVoice':{},'@/lib/elevenLabsKeys':{getConfiguredElevenLabsKeys:async()=>elevenKeys}
 })}
 const body={text:'남았네.',voice_id:'Charon',provider:'voice_studio',mode:'vrew_segment_preview_fast',cache_key:'legacy-key',speed:1,stability:0.35,style:0.45,segment_index:2};
 const call=(r,b=body)=>r.POST({json:async()=>b},{params:{projectId:project.id}});
@@ -109,6 +109,25 @@ const call=(r,b=body)=>r.POST({json:async()=>b},{params:{projectId:project.id}})
  const definiteRetry=await call(route(),definiteBody);
  assert.equal(definiteRetry.status,200,'Immediate manual retry must not wait for claim expiration');assert.equal(generated,definiteStart+2);
  assert.equal((await call(route(),definiteBody)).data.cached,true);assert.equal(generated,definiteStart+2,'A successful manual retry is persistently reusable');
+
+ // ElevenLabs payment rejection is definitive: preserve the real cause and release only the owned claim.
+ const oldFetch=global.fetch; elevenKeys=['test-payment-key'];
+ global.fetch=async url=>String(url).includes('/user/subscription')
+   ? new Response(JSON.stringify({character_limit:1000,character_count:0}),{status:200,headers:{'content-type':'application/json'}})
+   : new Response(JSON.stringify({detail:{type:'payment_required',code:'payment_issue',message:'Your subscription has a failed or incomplete payment.'}}),{status:401});
+ const paymentBody={...body,provider:'elevenlabs',voice_id:'eleven-test-voice',text:'payment rejection'};
+ const payment=await call(route(),paymentBody);assert.equal(payment.status,500);assert.match(payment.data.error,/payment_issue/);
+ const paymentRetry=await call(route(),paymentBody);assert.equal(paymentRetry.status,500);assert.match(paymentRetry.data.error,/payment_issue/);assert.notEqual(paymentRetry.status,409);
+ global.fetch=async url=>String(url).includes('/user/subscription')
+   ? new Response(JSON.stringify({character_limit:1000,character_count:0}),{status:200,headers:{'content-type':'application/json'}})
+   : new Response('provider unavailable',{status:503});
+ const unavailableBody={...paymentBody,text:'uncertain provider failure'};
+ const unavailable=await call(route(),unavailableBody);assert.equal(unavailable.status,500);
+ assert.equal((await call(route(),unavailableBody)).status,409,'An uncertain provider failure must retain its claim');
+ global.fetch=oldFetch;elevenKeys=[];
+ const noKeyBody={...paymentBody,text:'missing key should not retain claim'};
+ assert.match((await call(route(),noKeyBody)).data.error,/not configured/);
+ assert.match((await call(route(),noKeyBody)).data.error,/not configured/);
 
  const uncertainBody={...body,text:'Unknown provider timeout must remain claimed'};
  const uncertainClaims=new Set(claims);const uncertainStart=generated;let uncertainClaim;

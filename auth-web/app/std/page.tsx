@@ -7185,7 +7185,7 @@ export default function StdPortalPage() {
         } catch (error: any) {
             console.warn('[subtitle final save]', error?.message)
             const errorMessage = localizeStdActionError(error, currentLocale, 'subtitle_save')
-            setTtsNotice({ projectId: selectedProject?.project?.id || '', projectTitle: getProjectSyncedTitle(selectedProject) || '', phase: 'error', detail: errorMessage })
+            setTtsNotice({ projectId: selectedProject?.project?.id || '', projectTitle: getProjectSyncedTitle(selectedProject) || '', kind: 'subtitles', phase: 'error', detail: errorMessage })
             setMessage(`❌ ${errorMessage}`)
             alert(`${copy.finalSaveFailedTitle}: ${errorMessage}`)
         } finally {
