@@ -32,6 +32,7 @@ import { localizeSubtitleStatus } from '@/lib/stdSubtitleStatus'
 import { isTemplateBackgroundTransparent } from '@/lib/stdTemplateBackground'
 import StdBackgroundTts from '@/components/StdBackgroundTts'
 import StdTtsNotice, { TtsNotice, ttsNoticeCopy } from '@/components/StdTtsNotice'
+import { acknowledgeTtsNotice } from '@/lib/stdTtsNoticeAcknowledgement'
 import StdSubmissionNotice, { SubmissionNotice, submissionNoticeCopy } from '@/components/StdSubmissionNotice'
 import StdCollapsibleSidebar from '@/components/StdCollapsibleSidebar'
 import { stdUiText } from '@/lib/stdUiText'
@@ -8704,7 +8705,12 @@ export default function StdPortalPage() {
                 headers={authedJsonHeaders} locale={currentLocale} refreshKey={ttsJobRefreshKey}
                 onBusy={setBackgroundTtsActive} onNotice={setTtsNotice}
                 onComplete={() => { refreshProjectList(); if (selectedProject && !['dirty', 'saving', 'error'].includes(subtitleSaveState)) void openProjectAfterSave(selectedProject.project.id, undefined, undefined, true) }} />
-            <StdTtsNotice notice={ttsNotice} locale={currentLocale} onDismiss={() => setTtsNotice(null)} />
+            <StdTtsNotice notice={ttsNotice} locale={currentLocale} onDismiss={() => {
+                if (ttsNotice?.background && ttsNotice.jobId && ttsNotice.phase !== 'running') {
+                    acknowledgeTtsNotice(window.localStorage, ttsNotice.projectId, ttsNotice.jobId)
+                }
+                setTtsNotice(null)
+            }} />
             <StdSubmissionNotice notice={renderSubmissionNotice} locale={currentLocale} onDismiss={() => setRenderSubmissionNotice(null)} />
             {topicProjectOpen && (
                 <div

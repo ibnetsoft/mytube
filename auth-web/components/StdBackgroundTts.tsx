@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useRef } from 'react'
 import { TtsNotice, ttsNoticeCopy } from './StdTtsNotice'
+import { ttsNoticeAcknowledged } from '@/lib/stdTtsNoticeAcknowledgement'
 
 export default function StdBackgroundTts({ projectId, projectTitle, headers, locale, refreshKey, onBusy, onNotice, onComplete }: {
     projectId: string; projectTitle: string; headers: Record<string, string>; locale: string; refreshKey: number
@@ -22,9 +23,9 @@ export default function StdBackgroundTts({ projectId, projectTitle, headers, loc
                 if (stopped) return
                 const active = job && ['queued', 'processing'].includes(job.status)
                 onBusy(Boolean(active))
-                if (job && (active || delivered.current !== job.id)) {
+                if (job && (active || (delivered.current !== job.id && !ttsNoticeAcknowledged(window.localStorage, projectId, job.id)))) {
                     const copy = ttsNoticeCopy(locale)
-                    onNotice({ projectId, projectTitle, background: true,
+                    onNotice({ projectId, projectTitle, background: true, jobId: job.id,
                         phase: active ? 'running' : job.status === 'completed' ? 'success' : 'error',
                         detail: active ? `${copy.progress(job.ready, job.total)}${job.ready === job.total ? ` · ${copy.assembling}` : ''}`
                             : job.status === 'completed' ? `${copy.saved} ${copy.counts(job.reused, job.generated)}` : job.error })

@@ -2,6 +2,7 @@ import { AlertCircle, CheckCircle2, RefreshCw, X } from 'lucide-react'
 
 export type TtsNotice = {
     background?: boolean
+    jobId?: string
     kind?: 'tts' | 'subtitles'
     projectId: string
     projectTitle: string
