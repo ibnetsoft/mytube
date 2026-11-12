@@ -29,6 +29,20 @@ class TranslationTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 translate_blocks(Runner({'translations': items}), 'test', self.blocks, 'ko')
 
+    def test_placeholder_retried_and_never_published(self):
+        class RetryRunner:
+            def __init__(self): self.calls = []
+            def _stage(self, identity, name, context, task):
+                self.calls.append((name, context, task))
+                return {'translations': [{'id': 'b3', 'translation': '[원문 문자 손상으로 번역 불가]'}, {'id': 'b7', 'translation': '정상'}]} if len(self.calls) == 1 else {'translations': [{'id': 'b3', 'translation': '고마워'}, {'id': 'b7', 'translation': '오스즈는 웃었다'}]}
+        runner = RetryRunner()
+        result = translate_blocks(runner, 'test', self.blocks, 'ko')
+        self.assertEqual(result[0]['translated_text'], '고마워')
+        self.assertEqual(len(runner.calls), 2)
+        self.assertIn('retry_invalid', runner.calls[1][0])
+        with self.assertRaises(ValueError):
+            translate_blocks(Runner({'translations': [{'id': 'b3', 'translation': '[원문 문자 손상으로 번역 불가]'}, {'id': 'b7', 'translation': '정상'}]}), 'test', self.blocks, 'ko')
+
     def test_failed_validation_never_publishes_to_project(self):
         calls = []
 

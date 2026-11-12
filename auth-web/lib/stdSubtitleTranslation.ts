@@ -17,6 +17,10 @@ export function isSubtitleTranslationLanguage(value: unknown): value is Subtitle
     return Object.prototype.hasOwnProperty.call(SUBTITLE_TRANSLATION_LANGUAGES, String(value || ''))
 }
 
+export function isSubtitleTranslationFailure(value: unknown): boolean {
+    return /(원문.{0,20}(손상|깨짐)|번역.{0,8}(불가|불가능|할 수 없)|unable to translate|cannot translate|corrupted (source|text)|untranslatable)/i.test(String(value || ''))
+}
+
 export function subtitleTranslationKey(index: number, sourceText: string): string {
     return `${Math.floor(Number(index))}\u0000${String(sourceText || '')}`
 }

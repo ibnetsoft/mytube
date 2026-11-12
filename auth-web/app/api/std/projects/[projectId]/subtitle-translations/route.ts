@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server'
-import { createHash } from 'crypto'
+import { createHash, randomUUID } from 'crypto'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import {
     isSubtitleTranslationLanguage,
     SubtitleTranslationBlock,
     subtitleTranslationKey,
+    isSubtitleTranslationFailure,
     translationMapFromBlocks,
     remapSubtitleTranslations,
 } from '@/lib/stdSubtitleTranslation'
@@ -92,6 +93,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         return NextResponse.json({ success: false, error: 'Invalid translation indexes' }, { status: 400 })
     }
     const targets = requestedIndexes === null ? null : new Set<number>(requestedIndexes)
+    const forceIndexes = new Set<number>(Array.isArray(body.force_indexes) ? body.force_indexes.filter((i: unknown) => Number.isInteger(i) && targets?.has(i as number)) : [])
     const cachedBlocks = project.project_payload?.subtitle_translations?.[targetLanguage]?.blocks
     const cached = translationMapFromBlocks(remapSubtitleTranslations(
         Array.isArray(cachedBlocks) ? cachedBlocks : [], blocks,
@@ -99,8 +101,10 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
     const translated = new Map<string, string>()
     const missing = blocks.filter((block: any) => {
         const cachedText = cached[subtitleTranslationKey(block.index, block.source_text)]
-        if (cachedText) translated.set(String(block.index), cachedText)
-        return !cachedText && (targets === null || targets.has(block.index))
+        const targeted = targets === null || targets.has(block.index)
+        const reusable = cachedText && !forceIndexes.has(block.index) && (!targeted || !isSubtitleTranslationFailure(cachedText))
+        if (reusable) translated.set(String(block.index), cachedText)
+        return !reusable && (targets === null || targets.has(block.index))
     })
 
     if (body.job_id) {
@@ -113,9 +117,12 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         }
         if (job.status === 'failed') return NextResponse.json({ success: false, error: job.error }, { status: 502 })
         if (job.status !== 'completed') return NextResponse.json({ success: true, pending: true, job_id: job.id, provider: 'local-codex' }, { status: 202 })
-        for (const item of job.result_blocks || []) translated.set(String(item.index), item.translated_text)
+        for (const item of job.result_blocks || []) {
+            if (isSubtitleTranslationFailure(item.translated_text)) return NextResponse.json({ success: false, error: '번역 결과를 확인하지 못했습니다. 해당 줄의 ↻ 번역 버튼을 눌러 다시 시도해 주세요.' }, { status: 502 })
+            translated.set(String(item.index), item.translated_text)
+        }
     } else if (missing.length > 0) {
-        const requestHash = createHash('sha256').update(JSON.stringify(missing)).digest('hex')
+        const requestHash = createHash('sha256').update(JSON.stringify(missing) + (forceIndexes.size ? randomUUID() : '')).digest('hex')
         const existing = await supabaseAdmin.from(JOB_TABLE).select('id,status,result_blocks')
             .eq('project_id', project.id).eq('target_language', targetLanguage).eq('translation_kind', 'subtitles').eq('request_hash', requestHash).maybeSingle()
         let job = existing.data
@@ -146,7 +153,10 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         }
         if (!job) return NextResponse.json({ success: false, error: '로컬 번역 작업을 찾지 못했습니다.' }, { status: 500 })
         if (job.status !== 'completed') return NextResponse.json({ success: true, pending: true, job_id: job.id, provider: 'local-codex' }, { status: 202 })
-        for (const item of job.result_blocks || []) translated.set(String(item.index), item.translated_text)
+        for (const item of job.result_blocks || []) {
+            if (isSubtitleTranslationFailure(item.translated_text)) return NextResponse.json({ success: false, error: '번역 결과를 확인하지 못했습니다. 해당 줄의 ↻ 번역 버튼을 눌러 다시 시도해 주세요.' }, { status: 502 })
+            translated.set(String(item.index), item.translated_text)
+        }
     }
     const result: SubtitleTranslationBlock[] = blocks.map((block: any) => ({
         ...block, translated_text: translated.get(String(block.index)) || '',

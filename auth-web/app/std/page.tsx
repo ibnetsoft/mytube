@@ -79,6 +79,7 @@ import {
     translationMapFromBlocks,
     remapSubtitleTranslationMap,
     subtitleTranslationIndexes,
+    isSubtitleTranslationFailure,
 } from '@/lib/stdSubtitleTranslation'
 
 const SUBTITLE_REVIEW_LANGUAGES = Object.keys(SUBTITLE_TRANSLATION_LANGUAGES) as SubtitleTranslationLanguage[]
@@ -1232,6 +1233,7 @@ export default function StdPortalPage() {
     const [subtitleTranslations, setSubtitleTranslations] = useState<Partial<Record<SubtitleTranslationLanguage, Record<string, string>>>>({})
     const [translatingSubtitleLanguage, setTranslatingSubtitleLanguage] = useState<SubtitleTranslationLanguage | null>(null)
     const [subtitleTranslationError, setSubtitleTranslationError] = useState('')
+    const [translationFailureNoticeDismissed, setTranslationFailureNoticeDismissed] = useState(false)
     const subtitleTranslationRequestRef = useRef('')
     const subtitleTranslationControllerRef = useRef<AbortController | null>(null)
     const subtitleSyncContextRef = useRef({ subtitles: localSubtitles, projectId: selectedProject?.project?.id })
@@ -1977,6 +1979,9 @@ export default function StdPortalPage() {
         ]),
     ), [subtitleTranslations, localSubtitles])
 
+    const hasSubtitleTranslationFailure = subtitleReviewLocale && Object.values(alignedSubtitleTranslations[subtitleReviewLocale] || {}).some(isSubtitleTranslationFailure)
+    useEffect(() => { setTranslationFailureNoticeDismissed(false) }, [selectedProject?.project?.id])
+
     const persistedSubtitleTranslations = selectedProject?.project?.project_payload?.subtitle_translations
 
     useEffect(() => {
@@ -2015,6 +2020,7 @@ export default function StdPortalPage() {
         subtitleTranslationControllerRef.current = controller
         subtitleTranslationRequestRef.current = signature
         setTranslatingSubtitleLanguage(targetLanguage)
+        setTranslationFailureNoticeDismissed(false)
         setSubtitleTranslationError('')
         try {
             const languageName = SUBTITLE_REVIEW_COPY[targetLanguage].name
@@ -2025,7 +2031,7 @@ export default function StdPortalPage() {
                 if (controller.signal.aborted) return
                 const response = await fetch(`/api/std/projects/${encodeURIComponent(projectId)}/subtitle-translations`, {
                     method: 'POST', headers: authedJsonHeaders, signal: controller.signal,
-                    body: JSON.stringify({ target_language: targetLanguage, translate_indexes: translateIndexes, blocks, job_id: jobId }),
+                    body: JSON.stringify({ target_language: targetLanguage, translate_indexes: translateIndexes, force_indexes: options?.targetIndex === undefined ? [] : [options.targetIndex], blocks, job_id: jobId }),
                 })
                 payload = await safeParseJson(response, `${languageName} 자막 번역에 실패했습니다.`)
                 if (!response.ok || !payload?.success) throw new Error(payload?.error || `${languageName} 자막 번역에 실패했습니다.`)
@@ -8720,6 +8726,7 @@ export default function StdPortalPage() {
                 }
                 setTtsNotice(null)
             }} />
+            {currentNav === 'subtitle_vrew' && (hasSubtitleTranslationFailure || Boolean(subtitleTranslationError)) && !translationFailureNoticeDismissed && <div role="status" className="fixed bottom-4 right-4 z-[81] w-[min(420px,calc(100vw-32px))] rounded-xl border border-amber-400/60 bg-[#17212d] p-4 text-sm text-white shadow-2xl">일부 자막을 번역하지 못했습니다. 해당 줄의 ↻ 번역 버튼으로 다시 번역할 수 있습니다.<button type="button" className="mt-3 w-full rounded-lg bg-white/10 px-3 py-2" onClick={() => setTranslationFailureNoticeDismissed(true)}>확인</button></div>}
             <StdSubmissionNotice notice={renderSubmissionNotice} locale={currentLocale} onDismiss={() => setRenderSubmissionNotice(null)} />
             {topicProjectOpen && (
                 <div
@@ -10320,7 +10327,7 @@ export default function StdPortalPage() {
                                                                                             lang={subtitleReviewLocale}
                                                                                             title={localizedTranslation || subtitleTranslationError || subtitleReviewCopy.pending}
                                                                                         >
-                                                                                            {localizedTranslation || (item.translation_manual ? (
+                                                                                            {isSubtitleTranslationFailure(localizedTranslation) ? <span className="inline-flex items-center gap-1">{localizedTranslation}<button type="button" aria-label="이 자막 다시 번역" title="↻ 번역" disabled={translatingSubtitleLanguage !== null} onClick={(event) => { event.stopPropagation(); void translateSubtitleBlocks(subtitleReviewLocale, true, undefined, { targetIndex: item.subtitleIndex }) }}><RefreshCw size={13} /></button></span> : localizedTranslation || (item.translation_manual ? (
                                                                                                 <span className="inline-flex items-center gap-1.5">
                                                                                                     <span>{subtitleReviewLocale === 'th' ? 'แปล' : subtitleReviewLocale === 'vi' ? 'Dịch' : 'Translate'}</span>
                                                                                                     <button type="button" aria-label={subtitleReviewLocale === 'th' ? 'แปล' : 'Translate'}

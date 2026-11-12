@@ -51,11 +51,15 @@ console.log('subtitle merge/split preserves every unchanged translation before a
 // Execute the route's cache selection so the regression also covers API input.
 const route = fs.readFileSync(require.resolve('../app/api/std/projects/[projectId]/subtitle-translations/route.ts'), 'utf8')
 const selection = route.slice(route.indexOf('    const cachedBlocks ='), route.indexOf('    if (body.job_id)', route.indexOf('    const cachedBlocks =')))
-const selectMissing = new Function('targets', 'project', 'targetLanguage', 'blocks', 'translationMapFromBlocks', 'remapSubtitleTranslations', 'subtitleTranslationKey',
+const selectMissing = new Function('targets', 'project', 'targetLanguage', 'blocks', 'translationMapFromBlocks', 'remapSubtitleTranslations', 'subtitleTranslationKey', 'forceIndexes', 'isSubtitleTranslationFailure',
     ts.transpile(selection + '\nreturn missing', { target: ts.ScriptTarget.ES2020 }))
 const missing = selectMissing(null, { project_payload: { subtitle_translations: { th: { blocks: saved } } } }, 'th',
-    merged.map((source_text, index) => ({ index, source_text })), translationMapFromBlocks, remapSubtitleTranslations, subtitleTranslationKey)
+    merged.map((source_text, index) => ({ index, source_text })), translationMapFromBlocks, remapSubtitleTranslations, subtitleTranslationKey, new Set(), moduleBox.exports.isSubtitleTranslationFailure)
 assert.deepEqual(missing, [{ index: 1, source_text: merged[1] }])
+const errorSaved = [{ index: 0, source_text: '文一', translated_text: '[원문 문자 손상으로 번역 불가]' }, { index: 1, source_text: '文二', translated_text: '[원문 문자 손상으로 번역 불가]' }, { index: 2, source_text: '文三', translated_text: '정상' }]
+const forced = selectMissing(new Set([0]), { project_payload: { subtitle_translations: { ko: { blocks: errorSaved } } } }, 'ko', errorSaved.map(({ index, source_text }) => ({ index, source_text })), translationMapFromBlocks, remapSubtitleTranslations, subtitleTranslationKey, new Set([0]), moduleBox.exports.isSubtitleTranslationFailure)
+assert.deepEqual(forced, [{ index: 0, source_text: '文一' }], 'Manual retry targets only the requested line')
+
 console.log('API translates only the merged sentence in a 316-block project')
 
 assert.doesNotMatch(route, /generateJsonWithModelSetting|geminiApiKey|OPENAI_API_KEY|GEMINI_API_KEY/)
