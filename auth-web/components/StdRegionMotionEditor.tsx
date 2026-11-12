@@ -615,7 +615,7 @@ export default function StdRegionMotionEditor({
                                             onBusy={setLayerBusy}
                                         />
                                     )}
-                                    {scene && image && sha && <StdMotion2dPatches key={`${scene.imageId}:${sha}`} projectId={projectId} headers={headers} scene={number} imageId={scene.imageId} imageSha={sha} image={image} disabled={busy} />}
+                                    {scene && image && sha && <StdMotion2dPatches key={`${scene.imageId}:${sha}`} projectId={projectId} headers={headers} scene={number} imageId={scene.imageId} imageSha={sha} image={image} backgroundAssetId={backgroundAssetId} disabled={busy} />}
                                     {video && (
                                         <video
                                             className="mt-3 w-full"
