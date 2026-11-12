@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import StdRegionLayers from './StdRegionLayers'
+import StdMotion2dPatches from './StdMotion2dPatches'
 import { regionMotionText } from '@/lib/stdRegionMotionCopy'
 import {
     regionTransform,
@@ -614,6 +615,7 @@ export default function StdRegionMotionEditor({
                                             onBusy={setLayerBusy}
                                         />
                                     )}
+                                    {scene && image && sha && <StdMotion2dPatches key={`${scene.imageId}:${sha}`} projectId={projectId} headers={headers} scene={number} imageId={scene.imageId} imageSha={sha} image={image} disabled={busy} />}
                                     {video && (
                                         <video
                                             className="mt-3 w-full"
