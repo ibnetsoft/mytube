@@ -4,16 +4,19 @@ async function main(){
  const browser=await chromium.launch({headless:true,channel:process.env.PLAYWRIGHT_CHANNEL || 'chrome'}), page=await browser.newPage({viewport:{width:1400,height:1000}});
  page.setDefaultTimeout(10000);
  const source=await sharp({create:{width:320,height:200,channels:3,background:'#ffcc88'}}).png().toBuffer();
- let saved=false;
+ let saved=false, backgroundSaved=false, providePackage=false;
+ const motionLib={};new Function('exports',ts.transpileModule(fs.readFileSync(path.join(root,'lib/stdRegionMotion.ts'),'utf8'),{compilerOptions:{module:1,target:9}}).outputText)(motionLib);
  const region={id:'arm',name:'아래팔',polygon:[[.3,.1],[.5,.1],[.5,.7],[.3,.7]],anchor:[.35,.2],contour:'exact',occluded:true,action:'hold',amplitude:2,period:2,cycles:1,start:0,subtitleId:'s'};
- const scene={number:1,imageId:'image',duration:6,subtitles:[{id:'s',text:'시작',start:0,end:6}],layerDraft:{editorRegions:[{...region,id:'body',name:'몸통',occluded:false},region]}};
+ const scene={number:1,imageId:'image',duration:6,subtitles:[{id:'s',text:'시작',start:0,end:6}],layerDraft:{input:{background:{id:'bg'}},editorRegions:[{...region,id:'body',name:'몸통',occluded:false},region]}};
  await page.route('http://joint.test/**',async route=>{
   const req=route.request(),url=new URL(req.url());
   if(url.pathname==='/')return route.fulfill({contentType:'text/html',body:'<html><body><div id="root"></div></body></html>'});
   if(url.searchParams.has('image'))return route.fulfill({contentType:'image/png',body:source});
   if(url.pathname.endsWith('region-layers')){
-   if(req.method()==='POST'){assert.ok(req.postDataBuffer().includes(Buffer.from('image/png')));saved=true;return route.fulfill({json:{asset:{id:'drawn-part'}}});}
-   return route.fulfill({json:{packages:[]}});
+   if(req.method()==='POST'){assert.ok(req.postDataBuffer().includes(Buffer.from('image/png')));if(req.postDataBuffer().includes(Buffer.from('background')))backgroundSaved=true;else saved=true;return route.fulfill({json:{asset:{id:'drawn-part'}}});}
+   if(url.searchParams.has('role')||url.searchParams.has('upload'))return route.fulfill({contentType:'image/png',body:source});
+   const key=motionLib.regionLayerKey('image','00'.repeat(32),scene.layerDraft.editorRegions,'bg');
+   return route.fulfill({json:{packages:providePackage?[{id:'pack',key,state:'prepared',result:{files:[{role:'background'},{role:'region:body'},{role:'region:arm'},{role:'composite'}]}}]:[]}});
   }
   return route.fulfill({json:{scenes:[scene]}});
  });
@@ -21,18 +24,29 @@ async function main(){
  await page.addScriptTag({path:path.join(path.dirname(require.resolve('react/package.json')),'umd/react.development.js')});
  await page.addScriptTag({path:path.join(path.dirname(require.resolve('react-dom/package.json')),'umd/react-dom.development.js')});
  const modules={'@/lib/stdRegionMotion':'lib/stdRegionMotion.ts','@/lib/stdRegionMotionCopy':'lib/stdRegionMotionCopy.ts','./StdRegionLayers':'components/StdRegionLayers.tsx',editor:'components/StdRegionMotionEditor.tsx'};
- let bundle=`var modules={},cache={};function require(name){if(name==='react')return React;if(name==='react-dom')return ReactDOM;if(name==='react/jsx-runtime')return {jsx:(t,p,k)=>React.createElement(t,{...p,key:k}),jsxs:(t,p,k)=>React.createElement(t,{...p,key:k}),Fragment:React.Fragment};if(cache[name])return cache[name];var exports={};cache[name]=exports;modules[name](exports,require);return exports;}\n`;
+ let bundle=`var modules={'./StdMotion2dPatches':function(exports){exports.default=function(){return null}}},cache={};function require(name){if(name==='react')return React;if(name==='react-dom')return ReactDOM;if(name==='react/jsx-runtime')return {jsx:(t,p,k)=>React.createElement(t,{...p,key:k}),jsxs:(t,p,k)=>React.createElement(t,{...p,key:k}),Fragment:React.Fragment};if(cache[name])return cache[name];var exports={};cache[name]=exports;modules[name](exports,require);return exports;}\n`;
  for(const [key,file]of Object.entries(modules))bundle+=`modules[${JSON.stringify(key)}]=function(exports,require){${ts.transpileModule(fs.readFileSync(path.join(root,file),'utf8'),{compilerOptions:{module:1,target:9,jsx:4}}).outputText}};\n`;
  bundle+=`ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(require('editor').default,{projectId:'fixture',headers:{},locale:'ko'}));`;
  await page.evaluate(()=>{Object.defineProperty(window.crypto,'subtle',{value:{digest:async()=>new Uint8Array(32).buffer}})});
  await page.addScriptTag({content:bundle});
  await page.getByRole('button',{name:'영역 동작 지정',exact:true}).click();
+ const preview=page.getByRole('button',{name:'동작 미리보기',exact:true});
+ await preview.waitFor();assert.equal(await preview.isDisabled(),true);
+ const svg=page.getByRole('img',{name:'움직일 영역과 고정점 지정'});assert.equal(await svg.locator('image').count(),1);
+ providePackage=true;await page.getByText('원본과 비교',{exact:true}).waitFor({timeout:12000});assert.equal(await preview.isEnabled(),true);assert.equal(await svg.locator('image').count(),3);
+ await page.getByLabel('몸통',{exact:true}).uncheck();assert.equal(await svg.locator('image').count(),2);
+ await page.getByLabel('몸통',{exact:true}).check();await page.getByLabel('원본과 비교',{exact:true}).check();assert.equal(await svg.locator('image').count(),1);assert.equal(await preview.isDisabled(),true);
+ await page.getByLabel('원본과 비교',{exact:true}).uncheck();
  await page.getByRole('combobox',{name:'동작 영역',exact:true}).selectOption('1');
+ await page.getByLabel('이 부위가 가려졌거나 이미지 밖으로 잘려 있음',{exact:false}).uncheck();
+ assert.equal(await preview.isDisabled(),true);assert.equal(await svg.locator('image').count(),1);
+ await page.getByLabel('이 부위가 가려졌거나 이미지 밖으로 잘려 있음',{exact:false}).check();
  await page.getByRole('combobox',{name:'부모 관절',exact:true}).selectOption('body');
  await page.getByRole('combobox',{name:'동작 종류',exact:true}).selectOption('walk');
  await page.getByRole('combobox',{name:'보행 부위',exact:true}).selectOption('lower');
  await page.getByRole('combobox',{name:'좌우 동작 위상',exact:true}).selectOption('0.5');
  await page.getByRole('button',{name:'부위 그리기 · 가려진 부분·관절 겹침 보완',exact:true}).click();
+ await page.getByLabel('원본을 뒤에 표시').check();
  const canvas=page.locator('canvas');await page.waitForFunction(()=>document.querySelector('canvas')?.width===320);
  const pixel=()=>canvas.evaluate(c=>Array.from(c.getContext('2d').getImageData(112,40,1,1).data));const before=await pixel();
  await page.getByLabel('부위 색상',{exact:true}).fill('#123456');
@@ -44,6 +58,13 @@ async function main(){
  assert.equal(await canvas.evaluate(c=>c.getContext('2d').getImageData(112,155,1,1).data[3]),255);
  await page.getByRole('button',{name:'수정한 외곽선 저장',exact:true}).click();await page.getByText('보완 이미지를 저장했습니다.',{exact:false}).waitFor();assert.equal(saved,true);
  assert.equal(await page.getByRole('combobox',{name:'부모 관절',exact:true}).inputValue(),'body');
- console.log('PASS: parent/gait settings, hidden-part drawing before preparation, overlap cap, undo, continuous brush, transparent PNG upload');await browser.close();
+ await page.getByRole('button',{name:'배경 보정하기',exact:true}).click();await page.waitForFunction(()=>document.querySelector('canvas')?.width===320);
+ await canvas.evaluate(c=>{c.style.width='320px';c.style.height='200px';const x=c.getContext('2d');x.fillStyle='#123456';x.fillRect(15,15,30,30)});
+ const bgbox=await canvas.boundingBox();await page.mouse.click(bgbox.x+30,bgbox.y+30);
+ await page.mouse.click(bgbox.x+200,bgbox.y+100);
+ assert.deepEqual(await canvas.evaluate(c=>Array.from(c.getContext('2d').getImageData(200,100,1,1).data)),[18,52,86,255]);
+ await page.getByRole('button',{name:'되돌리기',exact:true}).click();assert.notDeepEqual(await canvas.evaluate(c=>Array.from(c.getContext('2d').getImageData(200,100,1,1).data)),[18,52,86,255]);
+ await page.mouse.click(bgbox.x+200,bgbox.y+100);await page.getByRole('button',{name:'수정한 배경 저장',exact:true}).click();await page.getByText('보완 이미지를 저장했습니다.',{exact:false}).waitFor();assert.equal(backgroundSaved,true);
+ console.log('PASS: safe preview, layer visibility and comparison, geometry invalidation, parent/gait controls and foreground/background brush editing');await browser.close();
 }
 main().catch(e=>{console.error(e);process.exit(1)});

@@ -1,11 +1,12 @@
 'use client'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import StdRegionLayers from './StdRegionLayers'
 import StdMotion2dPatches from './StdMotion2dPatches'
 import { regionMotionText } from '@/lib/stdRegionMotionCopy'
 import {
     regionTransform,
+    regionLayerKey,
     parseRegionMotionCommand,
     regionMotionLabels,
     validateRegionMotions,
@@ -57,9 +58,20 @@ export default function StdRegionMotionEditor({
         [dirty, setDirty] = useState(false)
     const [layerPackageId, setLayerPackageId] = useState(''),
         [backgroundAssetId, setBackgroundAssetId] = useState('')
-    const [layerUrls, setLayerUrls] = useState<Record<string, string>>({})
+    const [layerPreview, setLayerPreview] = useState<{ key: string; urls: Record<string, string> }>({ key: '', urls: {} })
+    const [hiddenLayers, setHiddenLayers] = useState<string[]>([])
+    const [showOriginal, setShowOriginal] = useState(false)
+    const receiveLayerPreview = useCallback((urls: Record<string, string>, key: string) => setLayerPreview({ key, urls }), [])
     const [layerBusy, setLayerBusy] = useState(false)
     const busy = requestBusy || layerBusy
+    const currentLayerKey = useMemo(() => {
+        try {
+            const current = scenes.find((item) => item.number === number)
+            return current && sha && regions.length ? regionLayerKey(current.imageId, sha, regions, backgroundAssetId) : ''
+        } catch { return '' }
+    }, [scenes, number, sha, regions, backgroundAssetId])
+    const layerUrls = currentLayerKey && layerPreview.key === currentLayerKey ? layerPreview.urls : {}
+    const layersReady = !!layerUrls.background && regions.length > 0 && regions.every((item) => !!layerUrls['region:' + item.id])
     const drag = useRef<MotionPoint | null>(null),
         scene = scenes.find((s) => s.number === number),
         region = regions[selected]
@@ -83,6 +95,9 @@ export default function StdRegionMotionEditor({
                     : s.rigRegions || []),
         )
         setLayerPackageId('')
+        setLayerPreview({ key: '', urls: {} })
+        setHiddenLayers([])
+        setShowOriginal(false)
         setBackgroundAssetId(
             s.layerDraft?.input?.background?.id ||
                 s.plan?.input?.backgroundAssetId ||
@@ -146,6 +161,9 @@ export default function StdRegionMotionEditor({
         frame = requestAnimationFrame(tick)
         return () => cancelAnimationFrame(frame)
     }, [playing, scene?.duration]) // eslint-disable-line react-hooks/exhaustive-deps
+    useEffect(() => {
+        if (!layersReady) { setPlaying(false); setTime(0) }
+    }, [layersReady])
     function patch(value: Partial<RegionMotion>) {
         setRegions((rows) =>
             rows.map((r, i) => (i === selected ? { ...r, ...value } : r)),
@@ -432,63 +450,19 @@ export default function StdRegionMotionEditor({
                                                 drag.current = null
                                             }}
                                         >
-                                            <defs>
-                                                <mask id="motion-base-mask">
-                                                    <rect
-                                                        width={size[0]}
-                                                        height={size[1]}
-                                                        fill="white"
-                                                    />
-                                                    {regions.map((r) => (
-                                                        <polygon
-                                                            key={r.id}
-                                                            points={coords(
-                                                                r.polygon,
-                                                            )}
-                                                            fill="black"
-                                                        />
-                                                    ))}
-                                                </mask>
-                                                {regions.map((r) => (
-                                                    <clipPath
-                                                        key={r.id}
-                                                        id={`region-${r.id}`}
-                                                    >
-                                                        <polygon
-                                                            points={coords(
-                                                                r.polygon,
-                                                            )}
-                                                        />
-                                                    </clipPath>
-                                                ))}
-                                            </defs>
-                                            <image
-                                                href={layerUrls.background || image}
+                                            {(showOriginal || !layersReady || !hiddenLayers.includes('background')) && <image
+                                                href={showOriginal || !layersReady ? image : layerUrls.background}
                                                 width={size[0]}
                                                 height={size[1]}
-                                                mask={
-                                                    !layerUrls.background && (playing || time > 0)
-                                                        ? 'url(#motion-base-mask)'
-                                                        : undefined
-                                                }
-                                            />
+                                            />}
                                             {regions.map((r, i) => {
                                                 const a = [r.anchor[0] * size[0], r.anchor[1] * size[1]]
                                                 const transform = `matrix(${regionTransform(regions, r.id, time, size).join(' ')})`
                                                 return (
                                                     <g key={r.id}>
-                                                        <g
-                                                            transform={
-                                                                transform
-                                                            }
-                                                        >
-                                                            <image
-                                                                href={layerUrls['region:' + r.id] || image}
-                                                                width={size[0]}
-                                                                height={size[1]}
-                                                                clipPath={layerUrls['region:' + r.id] ? undefined : `url(#region-${r.id})`}
-                                                            />
-                                                        </g>
+                                                        {layersReady && !showOriginal && !hiddenLayers.includes(r.id) && <g transform={transform}>
+                                                            <image href={layerUrls['region:' + r.id]} width={size[0]} height={size[1]} />
+                                                        </g>}
                                                         {!playing && (
                                                             <>
                                                                 <polygon
@@ -566,7 +540,7 @@ export default function StdRegionMotionEditor({
                                             className={button}
                                             disabled={
                                                 !regions.length ||
-                                                !scene?.duration
+                                                !scene?.duration || !layersReady || showOriginal
                                             }
                                             onClick={() => setPlaying(!playing)}
                                         >
@@ -577,6 +551,7 @@ export default function StdRegionMotionEditor({
                                         <input
                                             aria-label={tr("동작 미리보기 시간")}
                                             className="flex-1"
+                                            disabled={!layersReady || showOriginal}
                                             type="range"
                                             min="0"
                                             max={scene?.duration || 1}
@@ -589,7 +564,13 @@ export default function StdRegionMotionEditor({
                                         />
                                         <span>{time.toFixed(1)}{tr("초")}</span>
                                     </div>
-                                    <p className="mt-2 text-xs text-gray-400">{tr("회색 빈 영역은 움직인 뒤 드러나는 부분입니다. 배경 보정 상태는 실제 AE 결과에서 확인하세요.")}</p>
+                                    {!layersReady ? <p role="status" className="mt-2 text-xs text-amber-200">{tr("분리된 레이어와 복원 배경을 준비하면 동작을 미리 볼 수 있습니다. 지금은 원본과 선택 영역만 표시합니다.")}</p> : <div className="mt-3 rounded border border-white/20 p-2 space-y-2">
+                                        <label className="flex items-center gap-2"><input type="checkbox" checked={showOriginal} onChange={(e) => { setShowOriginal(e.target.checked); setPlaying(false); setTime(0) }} />{tr("원본과 비교")}</label>
+                                        {!showOriginal && <div className="flex flex-wrap gap-3">
+                                            {[{id: 'background', name: tr("배경")}, ...regions.map((r) => ({id: r.id, name: r.name}))].map((item) => <label key={item.id} className="flex items-center gap-1"><input type="checkbox" checked={!hiddenLayers.includes(item.id)} onChange={(e) => setHiddenLayers((items) => e.target.checked ? items.filter((id) => id !== item.id) : [...items, item.id])} />{item.name}</label>)}
+                                        </div>}
+                                        <p className="text-xs text-gray-400">{tr("체크를 끄면 해당 레이어를 숨겨 경계와 겹침을 확인합니다. 최종 결과에는 모든 레이어가 표시됩니다.")}</p>
+                                    </div>}
                                     {scene && (
                                         <StdRegionLayers locale={locale}
                                             projectId={projectId}
@@ -610,7 +591,7 @@ export default function StdRegionMotionEditor({
                                                 setVideo('')
                                             }}
                                             onReady={setLayerPackageId}
-                                            onPreview={setLayerUrls}
+                                            onPreview={receiveLayerPreview}
                                             locked={requestBusy}
                                             onBusy={setLayerBusy}
                                         />

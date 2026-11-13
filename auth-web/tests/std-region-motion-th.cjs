@@ -8,7 +8,7 @@ let i=0;const states={0:true,1:[scene],2:13,3:[region],6:'data:image/png;base64,
 const component=load('components/StdRegionMotionEditor.tsx',name=>{
  if(name==='react')return {...React,useState:initial=>[Object.hasOwn(states,i)?states[i++]: (i++,initial),()=>{}],useEffect:()=>{},useRef:v=>({current:v})};
  if(name==='react-dom')return {createPortal:n=>n};
- if(name.includes('StdRegionLayers'))return {default:()=>null};
+ if(name.includes('StdRegionLayers')||name.includes('StdMotion2dPatches'))return {default:()=>null};
  if(name.includes('stdRegionMotionCopy'))return copy;
  if(name.includes('stdRegionMotion'))return motion;
  return require(name);

@@ -17,7 +17,7 @@ type Props = {
   backgroundAssetId: string;
   onBackground: (id: string) => void;
   onReady: (id: string) => void;
-  onPreview: (urls: Record<string, string>) => void;
+  onPreview: (urls: Record<string, string>, key: string) => void;
   onBusy: (busy: boolean) => void;
   locked: boolean;
 };
@@ -31,17 +31,24 @@ export default function StdRegionLayers(p: Props) {
     [notice, setNotice] = useState(""),
     [urls, setUrls] = useState<Record<string, string>>({}),
     [reviewed, setReviewed] = useState(false),
-    [editing, setEditing] = useState(false);
+    [editing, setEditing] = useState(false),
+    [loadedKey, setLoadedKey] = useState("");
   const canvas = useRef<HTMLCanvasElement>(null),
     restore = useRef<HTMLImageElement | null>(null),
     drawing = useRef(false),
     lastPoint = useRef<[number, number] | null>(null),
     history = useRef<ImageData[]>([]),
-    editRegionId = useRef("");
+    editRegionId = useRef(""),
+    clonePoint = useRef<[number, number] | null>(null),
+    cloneOrigin = useRef<[number, number] | null>(null),
+    cloneSource = useRef<HTMLCanvasElement | null>(null);
   const [brush, setBrush] = useState(12),
-    [mode, setMode] = useState<"erase" | "restore" | "paint" | "sample">("erase"),
+    [mode, setMode] = useState<"erase" | "restore" | "paint" | "sample" | "clone" | "cloneSample">("erase"),
+    [editTarget, setEditTarget] = useState<"foreground" | "background">("foreground"),
+    [hasClonePoint, setHasClonePoint] = useState(false),
     [color, setColor] = useState("#ffd39b"),
-    [zoom, setZoom] = useState(1);
+    [zoom, setZoom] = useState(1),
+    [showSource, setShowSource] = useState(false);
   useEffect(() => {
     p.onBusy(busy);
     return () => p.onBusy(false);
@@ -52,7 +59,7 @@ export default function StdRegionLayers(p: Props) {
     if (p.sha && p.regions.length)
       key = regionLayerKey(p.imageId, p.sha, p.regions, p.backgroundAssetId);
   } catch {}
-  useEffect(() => { p.onPreview(urls); }, [urls, p.onPreview]);
+  useEffect(() => { p.onPreview(pack?.key === key && loadedKey === key ? urls : {}, pack?.key === key && loadedKey === key ? key : ""); }, [urls, pack?.key, key, loadedKey, p.onPreview]);
   async function refresh() {
     const r = await fetch(api, { headers: p.headers }),
       data = await r.json();
@@ -89,6 +96,7 @@ export default function StdRegionLayers(p: Props) {
     let active = true;
     const created: string[] = [];
     setUrls({});
+    setLoadedKey("");
     setReviewed(false);
     if (!pack?.result?.files) return;
     void Promise.all(
@@ -108,7 +116,7 @@ export default function StdRegionLayers(p: Props) {
       }),
     )
       .then((rows) => {
-        if (active) setUrls(Object.fromEntries(rows));
+        if (active) { setUrls(Object.fromEntries(rows)); setLoadedKey(key); }
       })
       .catch((e) => {
         if (active) setNotice(e.message);
@@ -117,7 +125,7 @@ export default function StdRegionLayers(p: Props) {
       active = false;
       created.forEach(URL.revokeObjectURL);
     };
-  }, [pack?.id, pack?.result?.files?.length, api, p.headers]);
+  }, [pack?.id, pack?.result?.files?.length, key, api, p.headers]);
   async function action(action: string) {
     setBusy(true);
     setNotice("");
@@ -182,12 +190,14 @@ export default function StdRegionLayers(p: Props) {
       setBusy(false);
     }
   }
-  async function edit() {
-    if (!region || !p.image) return;
-    editRegionId.current = region.id;
+  async function edit(target: "foreground" | "background" = "foreground") {
+    if ((!region && target === "foreground") || !p.image) return;
+    editRegionId.current = target === "background" ? "background" : region.id;
+    setEditTarget(target);
+    clonePoint.current = null; setHasClonePoint(false);
     history.current = [];
     setEditing(true);
-    setMode("erase");
+    setMode(target === "background" ? "cloneSample" : "erase");
     setZoom(1);
     const load = (url: string) =>
       new Promise<HTMLImageElement>((resolve, reject) => {
@@ -197,17 +207,18 @@ export default function StdRegionLayers(p: Props) {
         im.src = url;
       });
     try {
-      const layerUrl = urls["region:" + region.id];
+      const layerUrl = target === "background" ? urls.background : urls["region:" + region.id];
       let replacementUrl = '';
       try {
         // A saved replacement must survive package invalidation and subsequent edits.
-        if (!layerUrl && region.replacementAssetId) {
-          const r = await fetch(`${api}?upload=${encodeURIComponent(region.replacementAssetId)}`, {headers: p.headers});
+        const savedAssetId = target === 'background' ? p.backgroundAssetId : region.replacementAssetId;
+        if (!layerUrl && savedAssetId) {
+          const r = await fetch(`${api}?upload=${encodeURIComponent(savedAssetId)}`, {headers: p.headers});
           if (!r.ok) throw new Error('보완 부위를 불러오지 못했습니다.');
           replacementUrl = URL.createObjectURL(await r.blob());
         }
         const [source, layer] = await Promise.all([load(p.image), layerUrl || replacementUrl ? load(layerUrl || replacementUrl) : Promise.resolve(null)]);
-        if (editRegionId.current !== region.id) return;
+        if (editRegionId.current !== (target === "background" ? "background" : region.id)) return;
         restore.current = source;
         const c = canvas.current;
         if (!c) return;
@@ -216,6 +227,7 @@ export default function StdRegionLayers(p: Props) {
         c.height = Math.max(2, Math.floor(source.naturalHeight * ratio / 2) * 2);
         const ctx = c.getContext('2d')!;
         if (layer) ctx.drawImage(layer, 0, 0, c.width, c.height);
+        else if (target === "background") ctx.drawImage(source, 0, 0, c.width, c.height);
         else {
           ctx.save(); ctx.beginPath();
           region.polygon.forEach(([x,y],i) => i ? ctx.lineTo(x*c.width,y*c.height) : ctx.moveTo(x*c.width,y*c.height));
@@ -233,6 +245,21 @@ export default function StdRegionLayers(p: Props) {
       x = ((e.clientX - b.left) * c.width) / b.width,
       y = ((e.clientY - b.top) * c.height) / b.height,
       ctx = c.getContext("2d")!;
+    if (mode === 'cloneSample') {
+      clonePoint.current = [x,y]; setHasClonePoint(true); setMode('clone'); return;
+    }
+    if (mode === 'clone') {
+      if (!clonePoint.current || !cloneOrigin.current || !cloneSource.current) return;
+      const previous = lastPoint.current || [x,y];
+      const steps = Math.max(1, Math.ceil(Math.hypot(x-previous[0], y-previous[1]) / Math.max(1, brush / 3)));
+      for (let i=0; i<=steps; i++) {
+        const px=previous[0]+(x-previous[0])*i/steps, py=previous[1]+(y-previous[1])*i/steps;
+        const sx=clonePoint.current[0]+px-cloneOrigin.current[0], sy=clonePoint.current[1]+py-cloneOrigin.current[1];
+        ctx.save(); ctx.beginPath(); ctx.arc(px,py,brush,0,Math.PI*2); ctx.clip();
+        ctx.drawImage(cloneSource.current, px-sx, py-sy); ctx.restore();
+      }
+      lastPoint.current=[x,y]; return;
+    }
     if (mode === 'sample') {
       const pixel = ctx.getImageData(Math.min(c.width-1, Math.max(0,Math.floor(x))),Math.min(c.height-1,Math.max(0,Math.floor(y))),1,1).data;
       if (pixel[3]) setColor('#'+Array.from(pixel.slice(0,3), n => n.toString(16).padStart(2,'0')).join(''));
@@ -330,7 +357,8 @@ export default function StdRegionLayers(p: Props) {
           <p className="text-xs text-gray-400">{tr("추가 이미지는 원본 전체 캔버스와 같은 크기·위치로 맞춰 주세요. 준비된 레이어를 내려받아 수정 후 다시 올릴 수도 있습니다. 최대 4MB.")}</p>
         </fieldset>
       )}
-      <button className={button} disabled={disabled || !region || !p.image} onClick={() => void edit()}>{tr("부위 그리기 · 가려진 부분·관절 겹침 보완")}</button>
+      <div className="flex flex-wrap gap-2"><button className={button} disabled={disabled || !region || !p.image} onClick={() => void edit()}>{tr("부위 그리기 · 가려진 부분·관절 겹침 보완")}</button>
+      <button className={button} disabled={disabled || !p.image} onClick={() => void edit("background")}>{tr("배경 보정하기")}</button></div>
       <div className="flex flex-wrap gap-2 items-center">
         <button
           className={button}
@@ -363,7 +391,7 @@ export default function StdRegionLayers(p: Props) {
           {w}
         </p>
       ))}
-      {pack?.key === key &&
+      {pack?.key === key && loadedKey === key &&
         pack?.result?.files &&
         !!Object.keys(urls).length && (
           <>
@@ -437,18 +465,20 @@ export default function StdRegionLayers(p: Props) {
       </p>
       {editing && (
         <div className="fixed inset-0 z-[195] bg-black/95 p-4 flex flex-col">
-          <p className="text-sm mb-2">{tr("관절 중심에 둥근 겹침 부분을 그려 틈을 덮으세요. 가려진 팔·다리는 색칠로 완성합니다. 저장 후 레이어 준비·확정과 동작 검토가 필요합니다.")}</p>
+          <p className="text-sm mb-2">{editTarget === "background" ? tr("복사할 배경을 클릭한 뒤 가릴 부분을 칠하세요. 원본에 없는 배경은 주변을 참고해 직접 보정하고 합성 결과를 확인하세요.") : tr("관절 중심에 둥근 겹침 부분을 그려 틈을 덮으세요. 가려진 팔·다리는 색칠로 완성합니다. 저장 후 레이어 준비·확정과 동작 검토가 필요합니다.")}</p>
           <div className="flex flex-wrap gap-2 mb-2">
+            {editTarget === 'background' && <button className={button} onClick={() => setMode('cloneSample')}>{tr("복사할 위치 선택")}{mode === 'cloneSample' ? '✓' : ''}</button>}
+            {editTarget === 'background' && <button className={button} disabled={!hasClonePoint} onClick={() => setMode('clone')}>{tr("복사 브러시")}{mode === 'clone' ? '✓' : ''}</button>}
             <button className={button} onClick={() => setMode('paint')}>{tr("색칠")}{mode === 'paint' ? '✓' : ''}</button>
             <button className={button} onClick={() => setMode('sample')}>{tr("색 추출")}{mode === 'sample' ? '✓' : ''}</button>
             <input aria-label={tr("부위 색상")} type="color" value={color} onChange={(e) => setColor(e.target.value)} />
-            <button className={button} onClick={() => {
+            <button className={button} disabled={editTarget === "background"} onClick={() => {
               const c=canvas.current; if(!c || !region)return; checkpoint();
               const ctx=c.getContext('2d')!;ctx.fillStyle=color;ctx.beginPath();
               ctx.arc(region.anchor[0]*c.width,region.anchor[1]*c.height,brush,0,Math.PI*2);ctx.fill();
             }}>{tr("관절 겹침 원 그리기")}</button>
             <button className={button} onClick={() => {const prev=history.current.pop(); if(prev)canvas.current?.getContext('2d')?.putImageData(prev,0,0)}}>{tr("되돌리기")}</button>
-            <button className={button} onClick={() => setMode("erase")}>{tr("지우기")}{mode === "erase" ? "✓" : ""}
+            <button className={button} disabled={editTarget === "background"} onClick={() => setMode("erase")}>{tr("지우기")}{mode === "erase" ? "✓" : ""}
             </button>
             <button className={button} onClick={() => setMode("restore")}>{tr("원본에서 복원")}{mode === "restore" ? "✓" : ""}
             </button>
@@ -462,6 +492,7 @@ export default function StdRegionLayers(p: Props) {
               />
               {brush}px
             </label>
+            <label className="flex items-center gap-1"><input type="checkbox" checked={showSource} onChange={(e) => setShowSource(e.target.checked)} />{tr("원본을 뒤에 표시")}</label>
             <label>{tr("확대")}{" "}
               <select
                 value={zoom}
@@ -478,10 +509,10 @@ export default function StdRegionLayers(p: Props) {
               disabled={disabled}
               onClick={() =>
                 canvas.current?.toBlob((b) => {
-                  if (b) void upload(b, "foreground");
+                  if (b) void upload(b, editTarget);
                 }, "image/png")
               }
-            >{tr("수정한 외곽선 저장")}</button>
+            >{tr(editTarget === "background" ? "수정한 배경 저장" : "수정한 외곽선 저장")}</button>
             <button
               className={button}
               disabled={busy}
@@ -494,12 +525,19 @@ export default function StdRegionLayers(p: Props) {
               className="touch-none"
               style={{
                 width: `${zoom * 100}%`,
-                background:
-                  "repeating-conic-gradient(#777 0% 25%,#bbb 0% 50%) 0/16px 16px",
+                backgroundImage: showSource ? `url("${p.image}")` : "repeating-conic-gradient(#777 0% 25%,#bbb 0% 50%)",
+                backgroundSize: showSource ? "100% 100%" : "16px 16px",
               }}
               onPointerDown={(e) => {
                 if (disabled) return;
+                if (mode === 'cloneSample') { paint(e); return; }
                 checkpoint(); lastPoint.current = null;
+                if (mode === 'clone') {
+                  const c=e.currentTarget,b=c.getBoundingClientRect();
+                  cloneOrigin.current=[(e.clientX-b.left)*c.width/b.width,(e.clientY-b.top)*c.height/b.height];
+                  const copy=document.createElement('canvas'); copy.width=c.width; copy.height=c.height;
+                  copy.getContext('2d')!.drawImage(c,0,0); cloneSource.current=copy;
+                }
                 drawing.current = true;
                 e.currentTarget.setPointerCapture(e.pointerId);
                 paint(e);
