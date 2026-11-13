@@ -2307,7 +2307,8 @@ export default function StdPortalPage() {
         // The project list reloads saved titles when opened; drafts stay in the editor.
 
         if (options.persist !== false) {
-            persistProjectTitle(currentProjectId, nextTitle.trim() || 'Untitled Project')
+            if (nextTitle.trim()) persistProjectTitle(currentProjectId, nextTitle.trim())
+            else if (titleSaveTimerRef.current) clearTimeout(titleSaveTimerRef.current)
         }
     }
 

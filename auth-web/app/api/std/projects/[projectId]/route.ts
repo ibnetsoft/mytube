@@ -643,7 +643,15 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
     if (canonicalOriginalWorkerScript) {
         projectPayloadPatch.original_worker_script = canonicalOriginalWorkerScript
     }
-    const titlePatch = typeof body?.title === 'string' ? body.title.trim() : ''
+    // Empty editor drafts and legacy placeholders must never overwrite a saved title.
+    const usableTitle = (value: unknown) => typeof value === 'string'
+        && value.trim() !== '' && value.trim().toLowerCase() !== 'untitled project'
+    for (const key of ['title', 'video_title']) {
+        if (Object.prototype.hasOwnProperty.call(projectPayloadPatch, key) && !usableTitle(projectPayloadPatch[key])) {
+            delete projectPayloadPatch[key]
+        }
+    }
+    const titlePatch = usableTitle(body?.title) ? body.title.trim() : ''
 
     if (Object.keys(progressPatch).length === 0 && Object.keys(projectPayloadPatch).length === 0 && !titlePatch && incomingScenes.length === 0) {
         return NextResponse.json({ success: false, error: 'No supported fields to update' }, { status: 400 })
