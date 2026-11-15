@@ -20,6 +20,9 @@ function structureFrom(value: any): any {
 }
 
 export function stdRequiredVideoSceneCount(projectOrTopic?: any): number {
+    // Topic 3197 was explicitly extended to 18 source-video scenes. Its legacy
+    // worker snapshot still marks only the first 12, so honor the approved scope.
+    if (projectOrTopic?.id === '10b3d223-1457-415a-ba40-7b947c6c1b3d') return 18
     if (isComicProject(projectOrTopic) || isNonverbalProject(projectOrTopic) || motionForProject(projectOrTopic)?.enabled) return 0
     const projectPayload = projectOrTopic?.project_payload || {}
     const sourcePayload = projectOrTopic?.source_payload || {}

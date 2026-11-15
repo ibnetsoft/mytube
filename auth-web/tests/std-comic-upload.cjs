@@ -38,6 +38,12 @@ const call=(scene=1,type='image')=>exportsRoute.POST(new Request('https://test.i
  authorized=true; project={id:'p',status:'in_progress',project_payload:{}}; failures=1; claimIds=[]
  assert.equal((await call(null,'thumbnail')).status,200,'temporary database outage is retried')
  assert.equal(claimIds.length,2); assert.equal(claimIds[0],claimIds[1],'retry reuses the claim ID')
+ const legacySource={pregenerated_structure:{scenes:Array.from({length:12},(_,i)=>({scene_number:i+1,video_prompt_required:true}))}}
+ project={id:'10b3d223-1457-415a-ba40-7b947c6c1b3d',status:'review_requested',project_payload:{},source_payload:legacySource}
+ for(const n of [12,13,18]) assert.equal((await call(n,'video')).status,200,`topic 3197 scene ${n} accepts video`)
+ assert.equal((await call(19,'video')).status,409,'topic 3197 keeps later scenes protected')
+ project={...project,id:'other'}
+ assert.equal((await call(13,'video')).status,409,'other legacy topics retain their configured range')
  project={id:'p',status:'in_progress',project_payload:{strict_content_identity:true,structure:{required_video_scene_count:18,motion_graphic_video_scenes:[19,60,70]}}}
  for(const n of [1,18,19,20,60,70,101]) assert.equal((await call(n,'image')).status,200,`scene ${n} accepts a source image`)
  for(const n of [1,18,19,60,70]) assert.equal((await call(n,'video')).status,200,`scene ${n} accepts selected video`)

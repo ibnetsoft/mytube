@@ -11309,7 +11309,7 @@ export default function StdPortalPage() {
                                                                     accept="video/*"
                                                                     className="hidden"
                                                                     disabled={isUploading || !canEditStdAsset(selectedProject.project, 'video', Number(scene.scene_number))}
-                                                                    onChange={e => uploadAsset(scene, 'video', e.target.files?.[0] || null)}
+                                                                    onChange={e => { const file = e.target.files?.[0] || null; e.target.value = ''; void uploadAsset(scene, 'video', file) }}
                                                                 />
                                                             </label>
                                                         </div>
