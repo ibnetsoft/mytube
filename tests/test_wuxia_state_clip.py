@@ -23,6 +23,7 @@ def test_preserves_source_clock_and_mutes_video(tmp_path):
     script=jsx(t)
     assert 'vl.audioEnabled=false' in script
     assert 'timeRemapEnabled=true' in script
+    assert script.index('timeRemapEnabled=true') < script.index('vl.outPoint=S.duration')
     assert 'whold(tm)' in script
     assert t['samples'][-1]['video']['source_seconds']==.5+23/24
 

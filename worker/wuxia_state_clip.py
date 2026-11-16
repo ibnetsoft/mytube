@@ -90,12 +90,12 @@ def jsx(timeline):
     var WVC=''' + json.dumps(clips, ensure_ascii=True, allow_nan=False) + ''';
     for(var vi=0;vi<WVC.length;vi++){
       var vc=WVC[vi],vf=app.project.importFile(new ImportOptions(new File(vc.file))),vl=source.layers.add(vf);
-      vl.name='wuxia_state_video_'+vi;vl.outPoint=S.duration;vl.audioEnabled=false;
+      vl.name='wuxia_state_video_'+vi;vl.timeRemapEnabled=true;vl.inPoint=0;vl.outPoint=S.duration;vl.audioEnabled=false;
       var vt=vl.property('ADBE Transform Group'),fit=Math.max(W/vf.width,H/vf.height)*100;
       vt.property('ADBE Anchor Point').setValue([vf.width/2,vf.height/2]);vt.property('ADBE Position').setValue([W/2,H/2]);vt.property('ADBE Scale').setValue([fit,fit]);
       var vo=vl.property('Opacity');vo.setValueAtTime(0,0);
       for(var vk=0;vk<vc.keys.length;vk++)vo.setValueAtTime(vc.keys[vk][0],vc.keys[vk][1]);whold(vo);
-      vl.timeRemapEnabled=true;var tm=vl.property('ADBE Time Remapping');while(tm.numKeys)tm.removeKey(1);
+      var tm=vl.property('ADBE Time Remapping');while(tm.numKeys)tm.removeKey(1);
       for(var vk=0;vk<vc.times.length;vk++)tm.setValueAtTime(vc.times[vk][0],vc.times[vk][1]);whold(tm);
     }
 ''' if clips else ''
