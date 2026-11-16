@@ -181,7 +181,8 @@ def _render_native(prepared, directory, duration):
         raise ValueError('After Effects and aerender are required on the render worker; no substitute video was generated')
     from motion_media_storage import media_directory
     native_directory = media_directory(directory)
-    project, native, jsx = directory / 'scene.aep', native_directory / 'native.avi', directory / 'scene.jsx'
+    native_name = 'native.mp4' if prepared['plan'].get('wuxia_runtime') else 'native.avi'
+    project, native, jsx = directory / 'scene.aep', native_directory / native_name, directory / 'scene.jsx'
     # A native extension may be rewritten by the installed output-module template.
     for old in native_directory.glob('native.*'):
         if old.suffix.lower() in ('.avi', '.mov', '.mp4', '.mxf'):
