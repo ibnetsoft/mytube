@@ -758,6 +758,15 @@ def render_ffmpeg_slideshow(
         current_label = output_label
         timeline += float(durations[index])
 
+    # Native timelines use a global integer frame clock. Millisecond duration
+    # rounding must not discard the last frame of the completed sequence.
+    native_frames = (subtitle_settings or {}).get('native_master_frame_count')
+    if native_frames is not None:
+        if type(native_frames) is not int or native_frames <= 0:
+            raise ValueError('Invalid native master frame count')
+        filters.append(f'[{current_label}]tpad=stop_mode=clone:stop=1,trim=end_frame={native_frames},settb=1/{fps},setpts=N[nativeclock]')
+        current_label = 'nativeclock'
+
     if template_overlay_path and os.path.isfile(template_overlay_path):
         overlay_index = len(images)
         command.extend(["-loop", "1", "-framerate", str(fps), "-i", template_overlay_path])
@@ -822,13 +831,15 @@ def render_ffmpeg_slideshow(
     Path(graph_path).write_text(";\n".join(filters), encoding="utf-8")
     encoder = "h264_nvenc" if use_gpu else "libx264"
     command.extend(["-filter_complex_script", graph_path, "-map", f"[{current_label}]", "-map", f"[{audio_label}]"])
+    if native_frames is not None:
+        command.extend(['-r', str(fps)])
     if encoder == "h264_nvenc":
         command.extend(["-c:v", encoder, "-preset", "p4", "-cq", "21"])
     else:
         command.extend(["-c:v", encoder, "-preset", "veryfast", "-crf", "20"])
     command.extend([
         "-c:a", "aac", "-b:a", "192k", "-pix_fmt", "yuv420p", "-movflags", "+faststart",
-        "-t", f"{audio_duration:.3f}", "-progress", "pipe:1", "-nostats", output_path,
+        "-t", f"{(native_frames + 1) / fps:.9f}" if native_frames is not None else f"{audio_duration:.3f}", "-progress", "pipe:1", "-nostats", output_path,
     ])
 
     timeout = max(600, min(3600, int(audio_duration * 4)))

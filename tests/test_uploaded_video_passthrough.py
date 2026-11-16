@@ -54,3 +54,8 @@ def test_plain_still_image_goes_directly_to_final_composition(tmp_path,monkeypat
 def test_still_with_fade_keeps_visual_render_path():
     scene,plan=fixture();scene['source_kind']='image';plan['scene']['transition']='fade_black'
     assert not eligible(scene,plan,runtime_resolved=True)
+
+def test_wuxia_state_sequence_is_never_replaced_by_first_still():
+    scene,plan=fixture();scene['source_kind']='image'
+    scene['wuxia_timeline']={'contract':'wuxia_native_timeline/v5','states':[{'asset_id':'a'},{'asset_id':'b'}]}
+    assert not eligible(scene,plan,runtime_resolved=True)

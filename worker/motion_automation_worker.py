@@ -459,6 +459,9 @@ def assemble_master(snapshot,*,sources,plans,voice,ordered,settings,cues,overlay
             fresh=fresh,settings=settings,sfx_cues=cues,template_overlay_path=overlay,ai_sources=ai_sources)
     if not snapshot.get('final_renderer'):
         from services.ffmpeg_slideshow_service import render_ffmpeg_slideshow
+        settings = dict(settings)
+        if any(s.get('wuxia_timeline') for s in snapshot['scenes']):
+            settings['native_master_frame_count'] = math.ceil(snapshot['scenes'][-1]['end'] * snapshot['motion']['fps'] - 1e-7)
         return Path(render_ffmpeg_slideshow(temp_dir=str(final_dir),images=[r['path'] for r in ordered],durations=[s['end']-s['start'] for s in snapshot['scenes']],
             audio_path=str(voice),subtitles=screen_subtitles,subtitle_settings=settings,
             image_effects=['none']*len(ordered),transition_effects=['none']*len(ordered),

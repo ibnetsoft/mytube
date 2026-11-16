@@ -5,7 +5,7 @@ SOURCE_VERSION='unchanged_source_passthrough/v1'
 def eligible(scene,plan,*,runtime_resolved=False):
     if scene.get('ambient_loops') or scene.get('wuxia_timeline'):
         return False
-    if scene.get('source_kind') not in ('video','image') or scene.get('webtoon') or plan.get('ai'):
+    if scene.get('source_kind') not in ('video','image') or scene.get('webtoon') or scene.get('wuxia_timeline') or plan.get('ai'):
         return False
     direction=plan.get('scene') or {}
     if direction.get('effects') or direction.get('lights') or direction.get('layer_motion') or scene.get('reviewed_depth_effects'):
