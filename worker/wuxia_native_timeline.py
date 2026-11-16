@@ -34,6 +34,8 @@ def prepare(timeline,directory,fresh,download,duration,fps,audio=None):
   state['ambient_runtime']=prepare_runtime(path,state.get('ambient_loops',[]),directory/'ambient',fresh,download)
   from wuxia_mouth import prepare as prepare_mouths
   state['mouth_runtime']=prepare_mouths(path,state.get('dialogue_mouths',[]),directory/'mouths',fresh,download,audio)
+ from wuxia_state_clip import prepare as prepare_state_clips
+ prepare_state_clips(result,directory/'state-clips',fresh,download)
  backdrop=result.get('transition_source')
  if backdrop:
   fresh();path=directory/('transition-'+backdrop['sha256']+'.png')
@@ -132,4 +134,6 @@ def jsx(timeline,duration,fps):
  from wuxia_transition import jsx as transition_jsx
  from wuxia_motion import jsx as motion_jsx
  from wuxia_cinematic_runtime import jsx as cinematic_jsx
+ from wuxia_state_clip import jsx as state_clip_jsx
+ source_js+=state_clip_jsx(timeline)
  return source_js,graphic_js+motion_jsx(timeline)+cinematic_jsx(timeline)+transition_jsx(timeline)

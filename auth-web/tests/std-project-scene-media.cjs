@@ -64,6 +64,7 @@ async function getHydratedScenes(scenes, sourceScenes = [], options = {}) {
         'next/server': { NextResponse: Response },
         '@/lib/stdAudioAnchors': {},
         '@/lib/stdWuxiaMouthRefresh': {},
+        '@/lib/stdWuxiaClips': require('./load-ts-module.cjs')(path.resolve(__dirname, '../lib/stdWuxiaClips.ts')),
         '@/lib/stdContentIdentity': identity,
         '@/lib/stdProjectReadCache': { projectReadCacheKey: () => 'key', readProjectResponse: async () => null, cacheProjectResponse: async () => {} },
         '@/lib/stdProjectAssets': { loadStdProjectAssets: async () => ({ data: records.std_project_assets, error: null }) },

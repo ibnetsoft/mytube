@@ -1,3 +1,4 @@
+import { wuxiaStateClipFrame } from './stdWuxiaClips'
 import { cinematicFrame } from './stdWuxiaCinematic'
 import { wuxiaEffectFrame } from './stdWuxiaEffects'
 import { wuxiaTransitionFrame } from './stdWuxiaTransition'
@@ -96,5 +97,13 @@ export function wuxiaSceneFrame(project: any, number: number, rows: any[], secon
     const transition=wuxiaTransitionFrame(project,scene,number,seconds,start,end,fps||p.render_settings?.motion?.fps||24)
     const motion=wuxiaMotionFrame(project,scene,state,number,seconds,start,end,fps||p.render_settings?.motion?.fps||24)
     const cinematic=cinematicFrame(project,scene,state,number,seconds,start,end,transition,motion,fps||p.render_settings?.motion?.fps||24)
-    return { state, graphics, fraction, effects, transition, motion, cinematic, ambient, ambientSources, mouths, mouthSources, sources: [...(scene.states || []),...(transition.source?[transition.source]:[])].map((item: any) => String(item.media_url || item.image_url || '')).filter(Boolean), timingBasis: voiced?'subtitle_row_bound_or_authored_preview':'authored_silent_scene_clock' }
+    const video = wuxiaStateClipFrame(project,state,seconds,start,end,fps||p.render_settings?.motion?.fps||24)
+    if(video){
+        ambient.length=0; mouths.length=0
+        Object.assign(effects,{active:[],overlays:[],dx:0,dy:0,scale:1,issues:[]})
+        Object.assign(motion,{active:false,dx:0,dy:0,scale:1,heat:[],issues:[]})
+        Object.assign(transition,{kind:'none',dx:0,dy:0,scale:1,opacity:1,backdrop:0,flash:0,issues:[]})
+        Object.assign(cinematic,{vignette_opacity:0,panel_opacity:0,panel_scale:1,blur_radius:0,issues:[]})
+    }
+    return { state, video, graphics, fraction, effects, transition, motion, cinematic, ambient, ambientSources, mouths, mouthSources, sources: [...(scene.states || []),...(transition.source?[transition.source]:[])].map((item: any) => String(item.media_url || item.image_url || '')).filter(Boolean), timingBasis: voiced?'subtitle_row_bound_or_authored_preview':'authored_silent_scene_clock' }
 }

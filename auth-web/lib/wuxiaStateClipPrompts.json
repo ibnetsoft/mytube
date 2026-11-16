@@ -1,0 +1,38 @@
+{
+  "c3667295a826f9849bc82934ebfd776e31f836e781f0d8f92a5db29d8a519910": {
+    "asset_id": "E01_S10_STATE_02",
+    "title": "문이 내려오는 순간",
+    "prompt": "Use ONLY the attached original artwork as the first-frame visual reference. Korean wuxia webtoon image-to-video, 16:9, approximately 5 seconds, one restrained continuous action, normal speed. Preserve exact faces, anatomy, costumes, prop ownership, blade silhouettes, injuries, composition and lighting. Fixed camera, no zoom or camera transition. No text, subtitles, lettering, speech bubbles, dialogue, narration, music or audio. No face morphing, hand swapping, duplicate weapons or new people. The heavy stone gate visible along the top edge descends only a short distance. The blue-robed swordsman in the foreground stays low, bracing his visible hand against the same floor; his sword remains in the same hand with the same silhouette. The two men behind him react with a small weight shift only. All six stone guardians stay in their exact positions. Do not complete an escape or crush anyone.",
+    "source_review_note": "상단 석문과 전경 장호의 낮은 자세를 확인. 원화에는 석상이 여섯 개 있으며 새 석상·무사 추가 금지."
+  },
+  "e9ed9653ea7fa39d12e97758d9f7f226f557c7f82e77509ef6a1dac83c97de1c": {
+    "asset_id": "E01_S19_STATE_01",
+    "title": "수레를 밀어 버티기",
+    "prompt": "Use ONLY the attached original artwork as the first-frame visual reference. Korean wuxia webtoon image-to-video, 16:9, approximately 5 seconds, one restrained continuous action, normal speed. Preserve exact faces, anatomy, costumes, prop ownership, blade silhouettes, injuries, composition and lighting. Fixed camera, no zoom or camera transition. No text, subtitles, lettering, speech bubbles, dialogue, narration, music or audio. No face morphing, hand swapping, duplicate weapons or new people. The young man in teal gives the already-contacting loaded wooden cart one short, strenuous push against the same stone guardian foot at screen right. The wheel rotates a small amount; the bags settle slightly. The injured older man remains seated on the floor at screen left with the same protected leg. Preserve the existing point of contact. Do not move the cart through the foot, break the cart, topple the guardian, or invent a new impact.",
+    "source_review_note": "수레와 석상 발이 이미 접촉한 원화. 새 충돌을 만들지 않고 접촉 후 버티는 짧은 동작만 사용."
+  },
+  "2c13103efeea67b72cadc9086e55780b3e973d7f4192ce2edb893a0234a54b70": {
+    "asset_id": "E02_S06_STATE_01",
+    "title": "걸쇠에 흐르는 물",
+    "prompt": "Use ONLY the attached original artwork as the first-frame visual reference. Korean wuxia webtoon image-to-video, 16:9, approximately 5 seconds, one restrained continuous action, normal speed. Preserve exact faces, anatomy, costumes, prop ownership, blade silhouettes, injuries, composition and lighting. Fixed camera, no zoom or camera transition. No text, subtitles, lettering, speech bubbles, dialogue, narration, music or audio. No face morphing, hand swapping, duplicate weapons or new people. Continue the small stream of water from the exact dark flask already tilted in the older man's visible hand. The water runs over the same rusty horizontal latch and into existing floor grooves. Keep both men seated; preserve every finger and the wounded younger man's hand position. Do not open the hatch or move the latch yet. No extra cup, stopper, flask, hands, or tools.",
+    "source_review_note": "실제 원화는 마개가 아니라 물통에서 물을 붓는 구도. 생성 지시는 실제 물통을 따르며 기존 대본은 변경하지 않음."
+  },
+  "99ab57a28d12c0ad82ff8cfb6c150b40224144b79e1e737da0a80258c4b932cc": {
+    "asset_id": "E02_S18_STATE_01",
+    "title": "석상과 기둥 사이의 긴장",
+    "prompt": "Use ONLY the attached original artwork as the first-frame visual reference. Korean wuxia webtoon image-to-video, 16:9, approximately 5 seconds, one restrained continuous action, normal speed. Preserve exact faces, anatomy, costumes, prop ownership, blade silhouettes, injuries, composition and lighting. Fixed camera, no zoom or camera transition. No text, subtitles, lettering, speech bubbles, dialogue, narration, music or audio. No face morphing, hand swapping, duplicate weapons or new people. The large stone guardian at screen right makes one small, heavy backward adjustment of its already-bent near arm and upper torso. The wounded young man stays crouched against the left pillar and tightens his existing grip without stepping out. The older man remains seated in the alcove with his injured leg protected. Keep background statues fixed. Do not invent a visible new sword, a strike, contact, or debris.",
+    "source_review_note": "원화에서 석검의 내려베기·충돌은 확인되지 않아 큰 공격은 지시하지 않음. 석상 팔과 상체의 짧은 변화만 후보."
+  },
+  "f23ab317a503354ab0225864638696b4b0b108329e5012237368101c7f2db651": {
+    "asset_id": "E03_S18_STATE_01",
+    "title": "운반 수레의 짧은 이동",
+    "prompt": "Use ONLY the attached original artwork as the first-frame visual reference. Korean wuxia webtoon image-to-video, 16:9, approximately 5 seconds, one restrained continuous action, normal speed. Preserve exact faces, anatomy, costumes, prop ownership, blade silhouettes, injuries, composition and lighting. Fixed camera, no zoom or camera transition. No text, subtitles, lettering, speech bubbles, dialogue, narration, music or audio. No face morphing, hand swapping, duplicate weapons or new people. The existing cart advances smoothly a short distance along the same mountain road. Use only a mild vertical suspension bounce on the three already-seated men and a small natural movement of the visible reins. Keep the camera fixed relative to the cart; no zoom. The two wounded passengers remain seated exactly as shown. Do not reveal a horse, introduce a crossroads or town gate, or move injury markings between hands.",
+    "source_review_note": "원화에 갈림길·덮개·말 전체는 보이지 않음. 이를 새로 만들지 않고 원화에 보이는 수레 내부와 고삐만 유지."
+  },
+  "485fb9f9981fece39c1dd36cb8d3708842943b86159ec318c04551e111b3e17c": {
+    "asset_id": "E03_S20_STATE_01",
+    "title": "검문 무사의 시선",
+    "prompt": "Use ONLY the attached original artwork as the first-frame visual reference. Korean wuxia webtoon image-to-video, 16:9, approximately 5 seconds, one restrained continuous action, normal speed. Preserve exact faces, anatomy, costumes, prop ownership, blade silhouettes, injuries, composition and lighting. Fixed camera, no zoom or camera transition. No text, subtitles, lettering, speech bubbles, dialogue, narration, music or audio. No face morphing, hand swapping, duplicate weapons or new people. The blue-robed checkpoint guard at screen right shifts his eyes from the cart driver toward the two wounded passengers, with only a small head turn. His visible hand stays resting on the same wooden wheel rim. The driver and passengers remain in their shown positions. Keep the cloth cover, ore, sleeves, faces, injuries and hands unchanged. Do not lift the cover, reveal a hidden object, draw a weapon, or have anyone speak.",
+    "source_review_note": "실제 원화에서 무사의 손은 덮개 끝이 아닌 바퀴 위에 있음. 덮개 들기를 만들지 않음. 서진 손 부상 좌우 불일치는 기존 품질 우려로 보존."
+  }
+}

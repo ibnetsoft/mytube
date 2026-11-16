@@ -39,7 +39,8 @@ export function freezeWuxiaScene(project:any,number:number,rows:any[],start:numb
   if(!Array.isArray(s.ambient_loops||[])||(s.ambient_loops||[]).length>4||(s.ambient_loops||[]).some((l:any)=>!validAmbientLoop(l)||l.source_sha256!==s.sha256))throw Error(`${number}번 씬 상태의 보조 움직임 원화 연결을 확인해 주세요.`)
   const mouths=(s.energy_only_motion===true?[]:(s.dialogue_mouths||[])).filter((m:any)=>m.enabled)
   if(mouths.length>4||mouths.some((m:any)=>m.source_sha256!==s.sha256||!mouthMatchesRecording(m,project,timedRows)))throw Error(`${number}번 씬 입모양의 원화·음성·대사 시점 연결이 달라졌습니다.`)
-  return {asset_id:s.asset_id,sha256:s.sha256,energy_only_motion:s.energy_only_motion===true,...(s.energy_preparation?{energy_preparation:{source_sha256:s.energy_preparation.source_sha256,decision:s.energy_preparation.decision,reason:s.energy_preparation.reason,quality_notes:s.energy_preparation.quality_notes}}:{}),...(s.cinematic_review?{cinematic_review:s.cinematic_review}:{}),...storage,ambient_loops:ambientLoopsForState(s).filter(l=>l.enabled),dialogue_mouths:mouths,
+  const clip=p.wuxia_state_clips?.[s.asset_id]
+  return {...(clip?{clip}:{}),asset_id:s.asset_id,sha256:s.sha256,energy_only_motion:s.energy_only_motion===true,...(s.energy_preparation?{energy_preparation:{source_sha256:s.energy_preparation.source_sha256,decision:s.energy_preparation.decision,reason:s.energy_preparation.reason,quality_notes:s.energy_preparation.quality_notes}}:{}),...(s.cinematic_review?{cinematic_review:s.cinematic_review}:{}),...storage,ambient_loops:ambientLoopsForState(s).filter(l=>l.enabled),dialogue_mouths:mouths,
    ...(hasHeat?{heat_face_reviewed:Array.isArray(s.face_exclusion_boxes),heat_protection_boxes:[s.face_exclusion_boxes,s.hand_exclusion_boxes,s.protected_regions].flatMap(b=>Array.isArray(b)?b:[])}:{})}
  })
  const cinematicStates:Record<string,any>={}
@@ -72,11 +73,12 @@ export function freezeWuxiaScene(project:any,number:number,rows:any[],start:numb
   const {source:_,...transition}=frame.transition
   const {descriptor,...cinematicSample}=frame.cinematic
   if(hasCinematic)cinematicStates[frame.state.asset_id]=descriptor
-  samples.push({at:local,...(hasCinematic?{cinematic:cinematicSample}:{}),effects:frame.effects.active.length?frame.effects:{},state:frame.state?.asset_id,graphics:visible,
+  samples.push({at:local,...(frame.video?{video:{asset_id:frame.video.clip.asset_id,source_seconds:frame.video.source_seconds}}:{}),...(hasCinematic?{cinematic:cinematicSample}:{}),effects:frame.effects.active.length?frame.effects:{},state:frame.state?.asset_id,graphics:visible,
    ...(hasTransition?{transition}:{}),
    ...(hasMotion?{motion:frame.motion.active?frame.motion:{}}:{}),
    mouths:frame.mouths.map((m:any)=>({mouth:current.dialogue_mouths.indexOf(m.mouth),pose:m.pose})),
    ambient:frame.ambient.map(a=>({loop:current.ambient_loops.indexOf(a.loop),frame:a.index}))})
  }
- return {...(hasCinematic?{cinematic_states:cinematicStates,cinematic_plan:cinematic,cinematic_graphics:scene.graphics||[]}:{}),contract:hasCinematic?'wuxia_native_timeline/v6':hasMotion?'wuxia_native_timeline/v5':hasTransition?'wuxia_native_timeline/v4':scene.effects?.length?'wuxia_native_timeline/v3':hasWuxiaMouths(project)?'wuxia_native_timeline/v2':'wuxia_native_timeline/v1',states,graphics,samples,...(autoPolicy?{auto_motion_policy:autoPolicy,motion_selection:authored?.wuxia_motion_selection||{basis:'preserved_manual_setting',image_effect:authored?.metadata?.image_effect??authored?.image_effect??'none'}}:{}),...(transitionSource?{transition_source:transitionSource}:{})}
+ for(const s of states)if(s.clip&&!samples.some(sample=>sample.video?.asset_id===s.clip.asset_id))throw Error(`${number}번 씬의 연결한 영상 구간이 실제 표시되지 않습니다. 원화와 발화 구간을 확인해 주세요.`)
+ return {...(hasCinematic?{cinematic_states:cinematicStates,cinematic_plan:cinematic,cinematic_graphics:scene.graphics||[]}:{}),...(states.some((s:any)=>s.clip)?{state_clip_contract:'wuxia_state_clip/v1'}:{}),contract:hasCinematic?'wuxia_native_timeline/v6':hasMotion?'wuxia_native_timeline/v5':hasTransition?'wuxia_native_timeline/v4':scene.effects?.length?'wuxia_native_timeline/v3':hasWuxiaMouths(project)?'wuxia_native_timeline/v2':'wuxia_native_timeline/v1',states,graphics,samples,...(autoPolicy?{auto_motion_policy:autoPolicy,motion_selection:authored?.wuxia_motion_selection||{basis:'preserved_manual_setting',image_effect:authored?.metadata?.image_effect??authored?.image_effect??'none'}}:{}),...(transitionSource?{transition_source:transitionSource}:{})}
 }

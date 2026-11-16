@@ -1,3 +1,4 @@
+import { withWuxiaStateClips } from '@/lib/stdWuxiaClips'
 import { canRestoreTopicThumbnail, restoreTopicThumbnail } from '@/lib/stdTopicThumbnail'
 import { preserveWuxiaMouthPreparation } from '@/lib/stdWuxiaMouthRefresh'
 import { preserveAudioAnchors } from '@/lib/stdAudioAnchors'
@@ -285,7 +286,7 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
     if (!initialVersion || (!requesterEmail.startsWith('admin') && !requesterEmail.startsWith('worker') && requesterEmail !== String(initialVersion.employee_email || '').toLowerCase())) {
         return new NextResponse(null, { status: 204, headers: { 'Cache-Control': 'no-store' } })
     }
-    const etag = `"std-read-v4-${initialVersion.version}"`
+    const etag = `"std-read-v5-${initialVersion.version}"`
     const readHeaders = { 'Cache-Control': 'private, no-cache', ETag: etag, Vary: 'Authorization, x-impersonate-email' }
     const forceRefresh = req.headers.get('x-std-refresh') === '1'
     if (!forceRefresh && req.headers.get('if-none-match') === etag) return new NextResponse(null, { status: 304, headers: readHeaders })
@@ -378,6 +379,8 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
             },
         }
     })
+
+    project = withWuxiaStateClips(project, enrichedAssets)
 
     const subtitlePayload = project.project_payload || {}
     if (Array.isArray(subtitlePayload.subtitles) && (subtitlePayload.subtitles.length > 0

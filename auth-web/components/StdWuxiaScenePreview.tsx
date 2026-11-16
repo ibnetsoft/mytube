@@ -1,4 +1,5 @@
 'use client'
+import StdWuxiaStateVideo from './StdWuxiaStateVideo'
 import StdWuxiaCinematic from './StdWuxiaCinematic'
 import { useEffect, useRef, useState } from 'react'
 import { mergeWuxiaMouthRefresh, preparationEnabled } from '@/lib/stdWuxiaMouthRefresh'
@@ -54,12 +55,17 @@ export default function StdWuxiaScenePreview({ project, sceneNumber, subtitles, 
     const previewSeconds=playing && preciseSeconds!==null ? preciseSeconds : seconds
     const audibleRow=playing?subtitles.find(r=>previewSeconds>=Number(r.start_num??r.start_time??r.start)&&previewSeconds<Number(r.end_num??r.end_time??r.end)):null
     const previewScene=Number(audibleRow?.scene_number)||sceneNumber
-    const frame = wuxiaSceneFrame(mergeWuxiaMouthRefresh(project,mouthUpdate), previewScene, subtitles, previewSeconds)
+    let frame: ReturnType<typeof wuxiaSceneFrame> = null, frameError = ''
+    try { frame = wuxiaSceneFrame(mergeWuxiaMouthRefresh(project,mouthUpdate), previewScene, subtitles, previewSeconds) }
+    catch(error:any) { frameError = error.message || '상태 컷 영상 구간을 확인해 주세요.' }
     const source = String(frame?.state?.media_url || frame?.state?.image_url || '')
     const backdrop=String(frame?.transition.source?.media_url||frame?.transition.source?.image_url||'')
     // Fetch each authored still ahead of the cut, so a slow download does not
     // leave the previous state visible over the next spoken segment.
     const nextScene=payload?.structure?.wuxia_ae_package?.scenes?.find((s:any)=>Number(String(s.scene_id).match(/S(\d+)$/)?.[1])===previewScene+1)
+    const visibleScene=payload?.structure?.wuxia_ae_package?.scenes?.find((s:any)=>Number(String(s.scene_id).match(/S(\d+)$/)?.[1])===previewScene)
+    const preloadClipStates=[...(visibleScene?.states||[]),...(nextScene?.states||[])]
+    const preloadClips=preloadClipStates.map((s:any)=>payload?.wuxia_state_clips?.[s.asset_id]).filter(Boolean)
     const sourcesKey = JSON.stringify([...new Set([...(frame?.sources||[]),...(nextScene?.states||[]).map((s:any)=>s.media_url||s.image_url).filter(Boolean)])])
     const [images, setImages] = useState<Record<string, string>>({})
     const imageUrls=useRef<Record<string,string>>({})
@@ -116,7 +122,7 @@ export default function StdWuxiaScenePreview({ project, sceneNumber, subtitles, 
         }
         return () => { live = false; controller.abort() }
     }, [sourcesKey, headers])
-    if (!frame) return null
+    if (!frame) return frameError ? <div role="alert" className="absolute inset-x-0 bottom-0 bg-red-950 p-3 text-sm text-white">{frameError}</div> : null
     const art=(
         <div className="absolute inset-0" data-wuxia-effect-clock="editor" data-wuxia-audio-seconds={previewSeconds} data-wuxia-effect-active={frame.effects.active.join(',')} data-wuxia-effect-issues={frame.effects.issues.join(',')} style={{transform:`translate(${frame.effects.dx/19.2}%, ${frame.effects.dy/10.8}%) scale(${frame.effects.scale})`,transformOrigin:'50% 50%'}}>
         {images[source] && <img src={images[source]} alt="" className="absolute inset-0 h-full w-full object-cover" />}
@@ -142,6 +148,8 @@ export default function StdWuxiaScenePreview({ project, sceneNumber, subtitles, 
         {(!source || images[source]) && <StdWuxiaGraphics graphics={frame.graphics} animate={playing} />}
         </div>
         </div>
+        {preloadClips.map((clip:any)=><StdWuxiaStateVideo key={clip.asset_id} frame={frame.video?.clip.asset_id===clip.asset_id?frame.video:{clip,source_seconds:clip.source_in_seconds}} active={frame.video?.clip.asset_id===clip.asset_id} headers={headers}/>)}
+        {frame.video&&<StdWuxiaGraphics graphics={frame.graphics} animate={playing}/>}
         {frame.transition.flash>0&&<div className="absolute inset-0 bg-white" data-wuxia-transition-flash style={{opacity:frame.transition.flash}}/>}
     </div>
 }

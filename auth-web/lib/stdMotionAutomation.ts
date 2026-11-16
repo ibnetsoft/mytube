@@ -1,3 +1,4 @@
+import { withWuxiaStateClips } from './stdWuxiaClips'
 import { bindSavedSceneExecution, savedScene, hasSavedSceneExecution } from './stdSavedSceneExecution'
 import { freezeAmbientLoops, hasAmbientLoops } from './stdAmbientLoop'
 import { isWuxiaMovingtoon } from './stdWuxiaPresentation'
@@ -32,6 +33,8 @@ export function nativeVideoEligible(asset:any) { const m=asset?.metadata||{};ret
 
 export function motionAutomationEnabled(project:any) { const m=motionForProject(project);return Boolean(m?.enabled && m.automation)||hasScriptSpeechBubbles(project)||hasSavedSceneExecution(project)||isWuxiaMovingtoon(project)||hasAmbientLoops(project)||hasWuxiaMouths(project) }
 export async function registerMotionAutomation(project:any,scenes:any[],assets:any[],userId:string,resubmission=false) {
+    project=withWuxiaStateClips(project,assets)
+    if(project.project_payload?.wuxia_state_clip_issues?.length)throw new Error(project.project_payload.wuxia_state_clip_issues.join(' '))
     const engineError=productionEngineError(project)
     if(engineError)throw new Error(engineError)
     const allParallax=hasAllSceneParallax(project)
@@ -135,7 +138,7 @@ export async function registerMotionAutomation(project:any,scenes:any[],assets:a
     if(Buffer.byteLength(snapshot_json)>4_000_000)throw new Error('제출 데이터가 너무 큽니다.')
     const fingerprint=createHash('sha256').update(snapshot_json).digest('hex')
     const manifest={version:1,project:{id:project.id},automation:{snapshot_json,fingerprint,
-        ...(ordered.some(s=>s.wuxia_timeline)?{required_worker_contract:ordered.some(s=>s.wuxia_timeline?.contract==='wuxia_native_timeline/v6')?'wuxia_cinematic/v1':ordered.some(s=>s.wuxia_timeline?.states?.some((state:any)=>state.ambient_loops?.some((loop:any)=>loop.sword_aura)))?'wuxia_sword_aura/v1':ordered.some(s=>s.wuxia_timeline?.auto_motion_policy?.actual_output_review_required===true)?'wuxia_motion_auto/v1':ordered.some(s=>s.wuxia_timeline?.contract==='wuxia_native_timeline/v5')?'wuxia_native_timeline/v5':ordered.some(s=>s.wuxia_timeline?.contract==='wuxia_native_timeline/v4')?'wuxia_native_timeline/v4':'wuxia_native_timeline/v3'}:{})}}
+        ...(ordered.some(s=>s.wuxia_timeline)?{required_worker_contract:ordered.some(s=>s.wuxia_timeline?.state_clip_contract)?'wuxia_state_clip/v1':ordered.some(s=>s.wuxia_timeline?.contract==='wuxia_native_timeline/v6')?'wuxia_cinematic/v1':ordered.some(s=>s.wuxia_timeline?.states?.some((state:any)=>state.ambient_loops?.some((loop:any)=>loop.sword_aura)))?'wuxia_sword_aura/v1':ordered.some(s=>s.wuxia_timeline?.auto_motion_policy?.actual_output_review_required===true)?'wuxia_motion_auto/v1':ordered.some(s=>s.wuxia_timeline?.contract==='wuxia_native_timeline/v5')?'wuxia_native_timeline/v5':ordered.some(s=>s.wuxia_timeline?.contract==='wuxia_native_timeline/v4')?'wuxia_native_timeline/v4':'wuxia_native_timeline/v3'}:{})}}
     if(horizontal&&resubmission)throw Error('가로 웹툰 컷 모드의 재제출은 프로젝트를 다시 열고 준비한 뒤 제출해 주세요.')
     const result=await db.rpc(horizontal?'register_std_horizontal_webtoon_pipeline':resubmission?'register_std_motion_resubmission':filmcraft?'register_std_filmcraft_pipeline':effectcraft?'register_std_effectcraft_pipeline':'register_std_motion_pipeline',{p_project_id:project.id,p_user_id:userId,p_updated_at:project.updated_at,
         p_run_id:randomUUID(),p_job_id:randomUUID(),p_manifest:manifest,p_hash:fingerprint,...(resubmission?{p_engine:filmcraft?'filmcraft':effectcraft?'effectcraft':'ae'}:{})})

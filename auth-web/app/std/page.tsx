@@ -3,6 +3,7 @@ import StdWuxiaMotionControls from '@/components/StdWuxiaMotionControls'
 import { WUXIA_MOTIONS, wuxiaMotionValue, wuxiaMotionSpeed, splitWuxiaMotion } from '@/lib/stdWuxiaMotion'
 import { WUXIA_TRANSITIONS } from '@/lib/stdWuxiaTransition'
 import StdWuxiaScenePreview from '@/components/StdWuxiaScenePreview'
+import StdWuxiaClipEditor from '@/components/StdWuxiaClipEditor'
 import { isWuxiaMovingtoon, usesStandardSubtitles } from '@/lib/stdWuxiaPresentation'
 import { mapVoicePerformance, voicePerformanceKey, elevenLabsVoiceSettings } from '@/lib/stdVoicePerformance'
 import { scanDialogueQuoteState } from '@/lib/stdDialogueQuoteState'
@@ -10928,6 +10929,8 @@ export default function StdPortalPage() {
                                         speakerProgress={dialogueSpeakerProgress}
                                         onMotionApplied={() => { void (async () => { const r = await fetch(`/api/std/projects/${selectedProject.project.id}`, { headers: authedJsonHeaders }); if (r.ok) { const value = await r.json(); setSelectedProject(prev => prev && prev.project.id === value.project?.id ? { ...prev, scenes: value.scenes, assets: value.assets } : prev) } })() }}
                                         selectedSceneNumber={Number(localSubtitles[selectedSubIndex]?.scene_number || 0)} />
+                                    {wuxiaMode && <StdWuxiaClipEditor project={selectedProject.project} sceneNumber={Number(localSubtitles[selectedSubIndex]?.scene_number || 1)} subtitles={localSubtitles} headers={authedJsonHeaders}
+                                        onChange={(clipPayload,assets,updatedAt)=>setSelectedProject(prev=>prev?{...prev,assets,project:{...prev.project,updated_at:updatedAt,project_payload:{...prev.project.project_payload,...clipPayload}}}:prev)} />}
                                     {wuxiaMode && <div role="note" className="order-5 lg:order-none lg:mt-auto rounded border border-cyan-700/50 bg-cyan-950/30 p-2 text-xs text-cyan-100">무협 무빙툰 · 아래 대본은 음성·화자 편집용입니다. 일반 자막은 출력하지 않습니다. 화면에는 저장된 말풍선·반응·효과음 타이포만 표시합니다. 현재 연출 미리보기는 실제 녹음의 단어별 동기화 검증과 구분됩니다.</div>}
                                     {isVrewSubtitleMode && message && (
                                         <div role="status" aria-live="polite" data-subtitle-action-status title={message}

@@ -5,6 +5,7 @@ function fixture(mode='ae_only', alternativesEnabled=false) {
  const audio={id:'voice',asset_type:'audio',status:'uploaded',metadata:{gcs_path:'voice.wav',subtitle_timeline:[{start:0,end:20}]}},image={id:'image',asset_type:'image',scene_number:1,status:'uploaded',created_at:'now',metadata:{gcs_path:'source.png'}}
  new Function('exports','require',ts.transpileModule(fs.readFileSync('lib/stdMotionAutomation.ts','utf8'),{compilerOptions:{module:1,target:9,esModuleInterop:true}}).outputText)(exports,name=>{
  if(name.includes('stdAmbientLoop'))return require('./load-ts-module.cjs')('lib/stdAmbientLoop.ts');
+ if(name.includes('stdWuxiaClips'))return require('./load-ts-module.cjs')('lib/stdWuxiaClips.ts');
  if(name.includes('stdWuxiaPresentation'))return require('./load-ts-module.cjs')('lib/stdWuxiaPresentation.ts');
  if(name.includes('stdWuxiaNative'))return require('./load-ts-module.cjs')('lib/stdWuxiaNative.ts');
  if(name.includes('stdWuxiaMouth'))return require('./load-ts-module.cjs')('lib/stdWuxiaMouth.ts');
@@ -167,4 +168,11 @@ test('automatic wuxia scenes require a worker that acknowledges actual motion re
  f.project.project_payload.structure={wuxia_motion_policy:{contract:'wuxia_motion_auto/v1',enabled:true,actual_source_review_required:true,actual_output_review_required:true},scenes:[{scene_number:1,image_effect:'none',wuxia_motion_selection:{reason:'대사 가독성을 위한 고정'}}],wuxia_ae_package:{contract:'wuxia_still_ae_episode/v1',scenes:[{scene_id:'S001',states:[{asset_id:'state',sha256:hash,start:0,end:1,face_exclusion_boxes:[]}]}]}};
  await f.run();const m=f.calls.rpc[0].args.p_manifest.automation,t=JSON.parse(m.snapshot_json).scenes[0].wuxia_timeline;
  assert.equal(m.required_worker_contract,'wuxia_motion_auto/v1');assert.equal(t.contract,'wuxia_native_timeline/v5');assert.equal(t.auto_motion_policy.actual_output_review_required,true);assert.equal(t.motion_selection.reason,'대사 가독성을 위한 고정');assert.ok(t.samples.every(s=>Object.keys(s.motion).length===0));assert.equal(f.calls.models,0);
+});
+test('state footage freezes its exact clock and requires an updated worker without reading video provider keys',async()=>{
+ const f=fixture();f.project.project_payload.render_settings.motion.enabled=false;f.project.project_payload.render_settings.motion.aspect='16:9';const hash='a'.repeat(64);f.image.metadata={...f.image.metadata,gcs_bucket:'bucket',gcs_path:'source.png',sha256:hash};
+ f.project.project_payload.structure={wuxia_ae_package:{contract:'wuxia_still_ae_episode/v1',scenes:[{scene_id:'S001',states:[{asset_id:'state',sha256:hash,start:0,end:1}]}]}};
+ f.assets.push({id:'clip',asset_type:'other',status:'uploaded',created_at:'2026-11-16',metadata:{kind:'wuxia_state_clip',ready:true,enabled:true,clip:{contract:'wuxia_state_clip/v1',asset_id:'clip',state_asset_id:'state',source_state_sha256:hash,sha256:'b'.repeat(64),gcs_bucket:'bucket',gcs_path:'clip.mp4',width:1280,height:720,duration_seconds:5,source_in_seconds:1,play_seconds:2,start_offset_seconds:3}}});
+ await f.run();const m=f.calls.rpc[0].args.p_manifest.automation,t=JSON.parse(m.snapshot_json).scenes[0].wuxia_timeline;
+ assert.equal(m.required_worker_contract,'wuxia_state_clip/v1');assert.equal(t.states[0].clip.sha256,'b'.repeat(64));assert.equal(t.samples[72].video.source_seconds,1);assert.equal(t.samples.filter(s=>s.video).length,48);assert.equal(t.samples[120].video,undefined);assert.equal(f.calls.models,0);
 });
