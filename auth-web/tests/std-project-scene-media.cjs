@@ -63,6 +63,7 @@ async function getHydratedScenes(scenes, sourceScenes = [], options = {}) {
     const route = load('app/api/std/projects/[projectId]/route.ts', {
         'next/server': { NextResponse: Response },
         '@/lib/stdAudioAnchors': {},
+        '@/lib/stdWuxiaMouthRefresh': {},
         '@/lib/stdContentIdentity': identity,
         '@/lib/stdProjectReadCache': { projectReadCacheKey: () => 'key', readProjectResponse: async () => null, cacheProjectResponse: async () => {} },
         '@/lib/stdProjectAssets': { loadStdProjectAssets: async () => ({ data: records.std_project_assets, error: null }) },
@@ -76,6 +77,7 @@ async function getHydratedScenes(scenes, sourceScenes = [], options = {}) {
         '@/lib/stdComic': {},
         '@/lib/stdProjectEditPolicy': {},
         '@/lib/stdThumbnailRender': {},
+        '@/lib/stdTopicThumbnail': require('./load-ts-module.cjs')(path.resolve(__dirname, '../lib/stdTopicThumbnail.ts')),
         '@/lib/supabaseAdmin': { supabaseAdmin },
         '@/lib/stdWeb': { requireStdUser: async () => ({ ok: true, requester: { email: project.employee_email } }) },
         '@/lib/stdPolicy': {},

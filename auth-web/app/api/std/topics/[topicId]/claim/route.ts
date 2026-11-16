@@ -1,3 +1,4 @@
+import { topicThumbnailPayloads, restoreTopicThumbnail } from '@/lib/stdTopicThumbnail'
 import { isNonverbalProject } from '@/lib/stdNonverbal'
 import { attachSfxAssets, sharedSfxCatalog } from '@/lib/stdAiSfx'
 import { NextResponse } from 'next/server'
@@ -131,7 +132,7 @@ export async function POST(req: Request, { params }: { params: { topicId: string
         if (String(existingProject.employee_email || '').toLowerCase() === requester.email.toLowerCase()) {
             try {
                 const sceneResult = await ensureProjectScenes(existingProject.id, topic)
-                return NextResponse.json({ success: true, project: existingProject, scene_count: sceneResult.sceneCount, recovered: sceneResult.inserted })
+                return NextResponse.json({ success: true, project: restoreTopicThumbnail(existingProject, topic), scene_count: sceneResult.sceneCount, recovered: sceneResult.inserted })
             } catch (recoverError: any) {
                 return NextResponse.json({ success: false, error: recoverError.message || 'Failed to recover existing project scenes' }, { status: 500 })
             }
@@ -176,6 +177,7 @@ export async function POST(req: Request, { params }: { params: { topicId: string
 
     const summary = normalizeTopicSummary(topic)
     const subtitleDefaults = defaultSubtitleRenderSettings(topic)
+    const thumbnail = topicThumbnailPayloads(topic)
     const { data: project, error: projectError } = await supabaseAdmin
         .from('std_projects')
         .insert({
@@ -214,7 +216,7 @@ export async function POST(req: Request, { params }: { params: { topicId: string
                 thumbnail_hook_texts: topic.progress_payload?.thumbnail_hook_texts || [],
                 thumbnail_hook_reasoning: topic.progress_payload?.thumbnail_hook_reasoning || '',
                 thumbnail_image_prompt: topic.progress_payload?.thumbnail_image_prompt || '',
-                thumbnail_bg_url: topic.progress_payload?.thumbnail_bg_url || '',
+                ...thumbnail.project_payload,
                 render_settings: { ...subtitleDefaults, ae_scene_delivery: aeSceneDelivery, ...(isNonverbalProject(topic) ? { speech_enabled:false, subtitles_enabled:false, worker_tts_enabled:false } : {}) },
             },
             progress_payload: {
@@ -229,7 +231,8 @@ export async function POST(req: Request, { params }: { params: { topicId: string
                 thumbnail_hook_texts: topic.progress_payload?.thumbnail_hook_texts || [],
                 thumbnail_hook_reasoning: topic.progress_payload?.thumbnail_hook_reasoning || '',
                 thumbnail_image_prompt: topic.progress_payload?.thumbnail_image_prompt || '',
-                thumbnail_bg_url: topic.progress_payload?.thumbnail_bg_url || '',
+                ...thumbnail.project_payload,
+                ...thumbnail.progress_payload,
             },
         })
         .select('*')
