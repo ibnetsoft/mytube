@@ -770,8 +770,9 @@ def render_ffmpeg_slideshow(
     if template_overlay_path and os.path.isfile(template_overlay_path):
         overlay_index = len(images)
         command.extend(["-loop", "1", "-framerate", str(fps), "-i", template_overlay_path])
+        overlay_duration = max(audio_duration, native_frames / fps) if native_frames is not None else audio_duration
         filters.append(
-            f"[{overlay_index}:v]scale={width}:{height},trim=duration={audio_duration:.3f},"
+            f"[{overlay_index}:v]scale={width}:{height},trim=duration={overlay_duration:.9f},"
             f"setpts=PTS-STARTPTS,format=rgba[template]"
         )
         filters.append(f"[{current_label}][template]overlay=0:0:shortest=1[templated]")
@@ -789,7 +790,8 @@ def render_ffmpeg_slideshow(
     audio_index = len(images) + (1 if template_overlay_path and os.path.isfile(template_overlay_path) else 0)
     command.extend(["-i", audio_path])
     audio_labels = []
-    filters.append(f"[{audio_index}:a]atrim=duration={audio_duration:.3f},asetpts=PTS-STARTPTS[voice]")
+    voice_duration = f'{audio_duration:.9f}' if native_frames is not None else f'{audio_duration:.3f}'
+    filters.append(f"[{audio_index}:a]atrim=duration={voice_duration},asetpts=PTS-STARTPTS[voice]")
     audio_labels.append("voice")
 
     bgm_path = _resolve_audio_asset(temp_dir, _setting(subtitle_settings or {}, "bgm_path"))
