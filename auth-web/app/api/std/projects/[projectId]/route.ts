@@ -1,3 +1,4 @@
+import { canRestoreTopicThumbnail, restoreTopicThumbnail } from '@/lib/stdTopicThumbnail'
 import { preserveWuxiaMouthPreparation } from '@/lib/stdWuxiaMouthRefresh'
 import { preserveAudioAnchors } from '@/lib/stdAudioAnchors'
 import { assetMatchesContentRevision, bindProjectContent, persistContentRevision, projectContentIdentity, contentHash, speechText } from '@/lib/stdContentIdentity'
@@ -284,7 +285,7 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
     if (!initialVersion || (!requesterEmail.startsWith('admin') && !requesterEmail.startsWith('worker') && requesterEmail !== String(initialVersion.employee_email || '').toLowerCase())) {
         return new NextResponse(null, { status: 204, headers: { 'Cache-Control': 'no-store' } })
     }
-    const etag = `"std-read-v3-${initialVersion.version}"`
+    const etag = `"std-read-v4-${initialVersion.version}"`
     const readHeaders = { 'Cache-Control': 'private, no-cache', ETag: etag, Vary: 'Authorization, x-impersonate-email' }
     const forceRefresh = req.headers.get('x-std-refresh') === '1'
     if (!forceRefresh && req.headers.get('if-none-match') === etag) return new NextResponse(null, { status: 304, headers: readHeaders })
@@ -298,6 +299,22 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
     if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 })
     if (!project) {
         return new NextResponse(null, { status: 204, headers: { 'Cache-Control': 'no-store' } })
+    }
+
+    // Older claims copied only the background. Recover the editable package without
+    // writing a stale full payload over concurrent audio/subtitle/thumbnail edits.
+    project = restoreTopicThumbnail(project)
+    if (canRestoreTopicThumbnail(project) && projectTopicQueueId(project)) {
+        const { data: thumbnailTopic, error: thumbnailError } = await supabaseAdmin.from('topics_queue')
+            .select('id,progress_payload:progress_payload->thumbnail_design,thumbnail_url:progress_payload->>thumbnail_url,thumbnail_bg_url:progress_payload->>thumbnail_bg_url,thumbnail_completed:progress_payload->thumbnail_completed,structure_design:pregenerated_structure->thumbnail_design')
+            .eq('id', projectTopicQueueId(project)).maybeSingle()
+        if (thumbnailError) return NextResponse.json({ error: '썸네일 복원 정보를 불러오지 못했습니다. 다시 열어 주세요.' }, { status: 503 })
+        if (thumbnailTopic) project = restoreTopicThumbnail(project, {
+            id: thumbnailTopic.id,
+            progress_payload: { thumbnail_design: thumbnailTopic.progress_payload, thumbnail_url: thumbnailTopic.thumbnail_url,
+                thumbnail_bg_url: thumbnailTopic.thumbnail_bg_url, thumbnail_completed: thumbnailTopic.thumbnail_completed },
+            pregenerated_structure: { thumbnail_design: thumbnailTopic.structure_design },
+        })
     }
 
     const originalWorkerScript = await resolveOriginalWorkerScript(project)
