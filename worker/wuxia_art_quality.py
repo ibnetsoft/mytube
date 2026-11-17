@@ -46,6 +46,9 @@ a speech bubble or a crop presented as repair. Supply an actual approved pose
 reference when available; a pose description is NOT an attached reference.
 Specify each visible hand's anatomical left/right, palm/back, grip and the continuous
 shoulder-elbow-forearm-wrist-thumb chain; separately specify head direction vs torso.
+Specify pelvis-hip-knee-ankle-heel/toes and anatomical side for every visible leg/foot.
+Keep head/neck, torso and limb proportions coherent, with physically supported body
+weight; never combine incompatible poses or duplicate a shoulder, arm, leg or foot.
 Occluded joints/digits stay explicitly unverified, never force five visible fingers.
 Keep approved character identity, props, ownership and current script/audio intact.
 After generation inspect full frame AND native-resolution head/neck/hand/arm details.
