@@ -10608,6 +10608,20 @@ export default function StdPortalPage() {
                                         {/* 커스텀 플레이어 바 */}
                                         <div className="p-2 bg-[#13171e] border-t border-white/5 flex flex-col gap-1.5">
                                             <div
+                                                role="slider" tabIndex={0} aria-label="Preview playback position"
+                                                aria-valuemin={0} aria-valuemax={totalDuration} aria-valuenow={playbackTime}
+                                                onKeyDown={event => {
+                                                    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
+                                                    event.preventDefault()
+                                                    stopVrewPlayback()
+                                                    setPreviewTransition(null)
+                                                    const fps = Number(selectedProject?.project?.project_payload?.render_settings?.motion?.fps) || 24
+                                                    const targetTime = event.key === 'Home' ? 0 : event.key === 'End' ? totalDuration
+                                                        : Math.max(0, Math.min(totalDuration, playbackTime + (event.key === 'ArrowRight' ? 1 : -1) / fps))
+                                                    const index = localSubtitles.findIndex(subtitle => targetTime >= Number(subtitle.start_num ?? subtitle.start_time ?? 0) && targetTime < Number(subtitle.end_num ?? subtitle.end_time ?? 0))
+                                                    if (index >= 0) setSelectedSubIndex(index)
+                                                    setPlaybackTime(targetTime)
+                                                }}
                                                 onClick={(e) => {
                                                     const rect = e.currentTarget.getBoundingClientRect()
                                                     const clickX = e.clientX - rect.left
