@@ -62,3 +62,10 @@ test('electrical cores use connected tapered silhouettes and bounded low-opacity
  assert(f.overlays.some(s=>s.opacity>0&&s.opacity<.05))
  assert(f.overlays.length<=96)
 })
+
+test('reviewed attacks do not inherit onto an unreviewed acting variant of the source',()=>{
+ const variant={...state,asset_id:'art_acting',parent_asset_id:'art',sha256:'b'.repeat(64)}
+ const f=at([effect('attack_speedline'),effect('contact_flash')],1,variant)
+ assert.deepEqual(f.issues,[]);assert.deepEqual(f.active,[]);assert.deepEqual(f.overlays,[])
+ assert.match(at([effect('contact_flash')],1,{...state,sha256:'b'.repeat(64)}).issues[0],/source_review/)
+})

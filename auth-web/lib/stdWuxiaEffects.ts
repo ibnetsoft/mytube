@@ -22,13 +22,15 @@ export function wuxiaEffectFrame(scene:any,state:any,graphics:any[],seconds:numb
   if(e.amplitude_px!=null&&(!finite(e.amplitude_px)||e.amplitude_px<=0||e.amplitude_px>16)){frame.issues.push(`invalid_amplitude:${index}`);continue}
   const accent=ATTACK_ACCENT_TYPES.has(e.type)
   const target=e.asset_id||scene.states?.[Math.max(0,(e.state||1)-1)]?.asset_id
+  // Reviewed attack geometry belongs to this exact artwork, not its acting variants.
+  const matchesTarget=accent?target===state?.asset_id:target===(state?.parent_asset_id||state?.asset_id)
   const range=resolve({voice_binding:e.voice_binding,text:e.quote})
   const contact=accent&&e.action_review?.timing_basis==='scene_local'?start+e.contact_at_seconds:(range?(e.voice_binding?.phase==='after'?range.end:range.start):start+Number(e.preview_at||0)*(end-start))
   const from=accent&&e.type==='attack_speedline'?contact-e.duration_seconds:contact+Number(e.delay_seconds||0)
   if(e.voice_binding?.exact_anchor&&!range){frame.issues.push(`unmatched_effect_anchor:${index}`);continue}
-  if(accent&&target===(state?.parent_asset_id||state?.asset_id)){const error=attackAccentReviewError(e,state);if(error||contact<start||contact>=end){frame.issues.push(`invalid_attack_accent:${index}:${error||'contact_range'}`);continue}}
+  if(accent&&matchesTarget){const error=attackAccentReviewError(e,state);if(error||contact<start||contact>=end){frame.issues.push(`invalid_attack_accent:${index}:${error||'contact_range'}`);continue}}
   const t=(at-from)/e.duration_seconds
-  if(t<0||at>=from+e.duration_seconds-1e-7||target!==(state?.parent_asset_id||state?.asset_id))continue
+  if(t<0||at>=from+e.duration_seconds-1e-7||!matchesTarget)continue
   if(e.camera_face_boxes && (e.source_sha256!==state?.sha256 || !Array.isArray(e.camera_face_boxes) || e.camera_face_boxes.some((b:any)=>!Array.isArray(b)||b.length!==4||b.some((v:any)=>!finite(v)||v<0||v>1)||b[0]>=b[2]||b[1]>=b[3]))){frame.issues.push(`invalid_camera_face_review:${index}`);continue}
   if(!Array.isArray(heads)){frame.issues.push(`missing_head_review:${index}`);continue}
   frame.active.push(`${e.type}:${index}`)
