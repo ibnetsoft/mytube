@@ -103,7 +103,7 @@ def test_anatomy_precedes_all_optional_effects_and_rejected_state_is_not_animate
         'anatomy_auto':{'contract':q.CONTRACT,'enabled':True},'cinematic_auto':{'enabled':True,'auto_prepare':True},
         'energy_auto':{'enabled':True,'auto_prepare':True}}}
     order=[]
-    def audit(*args):
+    def audit(*args,**kwargs):
         order.append('anatomy')
         return {'STATE':{'passed':False,'decision':'repair_required','repair_request':{'asset_id':'STATE'}},
                 'GOOD':{'passed':True,'decision':'passed','repair_request':None}}
@@ -116,3 +116,61 @@ def test_anatomy_precedes_all_optional_effects_and_rejected_state_is_not_animate
     assert result['report']['state']!='not_required'
     assert result['report']['anatomy_repair_requests']==[{'asset_id':'STATE'}]
     assert result['states'][0]['art']==[] and 'energy' not in result['states'][0]
+
+
+def test_regeneration_rewrites_from_defects_and_only_uploads_reviewed_candidate(tmp_path,monkeypatch):
+    image,state,scene=fixture(tmp_path,monkeypatch)
+    initial={'passed':False,'decision':'repair_required','repair_request':{'source_file':str(image),
+        'defects':[{'check':'wrist_rotation','evidence':'reversed palm'}],'method':'localized_edit'}}
+    original=copy.deepcopy(state);calls=[]
+    class Runner:
+        def _stage(self,identity,name,c,task):
+            assert c['defects'][0]['evidence']=='reversed palm'
+            return {'prompt':'Correct the visibly reversed wrist and palm with a continuous shoulder elbow forearm thumb chain. Preserve all existing actors and 2D clothing.', 'defects_addressed':['wrist_rotation']}
+    class Generator:
+        def generate(self,**kwargs):
+            assert kwargs['role']=='wuxia_scene_repair'
+            assert kwargs['reference']==image
+            p=tmp_path/'new.png';Image.new('RGB',(512,512),'navy').save(p);return p
+    def actual_review(candidate,*args):
+        assert candidate['sha256']!=state['sha256'];calls.append('review')
+        return {'passed':True,'decision':'passed','source_sha256':candidate['sha256']}
+    def upload(path,sha):
+        assert calls==['review'];calls.append('upload')
+        return {'sha256':sha,'gcs_bucket':'b','gcs_path':'new.png','media_url':'/new.png'}
+    with patch.object(q,'review_state',side_effect=actual_review):
+        result=q.repair_until_reviewed(state,scene,'x',None,upload,lambda:None,Runner(),initial,{'repair_attempt_limit':2},Generator())
+    assert calls==['review','upload'] and state==original
+    assert result['replacement']['original_source_sha256']==state['sha256']
+    assert result['replacement']['state']['ambient_loops']==[]
+
+
+def test_regeneration_failure_and_refusal_never_publish_or_loop_forever(tmp_path,monkeypatch):
+    image,state,scene=fixture(tmp_path,monkeypatch)
+    initial={'passed':False,'decision':'repair_required','repair_request':{'source_file':str(image),
+        'defects':[{'check':'feet_toes','evidence':'duplicated foot'}],'method':'regenerate_simpler_pose'}}
+    class Runner:
+        def _stage(self,*args):return {'prompt':'Rebuild the duplicated foot with exactly one connected ankle heel and toes on each visible leg. Preserve identity, costume and 2D style.', 'defects_addressed':['feet_toes']}
+    class Generator:
+        calls=0
+        def generate(self,**kwargs):
+            self.calls+=1;p=tmp_path/f'new-{self.calls}.png';Image.new('RGB',(512,512),['navy','teal'][self.calls-1]).save(p);return p
+    g=Generator()
+    with patch.object(q,'review_state',return_value=initial):
+        result=q.repair_until_reviewed(state,scene,'x',None,lambda *args:pytest.fail('Rejected art uploaded'),lambda:None,Runner(),initial,{'repair_attempt_limit':2},g)
+    assert g.calls==2 and result['repair_exhausted'] and 'replacement' not in result
+    class Refused:
+        def generate(self,**kwargs):raise RuntimeError('safety refusal')
+    with pytest.raises(RuntimeError,match='safety refusal'):
+        q.repair_until_reviewed(state,scene,'x',None,lambda *a:pytest.fail('refusal uploaded'),lambda:None,Runner(),initial,{},Refused())
+
+
+def test_native_worker_rejects_unreviewed_or_stale_art_before_download(tmp_path):
+    from worker.wuxia_native_timeline import prepare
+    timeline={'contract':'wuxia_native_timeline/v1','anatomy_required':True,
+        'states':[{'asset_id':'s','sha256':'a'*64}], 'samples':[{'at':0,'state':'s'}]}
+    with pytest.raises(ValueError,match='approval missing or stale'):
+        prepare(timeline,tmp_path,lambda:None,lambda *a:pytest.fail('Unapproved source downloaded'),1,1)
+    timeline['states'][0]['anatomy_approval']={'source_sha256':'b'*64,'decision':'passed'}
+    with pytest.raises(ValueError,match='approval missing or stale'):
+        prepare(timeline,tmp_path,lambda:None,lambda *a:pytest.fail('Stale source downloaded'),1,1)

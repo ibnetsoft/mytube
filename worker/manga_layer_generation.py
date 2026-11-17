@@ -292,8 +292,8 @@ class NativeCodexLayerGenerator:
             shutil.copyfile(reference, reference_file)
         task = (
             "Use the imagegen skill and BUILT-IN image_gen tool to generate exactly one PNG. "
-            "Do not use external image APIs, stock images, code-drawn art, a flattened scene, or a depth proxy. "
-            "Set transparent_background=false for background and background_plate; set it true for all other roles. "
+            + ("Repair the attached complete scene as one opaque PNG, preserving all existing actors and 2D style. " if role == "wuxia_scene_repair" else "Do not use external image APIs, stock images, code-drawn art, a flattened scene, or a depth proxy. ")
+            + "Set transparent_background=false for background, background_plate and wuxia_scene_repair; set it true for all other roles. "
             "If a visual reference path is supplied, pass it as referenced_image_paths to the image tool. "
             "For character and hand roles preserve that identity; for wall_broken preserve the wall_intact geometry. "
             "Do not merely describe the reference in text. Never add another character. "
@@ -301,7 +301,7 @@ class NativeCodexLayerGenerator:
             "If imagegen is unavailable, return status=unavailable. "
             "Copy the actual generated image unchanged to source.png in this working directory. "
             "Return JSON only: {\"status\":\"ready\",\"generator\":\"builtin_image_gen\",\"image_file\":\"source.png\"}.\n"
-            + json.dumps({"role": role, "transparent_background": role not in ("background", "background_plate"),
+            + json.dumps({"role": role, "transparent_background": role not in ("background", "background_plate", "wuxia_scene_repair"),
                           "visual_reference_path": str(reference_file) if reference_file else None,
                           "art_direction": prompt}, ensure_ascii=False)
         )

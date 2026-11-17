@@ -10,6 +10,8 @@ def prepare(timeline,directory,fresh,download,duration,fps,audio=None):
  result=copy.deepcopy(timeline);directory=Path(directory);directory.mkdir(parents=True,exist_ok=True)
  states=result.get('states') or [];samples=result.get('samples') or []
  if not 1<=len(states)<=100 or len(samples)!=__import__('math').ceil(duration*fps):raise ValueError('Wuxia schedule does not match finalized timing')
+ if timeline.get('anatomy_required') is True and any((s.get('anatomy_approval') or {}).get('source_sha256')!=s.get('sha256') or (s.get('anatomy_approval') or {}).get('decision')!='passed' for s in states):raise ValueError('Actual source anatomy approval missing or stale')
+ if any(s.get('anatomy_hold') for s in states):raise ValueError('Unapproved anatomy source cannot be rendered; regenerate and review')
  ids={s['asset_id'] for s in states}
  if len(ids)!=len(states):raise ValueError('Duplicate wuxia state')
  for i,sample in enumerate(samples):

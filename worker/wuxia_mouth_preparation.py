@@ -161,7 +161,7 @@ def prepare_art(structure, identity, download, upload, check=lambda: None, runne
     if not package.get('scenes') or any(not sc.get('states') for sc in package['scenes']):
         raise RuntimeError('waiting_images: state package is not complete')
     from worker.wuxia_art_quality import enabled as anatomy_enabled, audit_package
-    anatomy = audit_package(structure, identity, download, check, runner) if anatomy_enabled(structure) else {}
+    anatomy = audit_package(structure, identity, download, check, runner, upload=upload) if anatomy_enabled(structure) else {}
     result, excluded, reviewed, count = [], [], 0, 0
     for scene in package['scenes']:
         graphics = scene.get('graphics') or []
@@ -170,7 +170,7 @@ def prepare_art(structure, identity, download, upload, check=lambda: None, runne
         if cinematic_policy.get('enabled') is True and cinematic_policy.get('auto_prepare') is True:
             from worker.wuxia_cinematic import prepare_scene
             safe_scene = {**scene, 'states': [st for st in scene['states']
-                if not anatomy or anatomy[st['asset_id']]['passed']]}
+                if not anatomy or (anatomy[st['asset_id']]['passed'] and not anatomy[st['asset_id']].get('replacement'))]}
             if safe_scene['states']:
                 cinematic=prepare_scene(safe_scene,cinematic_policy,identity,download,check,runner)
         for state in scene['states']:
@@ -185,6 +185,8 @@ def prepare_art(structure, identity, download, upload, check=lambda: None, runne
                     excluded.append({'asset_id':state['asset_id'], 'reason':'anatomy_'+patch['anatomy']['decision'],
                         'source_sha256':state['sha256'], 'source_preserved':True})
                     continue  # Repair request is recorded; no new effects or mouth patches on broken art.
+            if anatomy and anatomy[state['asset_id']].get('replacement'):
+                continue  # New image is source-bound in report; old geometry cannot be reused.
             if state['asset_id'] in cinematic:patch['cinematic']=cinematic[state['asset_id']]
             energy_policy=(structure.get('wuxia_mouth_policy') or {}).get('energy_auto') or {}
             if energy_policy.get('enabled') is True and energy_policy.get('auto_prepare') is True:
@@ -265,6 +267,7 @@ def prepare_art(structure, identity, download, upload, check=lambda: None, runne
                 count += 1
     return {'states': result, 'report': {'state': 'prepared' if anatomy or count or any(p.get('cinematic') for p in result) or any(p.get('energy',{}).get('loops') or p.get('energy',{}).get('decision')=='uncertain' for p in result) else 'not_required', 'selection_complete': True,
             'anatomy_reviews':list(anatomy.values()),
+            'anatomy_replacements':[v['replacement'] for v in anatomy.values() if v.get('replacement')],
             'anatomy_review_state':('repair_required' if any(not v['passed'] for v in anatomy.values()) else 'passed') if anatomy else 'not_requested',
             'anatomy_repair_requests':[v['repair_request'] for v in anatomy.values() if v['repair_request']],
             'quality_notes':[{'kind':'anatomy', 'asset_id':sid, **v} for sid,v in anatomy.items() if not v['passed']]+[{'state':p['asset_id'],'energy_review':p['energy']} for p in result if p.get('energy',{}).get('decision')=='uncertain']+[{'state':p['asset_id'],'cinematic_review':p['cinematic']} for p in result if p.get('cinematic',{}).get('quality_notes')],
@@ -318,7 +321,7 @@ def bind_timing(structure, rows, audio, audio_path, art_result):
                 raise ValueError('Mouth motion outside actual speech')
             patch['mouths'].append(mouth)
             count += 1
-    result['report'] = {**result['report'], 'state': 'ready' if count or any(p.get('cinematic') for p in result['states']) or any(p.get('energy',{}).get('loops') or p.get('energy',{}).get('decision')=='uncertain' for p in result['states']) else 'not_required',
+    result['report'] = {**result['report'], 'state': 'ready' if result['report'].get('anatomy_reviews') or count or any(p.get('cinematic') for p in result['states']) or any(p.get('energy',{}).get('loops') or p.get('energy',{}).get('decision')=='uncertain' for p in result['states']) else 'not_required',
                         'audio_asset_id': audio['id'], 'audio_sha256': audio['metadata']['sha256'],
                         'timing_review': 'exact_recorded_rows_and_waveform_gates', 'bound_count': count}
     return result

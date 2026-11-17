@@ -1,6 +1,6 @@
 import { validAmbientLoop } from './stdAmbientLoop'
 const ENERGY='wuxia_energy_auto/v1'
-export function preparationEnabled(policy:any){return (policy?.auto_prepare===true&&policy?.enabled!==false)||(policy?.energy_auto?.auto_prepare===true&&policy?.energy_auto?.enabled===true)||(policy?.cinematic_auto?.auto_prepare===true&&policy?.cinematic_auto?.enabled===true)}
+export function preparationEnabled(policy:any){return (policy?.anatomy_auto?.enabled===true)||(policy?.auto_prepare===true&&policy?.enabled!==false)||(policy?.energy_auto?.auto_prepare===true&&policy?.energy_auto?.enabled===true)||(policy?.cinematic_auto?.auto_prepare===true&&policy?.cinematic_auto?.enabled===true)}
 function cinematicFields(local:any,remote:any){const c=remote?.cinematic_review;return c?.contract==='wuxia_cinematic/v1'&&c.source_sha256===local.sha256?{cinematic_review:c}:{}}
 function energyFields(local:any,remote:any){
  if(remote?.energy_preparation?.source_sha256!==local.sha256)return {}

@@ -122,7 +122,7 @@ export default function StdWuxiaScenePreview({ project, sceneNumber, subtitles, 
         }
         return () => { live = false; controller.abort() }
     }, [sourcesKey, headers])
-    if (!frame) return frameError ? <div role="alert" className="absolute inset-x-0 bottom-0 bg-red-950 p-3 text-sm text-white">{frameError}</div> : null
+    if (!frame) return frameError ? <div role="alert" className="absolute inset-0 z-10 flex items-center justify-center bg-black p-3 text-sm text-white">{frameError}</div> : null
     const art=(
         <div className="absolute inset-0" data-wuxia-effect-clock="editor" data-wuxia-audio-seconds={previewSeconds} data-wuxia-effect-active={frame.effects.active.join(',')} data-wuxia-effect-issues={frame.effects.issues.join(',')} style={{transform:`translate(${frame.effects.dx/19.2}%, ${frame.effects.dy/10.8}%) scale(${frame.effects.scale})`,transformOrigin:'50% 50%'}}>
         {images[source] && <img src={images[source]} alt="" className="absolute inset-0 h-full w-full object-cover" />}

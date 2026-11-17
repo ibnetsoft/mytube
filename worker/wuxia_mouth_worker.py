@@ -67,7 +67,7 @@ def process_one():
         states = [(sc, st) for sc in source['package']['scenes'] for st in sc['states']]
         energy_policy=(source.get('policy') or {}).get('energy_auto') or {}
         cinematic_policy=(source.get('policy') or {}).get('cinematic_auto') or {}
-        if (inp['task'] == 'timing' and not (cinematic_policy.get('enabled') is True and cinematic_policy.get('auto_prepare') is True) and not (energy_policy.get('enabled') is True and energy_policy.get('auto_prepare') is True)
+        if (inp['task'] == 'timing' and not (source.get('policy') or {}).get('anatomy_auto',{}).get('enabled') and not (cinematic_policy.get('enabled') is True and cinematic_policy.get('auto_prepare') is True) and not (energy_policy.get('enabled') is True and energy_policy.get('auto_prepare') is True)
                 and all(st['asset_id'] in prepared for _, st in states)):
             patches = [{'scene_id':sc['scene_id'], 'asset_id':st['asset_id'], 'sha256':st['sha256'], 'art':prepared[st['asset_id']]} for sc,st in states]
             count = sum(len(p['art']) for p in patches)
@@ -117,7 +117,8 @@ def prepare_topic(topic_id, structure, store):
     policy = structure.get('wuxia_mouth_policy') or {}
     energy = policy.get('energy_auto') or {}
     cinematic = policy.get('cinematic_auto') or {}
-    if not ((policy.get('auto_prepare') is True and policy.get('enabled') is not False)
+    if not ((policy.get('anatomy_auto') or {}).get('enabled') is True
+            or (policy.get('auto_prepare') is True and policy.get('enabled') is not False)
             or (energy.get('auto_prepare') is True and energy.get('enabled') is True)
             or (cinematic.get('auto_prepare') is True and cinematic.get('enabled') is True)):
         return {'state':'disabled'}

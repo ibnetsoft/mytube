@@ -1,4 +1,4 @@
-import { withWuxiaAnatomyHolds } from './stdWuxiaArtQuality'
+import { withWuxiaAnatomyHolds, assertWuxiaArtUsable } from './stdWuxiaArtQuality'
 import { wuxiaStateClipFrame } from './stdWuxiaClips'
 import { cinematicFrame } from './stdWuxiaCinematic'
 import { wuxiaEffectFrame } from './stdWuxiaEffects'
@@ -78,6 +78,7 @@ export function wuxiaSceneFrame(project: any, number: number, rows: any[], secon
     const state = scene.state_timing_authoritative === true ? scheduled : dialogue && scheduledSource !== dialogue.state_asset_id
         ? scene.states?.find((s: any) => s.asset_id === dialogue.state_asset_id) || scheduled
         : scheduled
+    assertWuxiaArtUsable(state)
     const graphics = (scene.graphics || []).filter((g: any) => {
         if (g.state_asset_id !== (state?.parent_asset_id || state?.asset_id)) return false
         const range = rowRange(g)

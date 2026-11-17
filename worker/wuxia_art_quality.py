@@ -8,7 +8,7 @@ from pathlib import Path
 CONTRACT = 'wuxia_anatomy_review/v1'
 ROOT = Path(__file__).resolve().parents[1] / 'output/codex-local-console/wuxia-anatomy'
 CHECKS = ('head_neck', 'shoulder_elbow', 'wrist_rotation', 'hand_digits',
-          'limb_torso_separation', 'weapon_grip')
+          'limb_torso_separation', 'weapon_grip', 'hip_knee_ankle', 'feet_toes', 'body_balance')
 DIRECTIVE = '''WUXIA ART PRODUCTION: first plan readable anatomy, then generate art,
 then inspect actual saved pixels before adding mouth/energy/camera effects.
 Plan the COMPLETE action sequence before isolated images. Persist a cut-by-cut
@@ -59,6 +59,9 @@ and EVERY visible hand, including hands with an occluded owner. Trace head-to-ne
 shoulders and shoulder-elbow-forearm-wrist-thumb, distinguish anatomical side from
 screen side, evaluate thumb/palm rotation and grip. Flag impossible neck rotation,
 wrong-side hands, fused torso/arms, missing/extra anatomy and implausible weapon grip.
+Also trace pelvis-hip-knee-ankle-heel/toes for every visible leg/foot, distinguish
+left/right feet, impossible joints, duplicated legs, fused toes and unsupported
+body balance. Occlusion is not automatically a missing part. Inspect body proportions.
 A visible four-finger silhouette is NOT automatically missing a digit: record actual
 occlusion. Do not invent hidden joints, digits or owner identity. Unclear is uncertain.
 Return {source_sha256,coverage:{all_people:true,all_visible_hands:true},
@@ -68,7 +71,8 @@ chain_visibility:"continuous|occluded|outside_frame",chain_evidence:"actual link
 checks:{head_neck:{verdict:"pass|fail|uncertain|not_visible",evidence:"pixel evidence",boxes:[]},
 shoulder_elbow:{verdict,evidence,boxes:[]},wrist_rotation:{verdict,evidence,boxes:[]},
 hand_digits:{verdict,evidence,boxes:[]},limb_torso_separation:{verdict,evidence,boxes:[]},
-weapon_grip:{verdict,evidence,boxes:[]}}}. All boxes are normalized ORIGINAL coordinates,
+weapon_grip:{verdict,evidence,boxes:[]},hip_knee_ankle:{verdict,evidence,boxes:[]},
+feet_toes:{verdict,evidence,boxes:[]},body_balance:{verdict,evidence,boxes:[]}}}. All boxes are normalized ORIGINAL coordinates,
 not tile coordinates. Every fail or uncertain needs a precise box. No people is valid
 only when the actual art contains none. Do not create media or claim repair/render success.'''
 
@@ -86,7 +90,8 @@ def enable_new_package(package, request=None):
     s = package.setdefault('structure', {})
     s.setdefault('wuxia_mouth_policy', {}).setdefault('anatomy_auto', {
         'contract': CONTRACT, 'enabled': True, 'source_review_before_effects': True,
-        'repair_attempt_limit': 2, 'failure_policy': 'repair_requests_and_truthful_notes',
+        'repair_attempt_limit': 2, 'auto_regenerate': True, 'require_pass_for_use': True,
+        'failure_policy': 'exclude_rewrite_regenerate_reinspect',
         'preserve_script_audio': True})
     s['wuxia_art_production'] = {'contract': 'wuxia_anatomy_first/v1',
         'order': ['pose_and_shot_plan', 'source_art', 'actual_anatomy_review',
@@ -191,7 +196,7 @@ def review_state(state, scene, identity, download, check, runner):
                         'evidence': 'Anatomical hand side could not be established from the actual pixels'})
     repair = None
     if decision != 'passed':
-        complex_damage = any(d['check'] in ('head_neck', 'shoulder_elbow', 'limb_torso_separation') for d in defects)
+        complex_damage = any(d['check'] in ('head_neck', 'shoulder_elbow', 'limb_torso_separation', 'hip_knee_ankle', 'body_balance') for d in defects)
         repair = {'contract': 'wuxia_anatomy_repair/v1', 'scene_id': scene['scene_id'],
             'asset_id': state['asset_id'], 'source_sha256': sha, 'status': 'reviewed_repair_request',
             'method': 'regenerate_simpler_pose' if complex_damage else 'localized_edit',
@@ -210,9 +215,75 @@ def review_state(state, scene, identity, download, check, runner):
             'source_preserved': True, 'actual_repair_performed': False}
 
 
-def audit_package(structure, identity, download, check, runner):
+def audit_package(structure, identity, download, check, runner, upload=None):
     results = {}
     for scene in structure['wuxia_ae_package']['scenes']:
         for state in scene['states']:
             results[state['asset_id']] = review_state(state, scene, identity, download, check, runner)
+            policy = (structure.get('wuxia_mouth_policy') or {}).get('anatomy_auto') or {}
+            if not results[state['asset_id']]['passed'] and policy.get('auto_regenerate', True) is True and upload:
+                results[state['asset_id']] = repair_until_reviewed(state, scene, identity, download, upload, check, runner, results[state['asset_id']], policy)
     return results
+
+
+def repair_until_reviewed(state, scene, identity, download, upload, check, runner, initial, policy, generator=None):
+    """Bounded real generation and actual-pixel re-review; never publish failed art."""
+    from worker.manga_layer_generation import NativeCodexLayerGenerator
+    from PIL import Image
+    generator = generator or NativeCodexLayerGenerator()
+    original = copy.deepcopy(state)
+    current = copy.deepcopy(state)
+    result = initial
+    attempts = []
+    limit = max(1, min(4, int(policy.get('repair_attempt_limit', 2))))
+    for attempt in range(limit):
+        check()
+        request = result['repair_request']
+        feedback = {'source_sha256':current['sha256'], 'scene_id':scene['scene_id'],
+            'asset_id':state['asset_id'], 'defects':request['defects'],
+            'method':request['method'], 'previous_attempts':attempts,
+            'original_direction':scene.get('intent'), 'source_state':{k:current.get(k) for k in ('image_prompt','prompt','artwork_asset_id')}}
+        revised = runner._stage(identity, 'anatomy_rewrite_'+current['sha256']+'_'+str(attempt), feedback,
+            'Rewrite an image EDIT prompt to repair the supplied actual-pixel anatomy defects. Return {prompt,defects_addressed:[check names]}. '
+            'Each named defect must be addressed concretely, not generic correct anatomy. Preserve the same story instant, '
+            'actor identities, approved costume and prop design/state, background geometry and 2D Korean webtoon ink/cel shading. '
+            'Trace head-neck-torso, each shoulder-elbow-wrist-thumb and pelvis-knee-ankle-foot chain. '
+            'Do not hide errors with crop, blur, bubbles or effects. For topology failures simplify the pose while keeping the event/actors. '
+            'After repeated failure change the pose strategy, never repeat the same prompt. Do not generate art or claim approval.')
+        if not isinstance(revised.get('prompt'),str) or len(revised['prompt'].strip())<80 or not {d['check'] for d in request['defects']} <= set(revised.get('defects_addressed',[])):
+            raise ValueError('Anatomy repair prompt omitted reviewed defects')
+        prompt = revised['prompt']+'\nPreserve 2D webtoon linework/cel color; no 3D/PBR finish. Repair candidate, not approval. Attempt '+str(attempt+1)
+        directory = ROOT / ('repair-'+hashlib.sha256((current['sha256']+prompt).encode()).hexdigest())
+        directory.mkdir(parents=True,exist_ok=True)
+        (directory/'repair-direction.json').write_text(json.dumps({'source_sha256':current['sha256'],**revised},ensure_ascii=False,indent=2))
+        # This existing bridge invokes only built-in image_gen, stops on refusal,
+        # verifies real PNG bytes, and preserves prior attempts. Opaque full frame.
+        path = generator.generate(prompt=prompt,role='wuxia_scene_repair',reference=Path(request['source_file']),work_dir=directory)
+        sha = hashlib.sha256(Path(path).read_bytes()).hexdigest()
+        if sha == current['sha256']:
+            raise ValueError('Anatomy regeneration returned unchanged source')
+        candidate={**original,'sha256':sha}
+        def local_download(ref,target):
+            if ref['sha256']==sha:
+                __import__('shutil').copyfile(path,target)
+            else:download(ref,target)
+        result=review_state(candidate,scene,identity+'-repair',local_download,check,runner)
+        attempts.append({'attempt':attempt+1,'source_sha256':current['sha256'],'candidate_sha256':sha,
+                         'prompt_file':str(directory/'repair-direction.json'),'decision':result['decision']})
+        if result['passed']:
+            check()
+            published=upload(Path(path),sha)
+            if published.get('sha256')!=sha or not all(published.get(k) for k in ('gcs_bucket','gcs_path','media_url')):
+                raise ValueError('Repaired artwork upload identity missing')
+            with Image.open(path)as image: width,height=image.size
+            replacement={**original,**published,'width':width,'height':height,'bytes':Path(path).stat().st_size,
+                'ambient_loops':[],'dialogue_mouths':[]}
+            for k in ('anatomy_hold','energy_preparation','cinematic_review','face_exclusion_boxes','hand_exclusion_boxes','protected_regions'):
+                replacement.pop(k,None)
+            result.update(actual_repair_performed=True,repair_attempts=attempts,
+                replacement={'original_source_sha256':original['sha256'],'state':replacement})
+            return result
+        current=candidate
+    # Original and rejected candidates remain in evidence only; never substitute them.
+    return {**initial,'repair_attempts':attempts,'actual_repair_performed':True,
+            'repair_exhausted':True,'usage':'excluded_pending_pose_repair'}
