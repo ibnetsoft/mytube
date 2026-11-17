@@ -11,6 +11,30 @@ CHECKS = ('head_neck', 'shoulder_elbow', 'wrist_rotation', 'hand_digits',
           'limb_torso_separation', 'weapon_grip')
 DIRECTIVE = '''WUXIA ART PRODUCTION: first plan readable anatomy, then generate art,
 then inspect actual saved pixels before adding mouth/energy/camera effects.
+Plan the COMPLETE action sequence before isolated images. Persist a cut-by-cut
+continuity ledger in the visual direction and image prompts: stable actor/guardian IDs,
+world position, facing, attack target, weapon phase, prior-state input, resulting state,
+camera location relative to the action axis, framing and the exact spoken anchor.
+Split immutable architecture/design from MUTABLE actor states. A room reference
+showing dormant guardians is architecture/design ONLY after activation: never copy
+its initial line-up, idle pose or original positions back into a later attack cut.
+An attack target must be visually reachable in the blade path. A back turned toward
+an attacker needs an explicit motivated evasion/retreat and its connecting shot.
+Keep offscreen actors' last positions/actions in the ledger; offscreen is not reset.
+When staging many attackers is ambiguous, frame the protagonist reaction, opponent
+POV/over-shoulder, weapon/contact or feet insert; omit unspecified extra figures from
+that frame without deleting them from the story or moving them invisibly home.
+Vary shot size, height and viewpoint for information; preserve screen direction.
+Crossing the action axis needs a neutral/re-establishing shot. Do not just rotate a
+camera or crop one wide still and call it newly staged action. Plan full-frame source
+cuts of at most 3 seconds where the fixed speech allows, retaining voice across cuts;
+add motivated source cuts rather than accelerating, truncating or rewriting audio.
+Show intention/preparation -> motion -> contact or motivated miss -> consequence.
+A floor strike needs a prior target and visible dodge/deflection, or an explicitly
+scripted ground tap/lure. After contact the blade cannot remain cocked overhead.
+Review the ordered ORIGINAL images together against speech, not independent pretty
+frames. Repair resets, missing targets, wrong facing and contradictory weapon phases
+before approving sequence continuity; per-frame anatomy/effect parity is insufficient.
 Each action state depicts ONE primary action and one dominant pose, never a collage
 of preparation + strike + impact. Separate those beats into distinct state artwork
 without rewriting speech or inventing events. Prefer one or two foreground acting
