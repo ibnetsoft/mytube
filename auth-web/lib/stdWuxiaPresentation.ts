@@ -73,7 +73,9 @@ export function wuxiaSceneFrame(project: any, number: number, rows: any[], secon
     const scheduled = scene.states?.find((s: any) => fraction >= s.start && fraction < s.end) || scene.states?.[0]
     // A derived acting state inherits the graphics of its source image.
     const scheduledSource = scheduled?.parent_asset_id || scheduled?.asset_id
-    const state = dialogue && scheduledSource !== dialogue.state_asset_id
+    // Reboarded scenes may cut within one recorded line. Legacy packages retain
+    // their explicit dialogue-state pin; reviewed editor-clock cuts stay authoritative.
+    const state = scene.state_timing_authoritative === true ? scheduled : dialogue && scheduledSource !== dialogue.state_asset_id
         ? scene.states?.find((s: any) => s.asset_id === dialogue.state_asset_id) || scheduled
         : scheduled
     const graphics = (scene.graphics || []).filter((g: any) => {
