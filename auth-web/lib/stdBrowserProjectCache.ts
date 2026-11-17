@@ -48,10 +48,15 @@ export async function fetchCachedProject(url: string, headers: Record<string, st
     const key = `${scope}:${url}`
     const cached = force ? null : await entry(key)
     const reusable = cached && Date.now() - cached.savedAt < 3_600_000
-    const response = await fetch(url, {
-        headers: { ...headers, ...(reusable ? { 'If-None-Match': cached.etag } : {}), ...(force ? { 'x-std-refresh': '1' } : {}) },
-        cache: 'no-store', signal: AbortSignal.timeout(60000),
-    })
+    const requestHeaders = { ...headers, ...(reusable ? { 'If-None-Match': cached.etag } : {}), ...(force ? { 'x-std-refresh': '1' } : {}) }
+    // A temporary upstream failure must not make a saved scene disappear after reload.
+    let response!: Response
+    for (let attempt = 0; attempt < 3; attempt++) {
+        response = await fetch(url, { headers: requestHeaders, cache: 'no-store', signal: AbortSignal.timeout(60000) })
+        if (![500, 502, 503, 504, 520, 522, 524].includes(response.status) || attempt === 2) break
+        await response.body?.cancel()
+        await new Promise(resolve => setTimeout(resolve, 750 * (attempt + 1)))
+    }
     // Authentication/ownership is checked by the server before every 304.
     if (response.status === 304 && reusable) return Response.json(cached.payload)
     if (response.ok && response.headers.get('etag')) {

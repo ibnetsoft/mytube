@@ -9357,7 +9357,7 @@ export default function StdPortalPage() {
                         <div role={projectLoading || loading ? 'status' : 'alert'} className="rounded-xl border border-white/10 bg-[#1c2129] p-6 text-gray-200">
                             <p>{projectLoading || loading
                                 ? ({ ko: '프로젝트를 불러오는 중입니다…', en: 'Loading project…', vi: 'Đang tải dự án…', th: 'กำลังโหลดโปรเจกต์…' }[currentLocale])
-                                : ({ ko: '프로젝트를 불러오지 못했습니다. 다시 시도해 주세요.', en: 'Could not load the project. Please try again.', vi: 'Không thể tải dự án. Vui lòng thử lại.', th: 'ไม่สามารถโหลดโปรเจกต์ได้ โปรดลองอีกครั้ง' }[currentLocale])}</p>
+                                : message || ({ ko: '프로젝트를 불러오지 못했습니다. 다시 시도해 주세요.', en: 'Could not load the project. Please try again.', vi: 'Không thể tải dự án. Vui lòng thử lại.', th: 'ไม่สามารถโหลดโปรเจกต์ได้ โปรดลองอีกครั้ง' }[currentLocale])}</p>
                             {!projectLoading && !loading && (
                                 <button className="mt-3 rounded-lg bg-blue-600 px-4 py-2 text-white" onClick={() => {
                                     const projectId = readUrlProjectId() || projects[0]?.id

@@ -82,3 +82,8 @@ test('Vercel Marketplace KV credentials support reads across separate instances'
   global.fetch=original.fetch
  }
 })
+test('project reload retries transient upstream failures but preserves access denial',async()=>{
+ const original=global.fetch;let calls=0
+ global.fetch=async()=>++calls===1?new Response('upstream unavailable',{status:503}):Response.json({project:{id:'saved'}})
+ try{const lib=load('lib/stdBrowserProjectCache.ts');assert.equal((await(await lib.fetchCachedProject('/p',{Authorization:'Bearer a'},true)).json()).project.id,'saved');assert.equal(calls,2);calls=0;global.fetch=async()=>{calls++;return new Response(null,{status:403})};assert.equal((await lib.fetchCachedProject('/p',{Authorization:'Bearer a'},true)).status,403);assert.equal(calls,1)}finally{global.fetch=original}
+})
