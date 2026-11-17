@@ -1,3 +1,4 @@
+import { withWuxiaAnatomyHolds } from './stdWuxiaArtQuality'
 import { wuxiaStateClipFrame } from './stdWuxiaClips'
 import { cinematicFrame } from './stdWuxiaCinematic'
 import { wuxiaEffectFrame } from './stdWuxiaEffects'
@@ -18,7 +19,8 @@ export function usesStandardSubtitles(project: any): boolean {
 }
 // Correct the original first-scene layout only while that exact image and
 // original placement remain in use. Artist-edited layouts remain authoritative.
-export function correctedWuxiaPackage(pkg: any) {
+export function correctedWuxiaPackage(pkg: any, policy?: any) {
+    pkg = withWuxiaAnatomyHolds(pkg, policy)
     if (!Array.isArray(pkg?.scenes)) return pkg
     return { ...pkg, scenes: pkg.scenes.map((scene: any) => {
         const state = scene.states?.find((item: any) => item.sha256 === '18feb83a4b3cd8873870adc0e13baffc75f3693afeeb568951074593915977dc')
@@ -32,7 +34,7 @@ export function correctedWuxiaPackage(pkg: any) {
 export function wuxiaSceneFrame(project: any, number: number, rows: any[], seconds: number, fps?: number) {
     const p = project?.project_payload || project || {}
     if (!isWuxiaMovingtoon(project)) return null
-    const pkg = correctedWuxiaPackage(p.structure?.wuxia_ae_package || p.wuxia_ae_package)
+    const pkg = correctedWuxiaPackage(p.structure?.wuxia_ae_package || p.wuxia_ae_package, p.structure?.wuxia_mouth_policy)
     const scene = pkg?.scenes?.find((s: any) => Number(String(s.scene_id).match(/S(\d+)$/)?.[1]) === number)
     if (!scene) return null
     const timing = rows.filter(r => Number(r.scene_number) === number)
@@ -97,7 +99,7 @@ export function wuxiaSceneFrame(project: any, number: number, rows: any[], secon
     const transition=wuxiaTransitionFrame(project,scene,number,seconds,start,end,fps||p.render_settings?.motion?.fps||24)
     const motion=wuxiaMotionFrame(project,scene,state,number,seconds,start,end,fps||p.render_settings?.motion?.fps||24)
     const cinematic=cinematicFrame(project,scene,state,number,seconds,start,end,transition,motion,fps||p.render_settings?.motion?.fps||24)
-    const video = wuxiaStateClipFrame(project,state,seconds,start,end,fps||p.render_settings?.motion?.fps||24)
+    const video = state?.anatomy_hold ? null : wuxiaStateClipFrame(project,state,seconds,start,end,fps||p.render_settings?.motion?.fps||24)
     if(video){
         ambient.length=0; mouths.length=0
         Object.assign(effects,{active:[],overlays:[],dx:0,dy:0,scale:1,issues:[]})

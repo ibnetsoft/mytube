@@ -76,6 +76,8 @@ def produce(identity, request, snapshot, output, notify, sources=None):
         from worker.codex_content_runner import CodexStagedContentRunner
         from worker.wuxia_cinematic import plan_new_package as plan_cinematic
         package = plan_cinematic(CodexStagedContentRunner()._stage, 'local-' + identity, package, request, notify)
+        from worker.wuxia_art_quality import enable_new_package as anatomy_first
+        package = anatomy_first(package, request)
     package['applied_guidelines'] = [{k: row[k] for k in ('id','version','title','instruction')} for row in rows]
     return package
 
@@ -91,6 +93,11 @@ def _produce(identity, request, snapshot, output, notify, sources=None):
     class ReportingRunner(CodexStagedContentRunner):
         def _stage(self, job_id, name, context, task):
             notify(name)
+            if name == '03_media' or name.startswith('02f_scene_visual_director'):
+                from worker.wuxia_motion_policy import applies as is_wuxia_art
+                if is_wuxia_art({}, request):
+                    from worker.wuxia_art_quality import DIRECTIVE
+                    task += '\n' + DIRECTIVE
             if (request.get('_delivery_quality_notes_only') is True
                     and name.startswith('02f_scene_visual_director') and len(context.get('scenes', [])) > 24):
                 from worker.script_topic_delivery import chunked_direction

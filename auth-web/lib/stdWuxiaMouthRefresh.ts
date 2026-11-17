@@ -16,9 +16,10 @@ export function mergeWuxiaMouthRefresh(project:any,update:any):any {
  if(!update?.success||!p?.structure?.wuxia_ae_package||update.project_id!==project.id
   ||!preparationEnabled(p.structure.wuxia_mouth_policy))return project
  const voiceMatches=update.audio_id===p.subtitle_source_audio_id
- if(!voiceMatches&&!update.states?.some((s:any)=>(s.energy_preparation||s.cinematic_review)))return project
+ const anatomyReport=p.structure.wuxia_mouth_policy?.anatomy_auto?.enabled===true&&Array.isArray(update.report?.anatomy_reviews)?update.report:null
+ if(!voiceMatches&&!anatomyReport&&!update.states?.some((s:any)=>(s.energy_preparation||s.cinematic_review)))return project
  const pkg=p.structure.wuxia_ae_package
- const next={...p,structure:{...p.structure,wuxia_ae_package:{...pkg,scenes:pkg.scenes.map((sc:any)=>({...sc,states:sc.states.map((st:any)=>{
+ const next={...p,structure:{...p.structure,wuxia_ae_package:{...pkg,...(anatomyReport?{mouth_preparation:{...pkg.mouth_preparation,...anatomyReport}}:{}),scenes:pkg.scenes.map((sc:any)=>({...sc,states:sc.states.map((st:any)=>{
   const remote=update.states.find((r:any)=>r.scene_id===sc.scene_id&&r.asset_id===st.asset_id&&r.sha256===st.sha256)
   if(!remote)return st
   if(!voiceMatches||JSON.stringify(remote.graphics)!==JSON.stringify(sc.graphics))return {...st,...energyFields(st,remote),...cinematicFields(st,remote)}
