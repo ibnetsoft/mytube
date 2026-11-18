@@ -41,7 +41,13 @@ export function savedStdVisualStepStatus(project: any, assets: any[] = []) {
         || media.some(asset => Number(asset.scene_number) === number && asset.asset_type === 'video'))
     const isVideoStepDone = extraVideoScenes.size > 0 ? isImageDone && extraVideosReady
         : isImageDone || stdRequiredVideoSceneCount(project) === 0
-    const videoNotRequired = stdRequiredVideoSceneCount(project) === 0 && extraVideoScenes.size === 0
+    // Optional directions/clips indicate video scope without becoming required uploads.
+    const hasOptionalVideo = structures.some(structure => Array.isArray(structure?.wuxia_video_prompt_scenes)
+        && structure.wuxia_video_prompt_scenes.length > 0)
+        || scenes.some((scene: any) => Boolean(scene.video_prompt?.trim() || scene.video_url))
+        || media.some(asset => asset.asset_type === 'video')
+        || Object.keys(payload.wuxia_state_clips || {}).length > 0
+    const videoNotRequired = stdRequiredVideoSceneCount(project) === 0 && extraVideoScenes.size === 0 && !hasOptionalVideo
     return { isImageDone, isVideoStepDone, videoNotRequired,
         uploadedAssetsCount, totalScenesCount: scenes.length }
 }

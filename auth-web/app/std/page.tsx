@@ -8678,12 +8678,12 @@ export default function StdPortalPage() {
                             isCurrent ? 'text-blue-400 font-bold' : 'hover:text-gray-200'
                         }`}
                     >
-                        <div title={step.notRequired ? ui('영상 클립 제작 대상이 아닙니다') : undefined} aria-label={step.notRequired ? ui('영상 클립 제작 대상이 아닙니다') : undefined} className={`w-3.5 h-3.5 lg:w-4 lg:h-4 flex items-center justify-center font-bold ${
-                            step.notRequired ? 'text-emerald-500 text-base leading-none' : step.isDone
+                        <div aria-label={step.isDone ? ui('완료') : ui('미완료')} className={`w-3.5 h-3.5 lg:w-4 lg:h-4 flex items-center justify-center font-bold ${
+                            step.isDone
                                 ? 'rounded-full bg-emerald-500 text-black shadow-sm text-[8px] lg:text-[9px]'
                                 : 'rounded-full bg-white/10 text-gray-500 border border-white/20 text-[8px] lg:text-[9px]'
                         }`}>
-                            {step.notRequired ? '×' : step.isDone ? '✓' : '○'}
+                            {step.isDone ? '✓' : '○'}
                         </div>
                         <span className={`text-[9px] lg:text-[10px] ${step.isDone ? 'text-gray-200' : 'text-gray-500'}`}>{step.label}</span>
                     </button>
@@ -8842,7 +8842,7 @@ export default function StdPortalPage() {
                                                 </button>
                                             </div>
                                             <div className="mt-3 grid grid-cols-7 gap-1 border-t border-white/5 pt-3">
-                                                {steps.map(step => <div key={step.label} className="min-w-0 text-center"><div className={`text-sm font-bold ${step.done || step.skipped ? 'text-emerald-500' : 'text-gray-600'}`} aria-label={`${step.label}: ${step.skipped ? ui('영상 클립 제작 대상이 아닙니다') : step.done ? ui('완료') : ui('미완료')}`}>{step.skipped ? '×' : step.done ? '●' : '○'}</div><div className="truncate text-[10px] text-gray-400">{step.label}</div></div>)}
+                                                {steps.map(step => <div key={step.label} className="min-w-0 text-center"><div className={`text-sm font-bold ${step.done || step.skipped ? 'text-emerald-500' : 'text-gray-600'}`} aria-label={`${step.label}: ${step.done ? ui('완료') : ui('미완료')}`}>{step.done ? '●' : '○'}</div><div className="truncate text-[10px] text-gray-400">{step.label}</div></div>)}
                                             </div>
                                             <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-white/5 pt-2 text-[11px] text-gray-400">
                                                 <span>{ui('수정일')} {formatProjectListDate(p.updated_at)} {Number(p.latest_render_version) > 0 && <span className="ml-1 text-cyan-300">v{p.latest_render_version}</span>}</span>
@@ -8959,8 +8959,8 @@ export default function StdPortalPage() {
                                                                     </span>
                                                                 </td>
                                                                 <td className="px-1 py-2 text-center">
-                                                                    <span title={pStatus.videoNotRequired ? ui('영상 클립 제작 대상이 아닙니다') : undefined} aria-label={pStatus.videoNotRequired ? ui('영상 클립 제작 대상이 아닙니다') : undefined} className={(pStatus.isVideoStepDone ?? pStatus.isImageDone) ? 'text-emerald-500 font-bold text-sm' : 'text-gray-600 text-sm'}>
-                                                                        {pStatus.videoNotRequired ? '×' : (pStatus.isVideoStepDone ?? pStatus.isImageDone) ? '●' : '○'}
+                                                                    <span aria-label={(pStatus.isVideoStepDone ?? pStatus.isImageDone) ? ui('완료') : ui('미완료')} className={(pStatus.isVideoStepDone ?? pStatus.isImageDone) ? 'text-emerald-500 font-bold text-sm' : 'text-gray-600 text-sm'}>
+                                                                        {(pStatus.isVideoStepDone ?? pStatus.isImageDone) ? '●' : '○'}
                                                                     </span>
                                                                 </td>
                                                                 <td className="px-1 py-2 text-center">
@@ -11813,7 +11813,6 @@ export default function StdPortalPage() {
                                                 <div className="flex items-center justify-between text-[11px] text-gray-400 font-mono">
                                                     <span className="flex items-center gap-1">
                                                         <span>⏱️</span> {topicUi('{count}분 영상', { count: topic.assigned_duration_minutes || 15 })}
-                                                        {topic.video_not_required && <span className="ml-2 font-bold text-emerald-500" title={ui('영상 클립 제작 대상이 아닙니다')}>{ui('영상 X')}</span>}
                                                     </span>
                                                     <span className="text-cyan-400">{topicUi('{count}개 씬', { count: topic.scene_count || DEFAULT_15_MINUTE_SCENE_COUNT })}</span>
                                                 </div>
