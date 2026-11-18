@@ -91,7 +91,7 @@ def test_review_requires_every_sentence_and_same_cut_grounding(corruption):
 
 def test_failed_audiovisual_review_cannot_become_pass():
     def stage(name,context,task):
-        if name=='02w_wuxia_script':return {'sections':sections()}
+        if name=='02w_wuxia_script' or name.startswith('02w_wuxia_repair_'):return {'sections':sections()}
         r=report(context['sections'],False);r['checks']['continuity']['passed']=False;return r
     with pytest.raises(ValueError,match='rejected continuity'):
         produce_sections(stage,{},[{}]*2,BUDGETS)
@@ -174,7 +174,7 @@ def test_visual_instructions_participate_in_image_integrity_without_changing_leg
 @pytest.mark.parametrize('check',['narrator_conductor','narration_rhythm','character_agency'])
 def test_semantic_voice_checks_cannot_be_omitted_or_failed_but_reported_pass(check):
     def stage(name,context,task):
-        if name=='02w_wuxia_script':return {'sections':sections()}
+        if name=='02w_wuxia_script' or name.startswith('02w_wuxia_repair_'):return {'sections':sections()}
         assert 'narration_diagnostics' in context
         r=report(context['sections'],False);r['checks'][check]['passed']=False;return r
     with pytest.raises(ValueError,match='rejected continuity'):
@@ -190,3 +190,18 @@ def test_suffix_diagnostics_are_read_only_and_dialogue_never_becomes_narration()
     assert d['narration_sentences']==d['formal_korean_ending_sentences']==3
     assert d['longest_formal_narration_run']==3 and d['dialogue_blocks']==1
     assert d['automatic_rewrite'] is False and rows==original
+
+
+def test_rejected_padding_gets_rewritten_then_independently_reviewed():
+ calls=[]
+ def stage(name,context,task):
+  calls.append(name)
+  if name=='02w_wuxia_script' or name.startswith('02w_wuxia_repair_'):
+   if 'repair' in name:assert context['actual_review_feedback']['checks']['no_padding']['passed'] is False
+   return {'sections':sections()}
+  r=report(context['sections'],False)
+  if name.endswith('_1'):r['checks']['no_padding']['passed']=False
+  return r
+ result,audit=produce_sections(stage,{},[{}]*2,BUDGETS)
+ assert audit['verdict']=='pass' and len(audit['rounds'])==2
+ assert '02w_wuxia_repair_1' in calls and '02w_wuxia_visual_review_2' in calls

@@ -81,7 +81,8 @@ export function isStdVideoPromptScene(sceneNumber: any, project?: any): boolean 
     // not a contiguous extension of the mandatory opening footage range.
     const structure = structureFrom(project)
     const selected = structure?.motion_graphic_video_scenes
-    return Array.isArray(selected) && selected.some((value: unknown) => Number(value) === parsed)
+    const wuxiaSelected = structure?.wuxia_video_prompt_scenes
+    return [selected, wuxiaSelected].some(values => Array.isArray(values) && values.some((value: unknown) => Number(value) === parsed))
 }
 
 export function isStdRequiredVideoScene(sceneNumber: any, project?: any): boolean {

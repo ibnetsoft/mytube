@@ -50,6 +50,7 @@ def reconcile(store, root, identity):
         # A delivery worker waiting on the row must not wait on itself forever.
         if not job.get('delivery_active') or row['status'] != 'running':
             job['delivery_source_status'] = row['status']
+            job['delivery_source_stage'] = job.get('stage') or '대본 작성'
         raw = execution.get('stage') or '저장 단계 복구'
         batch = re.search(r'batch_(\d+)_(\d+)', raw)
         stage = ('복구 대기 · 자동 재시도' if execution.get('status') == 'retry_wait' else
@@ -87,3 +88,19 @@ def start(store, root):
             stop.wait(5)
     threading.Thread(target=run, name='delivery-status', daemon=True).start()
     return stop
+
+
+def local_producer_active(identity, port=3003):
+    """The live console's in-flight work must not be duplicated by recovery."""
+    import urllib.request
+    try:
+        base='http://127.0.0.1:'+str(port)
+        html=urllib.request.urlopen(base+'/',timeout=3).read().decode('utf-8')
+        token=re.search(r'name="local-token" content="([^"]+)"',html)
+        if not token:return False
+        request=urllib.request.Request(base+'/api/status',headers={'x-codex-local':token.group(1)})
+        data=json.load(urllib.request.urlopen(request,timeout=10))
+        ids=data.get('producer_inflight_ids')
+        return identity in ids if isinstance(ids,list) else data.get('local_busy') is True
+    except (OSError,ValueError):
+        return False

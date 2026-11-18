@@ -98,7 +98,7 @@ def _produce(identity, request, snapshot, output, notify, sources=None):
                 if is_wuxia_art({}, request):
                     from worker.wuxia_art_quality import DIRECTIVE
                     task += '\n' + DIRECTIVE
-            if (request.get('_delivery_quality_notes_only') is True
+            if ((request.get('_delivery_quality_notes_only') is True or request.get('_delivery_chunk_directions') is True)
                     and name.startswith('02f_scene_visual_director') and len(context.get('scenes', [])) > 24):
                 from worker.script_topic_delivery import chunked_direction
                 def stage(identity, stage_name, batch_context, batch_task):

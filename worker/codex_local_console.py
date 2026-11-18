@@ -881,7 +881,7 @@ def status():
         storage_error = str(exc)
     return {'jobs': jobs.listing(), 'codex_installed': bool(shutil.which(os.environ.get('CODEX_EXECUTABLE', 'codex'))),
             'script_model': 'gpt-6.1-sol', 'output': str(OUT), 'server': '대본 전용 워커 · Database 저장',
-            'cloud_summary': cloud_summary, 'worker_id': jobs.worker_id, 'local_busy': jobs.busy(),
+            'cloud_summary': cloud_summary, 'worker_id': jobs.worker_id, 'local_busy': jobs.busy(), 'producer_inflight_ids': sorted(jobs.inflight),
             'storage': {'connected': jobs.cloud_ready and not storage_error, 'error': storage_error or jobs.cloud_error,
                         'pending': sum(r.get('sync_status') == 'pending' for r in jobs.rows.values())},
             'login_status': '미확인 — CLI 설치 확인은 로그인/실행 성공을 보장하지 않습니다.'}

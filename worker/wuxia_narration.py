@@ -149,7 +149,22 @@ One decision for EVERY narration block. Zero narration blocks means narration_de
                      if d['decision'] == 'remove_visible_repeat'}
         if not deletions:
             if not all(c['passed'] for c in report['checks'].values()):
-                raise ValueError('Wuxia audiovisual review rejected continuity/clarity/padding; checkpoints preserved')
+                if attempt >= 2:
+                    raise ValueError('Wuxia audiovisual review rejected continuity/clarity/padding; checkpoints preserved')
+                revised = validated_stage(stage, f'02w_wuxia_repair_{attempt + 1}',
+                    {**context, 'sections': sections, 'actual_review_feedback': report},
+                    DIRECTIVE + '''
+Repair the rejected draft from the independent audiovisual findings. Return {sections:[{scene_order,
+visual_action,spoken_blocks,text}]} with the same ordered scene identifiers. Preserve the episode's
+canonical events, essential information, character agency, injuries and object custody. Do not invent
+new events, weapons or dialogue to fill duration. Repair the actual cited defects: compress redundant
+reaction shots, repeated empty-space confirmation and mechanically identical cut patterns. Shorten
+planned display durations when needed instead of padding to a target. Keep meaningful silent cuts.
+Maintain distinct motivated viewpoints and full-screen cuts <=3 seconds with exact speech anchors.
+Text must be exactly joined spoken_blocks. Do not claim actual artwork or audio was reviewed.''',
+                    lambda raw: validate_draft(raw, budgets))
+                sections = copy.deepcopy(revised['sections'])
+                continue
             return sections, {'profile': PROFILE, 'verdict': 'pass', 'mode': report['mode'],
                 'actual_artwork_reviewed': False, 'actual_audio_auditioned': False, 'review_checks': sorted(REVIEW_CHECKS), 'narration_diagnostics': diagnose(sections), 'rounds': rounds, 'removed': removed,
                 'script_sha256': hashlib.sha256(json.dumps(sections, ensure_ascii=False, sort_keys=True).encode()).hexdigest()}

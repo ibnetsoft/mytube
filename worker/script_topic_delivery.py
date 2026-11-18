@@ -387,3 +387,18 @@ def publish_topic(identity, package, request, store, directory):
         receipt['mouth_preparation'] = prior['mouth_preparation']
         write(directory/'registration-receipt.json', receipt)
     return receipt
+
+
+def spoken_translation_blocks(package):
+    """Keep silent visual scenes and original scene indices without inventing speech."""
+    scenes=package['structure']['scenes']
+    all_blocks=[{'index':i,'source_text':str(s.get('scene_text') or s.get('narration') or '').strip()}
+                for i,s in enumerate(scenes)]
+    if not all_blocks or '\n\n'.join(b['source_text']for b in all_blocks).strip()!=package['script']:
+        raise ValueError('최종 씬과 대본이 일치하지 않아 번역을 저장할 수 없습니다.')
+    for scene,block in zip(scenes,all_blocks):
+        if not block['source_text'] and not (scene.get('silent_visual') is True and not scene.get('spoken_blocks')):
+            raise ValueError('Empty speech is allowed only for an explicitly silent visual cut')
+    blocks=[b for b in all_blocks if b['source_text']]
+    if not blocks:raise ValueError('No spoken script to translate')
+    return blocks

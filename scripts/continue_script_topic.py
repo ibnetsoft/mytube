@@ -13,7 +13,7 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT/'worker'))
 import worker_config
 from worker.script_worker_store import ScriptStore
-from worker.script_topic_delivery import complete_candidate, publish_topic, write
+from worker.script_topic_delivery import complete_candidate, publish_topic, write, spoken_translation_blocks
 from codex_content_runner import CodexStagedContentRunner
 from worker.script_delivery_recovery import acquire_lock, checkpoint_package, save_candidate, complete_registration
 
@@ -73,9 +73,13 @@ def main():
                     stored = save_candidate(store, args.job, local_candidate, root)
                     has_candidate = True
             if source_status in ('queued', 'running') and not has_candidate:
-                notify('대본 생성 대기 · '+job.get('stage', ''), status='waiting')
+                notify('대본 생성 대기 · '+(job.get('delivery_source_stage') or job.get('stage', '')), status='waiting')
                 time.sleep(30); continue
             if source_status in ('failed', 'interrupted') and not has_candidate:
+                from worker.script_delivery_status import local_producer_active
+                if local_producer_active(args.job):
+                    notify('원래 대본워커 생성 진행 · 중복 복구 생략',status='waiting')
+                    time.sleep(30);continue
                 # Keep the SAME job directory/CLI artifact prefixes on recovery.
                 # A separate runner does not restart or interrupt the live server.
                 from worker.codex_local_workflow import produce
@@ -90,7 +94,7 @@ def main():
                     valid_hashes.add(hashlib.sha256(json.dumps(request, sort_keys=True, ensure_ascii=False).encode()).hexdigest())
                 package = saved.get('package') if saved.get('source_job_id') == args.job and saved.get('request_sha256') in valid_hashes else None
                 if not package:
-                    package = produce(args.job, {**request, '_delivery_quality_notes_only': True, **overrides}, None, root, notify)
+                    package = produce(args.job, {**request, '_delivery_chunk_directions': True, **overrides}, None, root, notify)
                     write(checkpoint, {'source_job_id': args.job, 'request_sha256': request_hash, 'package': package})
                 # The producer/status reconciler may save newer revisions.
                 # Reload before committing; retain the separate checkpoint if
@@ -117,10 +121,7 @@ def main():
             from worker.codex_subtitle_translation import translate_blocks
             script_hash = hashlib.sha256(package['script'].encode('utf-8')).hexdigest()
             scenes = package['structure']['scenes']
-            blocks = [{'index': i, 'source_text': str(s.get('scene_text') or s.get('narration') or '').strip()}
-                      for i, s in enumerate(scenes)]
-            if not blocks or any(not b['source_text'] for b in blocks) or '\n\n'.join(b['source_text'] for b in blocks) != package['script']:
-                raise ValueError('최종 씬과 대본이 일치하지 않아 번역을 저장할 수 없습니다.')
+            blocks = spoken_translation_blocks(package)
             translations = {}
             for language in (('ko', 'th') if request.get('language') != 'ko' else ('th',)):
                 notify('대본 번역 · ' + language, status='preparing')
