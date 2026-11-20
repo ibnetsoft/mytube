@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { signDesktopSessionToken } from '@/lib/desktopSession'
 import { ensureStage1WalletForUser, publicStage1Wallet } from '@/lib/walletStage1'
+import { supabaseTransport } from '@/lib/supabaseTransport'
 
 export const dynamic = 'force-dynamic'
 
@@ -10,7 +11,7 @@ function getAuthClient() {
     return createClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-        { auth: { persistSession: false, autoRefreshToken: false } }
+        { global: { fetch: supabaseTransport }, auth: { persistSession: false, autoRefreshToken: false } }
     )
 }
 
@@ -135,6 +136,6 @@ export async function POST(req: Request) {
         }, { status: authError?.status >= 500 ? 503 : 401 })
     } catch (error: any) {
         console.error('[StdLogin] error:', error?.message)
-        return NextResponse.json({ success: false, error: '로그인 서버에 연결하지 못했습니다. 잠시 후 다시 시도해 주세요.' }, { status: 503 })
+        return NextResponse.json({ success: false, error: '로그인 데이터베이스 연결이 일시적으로 불안정합니다. 잠시 후 다시 시도해 주세요.' }, { status: 503, headers: { 'Retry-After': '30' } })
     }
 }
