@@ -15,4 +15,8 @@ for (const name of ['무협 웹툰', '무협웹툰']) {
     assert.equal(copy.topicUiText('en', name), 'Wuxia Webtoon')
     assert.equal(copy.topicUiText('ko', name), name)
 }
+assert.equal(copy.topicUiText('ko', '대본 작업 완료'), '대본 작업 완료')
+assert.equal(copy.topicUiText('en', '대본 작업 완료'), 'Script work complete')
+assert.equal(copy.topicUiText('th', '대본 작업 완료'), 'เขียนบทเสร็จแล้ว')
+assert.equal(copy.topicUiText('vi', '대본 작업 완료'), 'Đã hoàn tất kịch bản')
 console.log('PASS: topic cards and claim modal copy follow the active locale')

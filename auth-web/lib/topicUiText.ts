@@ -82,6 +82,8 @@ const thai: Record<string, string> = {
     "대본 검토 대기": "รอตรวจบท",
     "대본 승인됨": "อนุมัติบทแล้ว",
     "완료": "เสร็จสิ้น",
+    "대본 작업 완료": "เขียนบทเสร็จแล้ว",
+    "AE 씬 전달 방식": "วิธีส่งฉาก AE",
     "참고 영상을 선택했습니다": "เลือกวิดีโออ้างอิงแล้ว",
     "토픽을 등록했습니다. 로컬 대본워커의 승인 대기열에 표시됩니다.": "ลงทะเบียนหัวข้อแล้ว แสดงในคิวรออนุมัติของระบบเขียนบทในเครื่อง",
     "입력 내용은 태국어·베트남어로 작성할 수 있습니다. 최종 대본은 선택한 대본 언어로 각색합니다.": "กรอกข้อมูลเป็นภาษาไทยหรือเวียดนามได้ บทสุดท้ายจะเรียบเรียงตามภาษาของบทที่เลือก",
@@ -248,6 +250,8 @@ const vietnamese: Record<string, string> = {
     "대본 검토 대기": "Chờ duyệt kịch bản",
     "대본 승인됨": "Kịch bản đã duyệt",
     "완료": "Hoàn tất",
+    "대본 작업 완료": "Đã hoàn tất kịch bản",
+    "AE 씬 전달 방식": "Phương thức chuyển cảnh AE",
     "참고 영상을 선택했습니다": "Đã chọn video tham khảo",
     "토픽을 등록했습니다. 로컬 대본워커의 승인 대기열에 표시됩니다.": "Đã đăng ký chủ đề. Chủ đề xuất hiện trong hàng chờ duyệt của worker cục bộ.",
     "입력 내용은 태국어·베트남어로 작성할 수 있습니다. 최종 대본은 선택한 대본 언어로 각색합니다.": "Có thể nhập bằng tiếng Thái hoặc tiếng Việt. Kịch bản cuối được chuyển thể sang ngôn ngữ đầu ra đã chọn.",
@@ -343,6 +347,8 @@ const vietnamese: Record<string, string> = {
 }
 
 const english: Record<string, string> = {
+    "대본 작업 완료": "Script work complete",
+    "AE 씬 전달 방식": "AE scene delivery method",
     "무협 웹툰": "Wuxia Webtoon",
     "무협웹툰": "Wuxia Webtoon",
     "일본판타지": "Japanese Fantasy",
