@@ -32,7 +32,7 @@ export function createSupabaseTransport(options: {
         try {
             const response = await send(input, { ...init, cache: 'no-store', signal: controller.signal })
             if (response.status >= 500) openUntil = now() + cooldownMs
-            else openUntil = 0
+            else if (probe) openUntil = 0
             return response
         } catch (error) {
             if (callerSignal?.aborted) throw error
