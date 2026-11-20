@@ -7276,6 +7276,15 @@ export default function StdPortalPage() {
         setAePreparedSceneState({ projectId: String(selectedProject?.project?.id || ''), numbers })
     }, [selectedProject?.project?.id])
 
+    // Planned clip slots are sparse (for example 14, 30, 40), not an opening range.
+    const plannedVideoScenes = useMemo(() => (selectedProject?.scenes || []).filter((scene: any, index: number) =>
+        baseIsStdVideoPromptScene(Number(scene.scene_number || scene.scene_order || index + 1), selectedProject?.project)
+    ), [selectedProject])
+    const plannedVideoNumbers = new Set(plannedVideoScenes.map((scene: any) => Number(scene.scene_number || scene.scene_order || selectedProject!.scenes.indexOf(scene) + 1)))
+    const stillImageScenes = (selectedProject?.scenes || []).filter((scene: any, index: number) =>
+        !plannedVideoNumbers.has(Number(scene.scene_number || scene.scene_order || index + 1))
+    )
+
     // 에셋 완성도 및 통계 계산
     const assetStats = useMemo(() => {
         const scenes = selectedProject?.scenes || []
@@ -11237,9 +11246,9 @@ export default function StdPortalPage() {
                                     <div className="flex flex-wrap items-center gap-2 text-xs">
                                         <span className="px-2 py-1 bg-blue-500/15 text-blue-400 rounded font-bold">{ui('씬')} {assetStats.totalScenes}</span>
                                         <span className="px-2 py-1 bg-emerald-500/15 text-emerald-400 rounded font-bold">{ui('유효 이미지')} {assetStats.imageCount}</span>
-                                        <span className="px-2 py-1 bg-purple-500/15 text-purple-400 rounded font-bold">{ui('영상')} {assetStats.videoCount}</span>
+                                        <span className="px-2 py-1 bg-purple-500/15 text-purple-400 rounded font-bold">{ui('등록 클립')} {assetStats.videoCount}</span>
                                         {assetStats.aePreparedCount > 0 && <span className="px-2 py-1 bg-cyan-500/15 text-cyan-300 rounded font-bold">{ui('PSD 연출 준비')} {assetStats.aePreparedCount}</span>}
-                                        <span className="px-2 py-1 bg-orange-500/15 text-orange-400 rounded font-bold">🔒 {assetStats.videoReadyInZoneCount}/{requiredVideoSceneCount}</span>
+                                        <span className="px-2 py-1 bg-orange-500/15 text-orange-400 rounded font-bold">{ui('영상 예정')} {plannedVideoScenes.length}</span>
                                         <span className="px-2 py-1 bg-amber-500/15 text-amber-400 rounded font-bold">{ui('비주얼 누락')} {assetStats.missingScenes.length}</span>
                                     </div>
                                 </div>
@@ -11272,16 +11281,16 @@ export default function StdPortalPage() {
                                             <div className="flex items-center gap-2">
                                                 <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
                                                 <span className="text-xs font-bold text-orange-400 uppercase tracking-wide">
-                                                    {ui('영상 구간 (씬 1 ~ {count})', { count: requiredVideoSceneCount })}
+                                                    {ui('영상 예정 씬')}: {plannedVideoScenes.length ? plannedVideoScenes.map((scene: any) => scene.scene_number || scene.scene_order).join(', ') : ui('없음')}
                                                 </span>
                                             </div>
                                             <span className="text-[10px] text-gray-400 font-mono">
-                                                {ui('완료')}: {selectedProject.scenes.filter(s => (s.scene_number <= requiredVideoSceneCount) && Boolean(s.video_url)).length} / {requiredVideoSceneCount}
+                                                {ui('클립 등록')}: {plannedVideoScenes.filter((scene: any) => Boolean(scene.video_url)).length} / {plannedVideoScenes.length}
                                             </span>
                                         </div>
                                         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
-                                            {selectedProject.scenes.slice(0, requiredVideoSceneCount).map((scene: any, idx: number) => {
-                                                const sNum = scene.scene_number || idx + 1
+                                            {plannedVideoScenes.map((scene: any, idx: number) => {
+                                                const sNum = scene.scene_number || scene.scene_order || selectedProject.scenes.indexOf(scene) + 1
                                                 const isReady = Boolean(scene.video_url)
                                                 const isUploading = uploadingKey === `${sNum}-video`
                                                 const transition = getSceneVideoTransitionPlan(scene, sNum)
@@ -11299,9 +11308,16 @@ export default function StdPortalPage() {
                                                                 #{sNum}
                                                             </span>
                                                             <span className={`text-[10px] font-bold ${isReady ? 'text-emerald-400' : isUploading ? 'text-blue-400' : 'text-orange-400'}`}>
-                                                                {isReady ? ui('✅ 영상 완료') : isUploading ? ui('업로드 중...') : ui('영상 없음')}
+                                                                {isReady ? ui('🎬 클립 등록됨') : isUploading ? ui('업로드 중...') : scene.image_url ? ui('영상 예정 · 기준 이미지 준비') : ui('영상 예정 · 이미지 준비 전')}
                                                             </span>
                                                         </div>
+                                                        {(scene.image_url || scene.video_url) && (
+                                                            <a href={scene.video_url || scene.image_url} target="_blank" rel="noreferrer"
+                                                                aria-label={`${ui('씬')} ${sNum} ${ui('보기')}`}
+                                                                className="my-2 block aspect-video overflow-hidden rounded-lg bg-black/30">
+                                                                <LazySceneMedia imageUrl={scene.image_url} videoUrl={scene.video_url} />
+                                                            </a>
+                                                        )}
                                                         <div className={`text-[10px] font-bold ${transition.mode === 'continuous' ? 'text-cyan-300' : 'text-gray-400'}`}>
                                                             {transition.mode === 'continuous'
                                                                 ? ui('연속 → 씬 {number}', { number: transition.nextSceneNumber || sNum + 1 })
@@ -11311,7 +11327,7 @@ export default function StdPortalPage() {
                                                             <button
                                                                 type="button"
                                                                 onClick={() => {
-                                                                    const el = document.getElementById(`prompt-card-${idx}`)
+                                                                    const el = document.getElementById(`prompt-scene-${sNum}`)
                                                                     el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
                                                                 }}
                                                                 className="text-gray-400 hover:text-white transition-colors"
@@ -11342,12 +11358,12 @@ export default function StdPortalPage() {
                                             <div className="flex items-center gap-2">
                                                 <span className="w-2 h-2 rounded-full bg-amber-500/70" />
                                                 <span className="text-xs font-bold text-amber-400/90 uppercase tracking-wide">
-                                                    {ui('이미지 구간 (씬 {start} ~ {count})', { start: requiredVideoSceneCount + 1, count: selectedProject.scenes.length })}
+                                                    {ui('이미지 씬')} · {stillImageScenes.length}{ui('개')}
                                                 </span>
                                             </div>
                                             <div className="flex items-center gap-2">
                                                 <span className="text-[10px] text-gray-400 font-mono">
-                                                    {ui('고정')}: {selectedProject.scenes.slice(requiredVideoSceneCount).filter(s => Boolean(s.image_url || s.video_url)).length} / {Math.max(0, selectedProject.scenes.length - requiredVideoSceneCount)}
+                                                    {ui('이미지 준비')}: {stillImageScenes.filter((scene: any) => Boolean(scene.image_url || scene.video_url)).length} / {stillImageScenes.length}
                                                 </span>
                                                 <button
                                                     type="button"
@@ -11362,11 +11378,10 @@ export default function StdPortalPage() {
                                         </div>
                                         {isBodyImageSectionOpen && (
                                             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-2">
-                                                {selectedProject.scenes.slice(requiredVideoSceneCount).map((scene: any, offsetIdx: number) => {
-                                                    const idx = offsetIdx + requiredVideoSceneCount
-                                                    const sNum = scene.scene_number || idx + 1
-                                                    const isMiddleVideo = selectedProject.project.project_payload?.strict_content_identity === true
-                                                        ? isStdVideoPromptScene(sNum) : isStdMiddleVideoScene(sNum)
+                                                {stillImageScenes.map((scene: any, offsetIdx: number) => {
+                                                    const idx = selectedProject.scenes.indexOf(scene)
+                                                    const sNum = scene.scene_number || scene.scene_order || selectedProject.scenes.indexOf(scene) + 1
+                                                    const isMiddleVideo = plannedVideoNumbers.has(Number(sNum))
                                                     const isReady = isMiddleVideo ? Boolean(scene.video_url) : Boolean(scene.image_url || scene.video_url)
                                                     const mouthPreview = scene.mouth_preview_url || scene.metadata?.cowork_image_asset?.speaker_geometry?.mouth_preview?.url
                                                     const isUploading = uploadingKey.startsWith(`${sNum}-`)
@@ -11386,7 +11401,7 @@ export default function StdPortalPage() {
                                                                 <span className={`text-[10px] font-bold ${isReady ? 'text-emerald-400' : isUploading ? 'text-blue-400' : 'text-amber-400/80'}`}>
                                                                     {isMiddleVideo
                                                                         ? scene.video_url ? ui('🎬 영상 준비됨') : isUploading ? ui('업로드 중...') : ui('영상 필요')
-                                                                        : scene.video_url ? ui('🎬 영상 준비됨') : mouthPreview ? ui('🎬 입모양 미리보기') : scene.image_url ? ui('🔒 이미지 고정') : isUploading ? ui('처리 중...') : ui('이미지 없음')}
+                                                                        : scene.video_url ? ui('🎬 영상 준비됨') : mouthPreview ? ui('🎬 입모양 미리보기') : scene.image_url ? ui('이미지 준비됨') : isUploading ? ui('처리 중...') : ui('이미지 없음')}
                                                                 </span>
                                                             </div>
                                                             {(scene.image_url || scene.video_url) && (
@@ -11453,7 +11468,7 @@ export default function StdPortalPage() {
                                     return (
                                         <div
                                             key={scene.id || i}
-                                            id={`prompt-card-${i}`}
+                                            id={`prompt-scene-${sceneNum}`}
                                             className="bg-[#181d26] border border-white/10 rounded-xl overflow-hidden shadow-sm transition-all"
                                         >
                                             <div className="flex items-center justify-between px-4 py-2.5 bg-[#14181f] border-b border-white/5">
