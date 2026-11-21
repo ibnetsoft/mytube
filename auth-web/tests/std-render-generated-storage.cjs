@@ -151,9 +151,26 @@ function harness({ missingGcs = false, missingSupabase = false, existingRows = [
     }
     const queue = load('lib/stdRenderQueue.ts', {
         './supabaseAdmin': { supabaseAdmin: db }, './gcsStorage': gcs,
+        './stdContentIdentity': { projectContentIdentity: p => p.project_payload?.content_identity || {}, assetContentIdentity: () => ({}), assetMatchesContentRevision: () => true },
     })
     return { prepare: queue.ensureStdGeneratedSceneAssetsArchived, calls, records }
 }
+
+test('recovers a snapshot image only for the same topic, scene and script', async () => {
+    const h = harness(), sha = 'a'.repeat(64), scene = { id: 'scene-19', scene_number: 19, metadata: {} }
+    const saved = gcsScene(19)
+    saved.metadata.cowork_image_asset = { ...saved.metadata.metadata.cowork_image_asset,
+        origin_content_identity: { origin_topic_queue_id: 3435, scene_number: 19, script_sha256: sha } }
+    const p = { ...project, topic_queue_id: 3435, project_payload: { content_identity: { script_sha256: sha }, structure: { scenes: [saved] } } }
+    const result = await h.prepare(p, [scene], [])
+    assert.equal(result[0].metadata.gcs_path, saved.metadata.cowork_image_asset.gcs_path)
+    assert.equal(result[0].scene_id, scene.id)
+    for (const origin of [{ origin_topic_queue_id: 1 }, { scene_number: 20 }, { script_sha256: 'b'.repeat(64) }]) {
+        const copy = structuredClone(p)
+        Object.assign(copy.project_payload.structure.scenes[0].metadata.cowork_image_asset.origin_content_identity, origin)
+        assert.equal((await harness().prepare(copy, [scene], [])).length, 0)
+    }
+})
 
 test('only explicitly selected later motion-graphic videos are archived', async () => {
     const h = harness()

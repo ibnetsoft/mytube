@@ -162,16 +162,29 @@ export async function ensureStdGeneratedSceneAssetsArchived(project: any, scenes
             ))
             if (matchingAssets.some(storageSourceForAsset)) continue
             const existingAsset = matchingAssets[0]
-            const origin = scene.metadata?.[`cowork_${kind}_asset`]?.origin_content_identity
+            let sourceScene = scene
+            let origin = scene.metadata?.[`cowork_${kind}_asset`]?.origin_content_identity
+            let source = kind === 'image' ? generatedImageStorageSource(sourceScene) : generatedVideoStorageSource(sourceScene)
+            if (!source) {
+                const saved = project.project_payload?.structure?.scenes?.find((item: any) => Number(item.scene_number ?? item.scene_order) === sceneNumber)
+                const savedOrigin = saved?.metadata?.[`cowork_${kind}_asset`]?.origin_content_identity
+                const identity = projectContentIdentity(project)
+                // Only recover a snapshot source tied to this exact topic, scene and script.
+                if (savedOrigin && Number(savedOrigin.origin_topic_queue_id) === Number(project.topic_queue_id)
+                    && Number(savedOrigin.scene_number) === sceneNumber && savedOrigin.script_sha256 === identity.script_sha256) {
+                    sourceScene = saved
+                    origin = savedOrigin
+                    source = kind === 'image' ? generatedImageStorageSource(sourceScene) : generatedVideoStorageSource(sourceScene)
+                }
+            }
             if (project.project_payload?.strict_content_identity === true &&
                 (!origin || origin.script_sha256 !== projectContentIdentity(project).script_sha256)) continue
-            let source = kind === 'image' ? generatedImageStorageSource(scene) : generatedVideoStorageSource(scene)
             if (!source) continue
             if (!checkedGcsConfig) {
                 if (!(await isGcsConfiguredAsync())) throw new Error('GCS is not configured for generated scene asset archiving.')
                 checkedGcsConfig = true
                 // Bucket configuration may have just been loaded from the database.
-                source = kind === 'image' ? generatedImageStorageSource(scene) : generatedVideoStorageSource(scene)
+                source = kind === 'image' ? generatedImageStorageSource(sourceScene) : generatedVideoStorageSource(sourceScene)
             }
             if (!source) continue
             const stored = await prepareGeneratedSceneStorage(source, kind, sceneNumber)
