@@ -77,12 +77,12 @@ export async function registerMotionAutomation(project:any,scenes:any[],assets:a
         const preparation=source.asset_type==='original'&&!horizontal?prepared.get(n):null
         if(source.asset_type==='original'&&!horizontal&&!preparation)throw new Error(`${n}번 PSD의 레이어·AE 연출을 대본워커에서 준비한 뒤 제출하세요.`)
         const planned=savedScene(project,n)
-        if(planned?.parallax_plan?.enabled && source.asset_type!=='original')throw new Error(`${n}번 패럴럭스 씬은 배경·캐릭터·전경 레이어 PSD를 준비·검수한 뒤 제출하세요.`)
+        const parallaxFallback=planned?.parallax_plan?.enabled && ['image','video'].includes(source.asset_type)
         if(allParallax&&!planned?.parallax_plan?.enabled)throw new Error(`${n}번 씬의 전체 패럴럭스 연출·레이어 계획을 준비하세요.`)
         const authored=motion.scenes[String(n)]
         if((effectcraft||filmcraft)&&(authored?.finance||authored?.cues?.length||authored?.native?.paths?.length||authored?.native?.effects?.length||Object.values(authored?.layers||{}).some(l=>l.advanced)))throw new Error(`${n}번 씬의 웹 전용 리그·효과는 선택한 렌더러로 자동 변환하지 않습니다. 브라우저 제작 또는 기존 AE를 선택해 주세요.`)
         const creative=planned?.scene_direction_plan||planned?.ae_directorial_plan||null
-        const purpose=creative?.purpose_policy
+        const purpose=parallaxFallback?null:creative?.purpose_policy
         const sourceKind=source.asset_type==='original'?(horizontal?'image':'psd'):source.asset_type
         const recordedRows=project.project_payload.subtitles.map((row:any,i:number)=>({...row,start:timeline[i].start,end:timeline[i].end,voice_id:timeline[i].voice_id||row.voice_id||''})).filter((row:any)=>Number(row.scene_number)===n)
         const reviewedDepth=(preparation?.metadata?.result?.plan?.effects||[]).filter((e:any)=>['depth_background_blur','depth_foreground_blur','depth_background_haze'].includes(e.type))
@@ -92,9 +92,12 @@ export async function registerMotionAutomation(project:any,scenes:any[],assets:a
             ? {...creative,execution_design:{...creative.execution_design,camera:{...creative.execution_design.camera,keys:reviewedCamera.map((k:any)=>({...k,opacity:100}))}}}
             : creative
         const postwork=uploadedPostwork?freezeVideoPostwork(project,n,source,recordedRows,assets,creative):null
-        const generated=horizontal||postwork?null:bindSceneDirection(executable,sourceKind,recordedRows,start,end,motion.fps)
+        const generated=horizontal||postwork||parallaxFallback?null:bindSceneDirection(executable,sourceKind,recordedRows,start,end,motion.fps)
         const stillMouth=!allParallax&&videoPostwork&&!postwork?freezePreparedStillMouth(project,n,source,recordedRows,assets,scenes):null
-        const savedBinding=horizontal||postwork?null:bindSavedSceneExecution(planned,sourceKind,start,end,preparation)
+        const savedBinding=parallaxFallback?{direction:null,binding:{status:'needs_layers',scene_number:n,
+            pending_requirements:[{operation:'depth_parallax',required_layers:['background','character','foreground'],
+                reason:'검수된 레이어 PSD가 없어 기존 원본으로 제작을 계속합니다.',source_kind:sourceKind}]}}
+            :horizontal||postwork?null:bindSavedSceneExecution(planned,sourceKind,start,end,preparation)
         const explicit=project.project_payload?.render_settings?.motion?.scenes?.[String(n)]
         const wuxiaTimeline=isWuxiaMovingtoon(project)||hasAmbientLoops(project)||hasWuxiaMouths(project)?freezeWuxiaScene(project,n,recordedRows,start,end,motion.fps,source):null
         if(wuxiaTimeline?.states.some((s:any)=>s.dialogue_mouths.some((m:any)=>m.audio_asset_id!==audio.id||m.audio_sha256!==audio.metadata?.sha256)))throw new Error(`${n}번 씬 입모양의 확정 음성 파일이 변경되었습니다.`)
@@ -109,9 +112,9 @@ export async function registerMotionAutomation(project:any,scenes:any[],assets:a
             ...(reviewedDepth.length?{reviewed_depth_effects:reviewedDepth}:{}),
             ...(allParallax?{parallax_plan:planned.parallax_plan,parallax_mouth:freezeParallaxMouth(project,recordedRows)}:{}),
             ...(postwork?{direction_contract:VIDEO_POSTWORK_CONTRACT,postwork}:!horizontal&&directedScene(creative)?{direction_contract:creative.contract}:{}),
-            prepared_direction:postwork?postworkDirection(sourceKind,postwork):(!horizontal&&(explicit||generated||savedBinding?.direction||motion.scenes[String(n)]))||{source:sourceKind,fit:'contain',direction:horizontal?'고정 가로 웹툰 컷 계획 · 원본 말풍선 유지':'원본 유지',keys:[{t:0,x:.5,y:.5,scale:1,rotation:0,opacity:100},{t:1,x:.5,y:.5,scale:1,rotation:0,opacity:100}],effects:[],transition:'cut'},
+            prepared_direction:postwork?postworkDirection(sourceKind,postwork):(!horizontal&&!parallaxFallback&&(explicit||generated||savedBinding?.direction||motion.scenes[String(n)]))||{source:sourceKind,fit:'contain',direction:horizontal?'고정 가로 웹툰 컷 계획 · 원본 말풍선 유지':'원본 유지',keys:[{t:0,x:.5,y:.5,scale:1,rotation:0,opacity:100},{t:1,x:.5,y:.5,scale:1,rotation:0,opacity:100}],effects:[],transition:'cut'},
             ...(savedBinding?{saved_direction_binding:savedBinding.binding}:{}),
-            creative_reference:postwork?null:planned?.scene_direction_plan||planned?.ae_directorial_plan||null,
+            creative_reference:postwork||parallaxFallback?null:planned?.scene_direction_plan||planned?.ae_directorial_plan||null,
             ...(webtoon?{webtoon}:{}),...(stillMouth?{still_mouth:stillMouth}:{}),preparation,start,end,source,...(source.asset_type==='video'&&image&&!postwork?{source_reference_image:image}:{}),...(source.metadata?.ae_mouth_fingerprint?{recorded_source_reuse:recordedMotionSourceReuse(project,source,assets,audio)}:{}),source_kind:sourceKind}
     })
     const settings=await persistTemplateOverlay(project.id,{...project.project_payload?.settings,...project.project_payload?.render_settings,...(isWuxiaMovingtoon(project)?{subtitles_enabled:false}:{})})

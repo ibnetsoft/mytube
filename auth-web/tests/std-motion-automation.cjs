@@ -113,7 +113,19 @@ test('disabled alternatives cannot register a queue or read provider secrets',as
 
 test('ordinary uploaded dialogue videos enter mandatory reviewed postwork even with automation disabled',async()=>{const f=fixture();f.project.project_payload.render_settings.motion.enabled=false;delete f.project.project_payload.render_settings.motion.automation;f.project.project_payload.subtitles[0].dialogue_kind='dialogue';f.project.project_payload.subtitles[0].dialogue_speaker='주인공';f.assets.push({...f.image,id:'submitted-clip',asset_type:'video',metadata:{gcs_path:'clip.mp4',video_tail_policy:'original_speed_no_freeze_no_loop/v1'}});await f.run();const s=JSON.parse(f.calls.rpc[0].args.p_manifest.automation.snapshot_json);assert.equal(s.submitted_video_postwork,'submitted_video_postwork/v1');assert.equal(s.scenes[0].source.id,'submitted-clip');assert.equal(s.scenes[0].postwork.mouth_required,true);assert.equal(s.scenes[0].postwork.dialogue[0].end,20);assert.equal(s.motion.automation.mode,'ae_only');assert.equal(s.execution_policy.review_policy,'complete_with_notes/v1');assert.equal(f.calls.models,0);});
 
-test('script-selected parallax never silently submits a flattened image',async()=>{const f=fixture();f.project.project_payload.structure={scenes:[{scene_number:1,parallax_plan:{enabled:true}}]};await assert.rejects(f.run(),/패럴럭스.*PSD/);assert.equal(f.calls.rpc.length,0);});
+test('selective parallax with no PSD uses the existing visual and records the missing layers',async()=>{
+ for(const kind of ['image','video']){
+  const f=fixture()
+  f.project.project_payload.structure={scenes:[{scene_number:1,parallax_plan:{enabled:true}}]}
+  if(kind==='video')f.assets.push({...f.image,id:'clip',asset_type:'video',metadata:{gcs_path:'clip.mp4'}})
+  await f.run()
+  const scene=JSON.parse(f.calls.rpc[0].args.p_manifest.automation.snapshot_json).scenes[0]
+  assert.equal(scene.source_kind,kind)
+  assert.equal(scene.saved_direction_binding.pending_requirements[0].operation,'depth_parallax')
+  assert.equal(scene.creative_reference,null)
+  assert.deepEqual(scene.prepared_direction.keys.map(k=>k.scale),[1,1])
+ }
+});
 
 test('all-scene parallax automatically registers prepared PSD with exact dialogue clock and no uploaded video',async()=>{
  const f=fixture();f.project.project_payload.render_settings.motion.enabled=false;
