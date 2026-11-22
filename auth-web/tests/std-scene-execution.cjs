@@ -1,5 +1,5 @@
 const assert=require('node:assert/strict'),path=require('node:path')
-const {bindSceneDirection,recordedDirectionFingerprint,assertRecordedSceneDirections}=require('./load-ts.cjs')(path.join(__dirname,'../lib/stdSceneExecution.ts'))
+const {bindSceneDirection,recordedDirectionFingerprint,firstPendingRecordedSceneDirection,assertRecordedSceneDirections}=require('./load-ts.cjs')(path.join(__dirname,'../lib/stdSceneExecution.ts'))
 const direction={contract:'scene_direction_plan/v2',visual_strategy:'Reveal the letter',execution_design:{
  camera:{kind:'push',keys:[{t:0,x:.5,y:.5,scale:1,rotation:0,opacity:100},{t:1,x:.5,y:.5,scale:1.03,rotation:0,opacity:100}]},
  cue:{quote:'手紙',phase:'during'},effects:[{type:'light_sweep',reason:'A reflection crosses the letter.',intensity:.24,center:[.61,.48],radius:.18,color:[1,.8,.45],event:{quote:'手紙',phase:'during',at:'middle',duration_seconds:.4}}],
@@ -28,3 +28,6 @@ assertRecordedSceneDirections({project_payload:payload})
 payload.subtitles[1].end=13.2
 assert.throws(()=>assertRecordedSceneDirections({project_payload:payload}),/검수/)
 assertRecordedSceneDirections({project_payload:{structure:{scenes:[{scene_direction_plan:{contract:'scene_direction_plan/v1'}}]}}})
+
+assert.equal(firstPendingRecordedSceneDirection({project_payload:payload}),1)
+assert.equal(firstPendingRecordedSceneDirection({project_payload:{}}),null)

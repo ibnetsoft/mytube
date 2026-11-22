@@ -64,7 +64,7 @@ export function recordedDirectionFingerprint(payload:any, number:number) {
     return createHash('sha256').update(JSON.stringify(stable({audio:payload.subtitle_source_audio_id,rows}))).digest('hex')
 }
 
-export function assertRecordedSceneDirections(project:any) {
+export function firstPendingRecordedSceneDirection(project:any): number | null {
     for(const scene of project.project_payload?.structure?.scenes||[]) {
         const direction=scene.scene_direction_plan||scene.ae_directorial_plan
         if(!directedScene(direction))continue
@@ -74,6 +74,13 @@ export function assertRecordedSceneDirections(project:any) {
         const expected=recordedDirectionFingerprint(project.project_payload,number)
         if(!expected||rendered?.recorded_direction_binding?.fingerprint!==expected||rendered?.status!=='ready'
             ||rendered?.ae_reviewed!==true||rendered?.source_direction_review?.passed!==true||!rendered?.render_sha256)
-            throw new Error(`${number}번 씬은 실제 이미지·확정 음성에 맞춘 연출과 출력 검수가 필요합니다. 임시 연출로 전체 렌더하지 않습니다.`)
+            return number
     }
+    return null
+}
+
+export function assertRecordedSceneDirections(project:any) {
+    const number=firstPendingRecordedSceneDirection(project)
+    if(number!==null)
+        throw new Error(`${number}번 씬은 실제 이미지·확정 음성에 맞춘 연출과 출력 검수가 필요합니다. 임시 연출로 전체 렌더하지 않습니다.`)
 }

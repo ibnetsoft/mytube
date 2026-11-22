@@ -26,12 +26,16 @@ import { sfxNeedsReview, resolveSfxCues } from './stdSfxCues'
 import { persistTemplateOverlay, templateOverlayPng } from './stdTemplateOverlayPng'
 import { selectedVideoModel } from './stdVideoModelStore'
 import { assertPreparationFinished } from './stdWorkflowBoundary'
-import { bindSceneDirection, directedScene } from './stdSceneExecution'
+import { bindSceneDirection, directedScene, firstPendingRecordedSceneDirection } from './stdSceneExecution'
 import { horizontalWebtoon, webtoonInputs, readyWebtoonPlan } from './stdHorizontalWebtoon'
 
 export function nativeVideoEligible(asset:any) { const m=asset?.metadata||{};return !['repaired_source_clip','motion_source_repair'].includes(m.kind)&&!m.source_repair&&(['original_speed_no_freeze_no_loop_v1','original_speed_no_freeze_no_loop/v1'].includes(String(m.video_tail_policy||m.tail_policy))||!/(hold|freeze|loop)/i.test(String(m.video_tail_policy||m.tail_policy||''))) }
 
-export function motionAutomationEnabled(project:any) { const m=motionForProject(project);return Boolean(m?.enabled && m.automation)||hasScriptSpeechBubbles(project)||hasSavedSceneExecution(project)||isWuxiaMovingtoon(project)||hasAmbientLoops(project)||hasWuxiaMouths(project) }
+function requiresRecordedDirectionRender(project:any) {
+    return motionProductionMethod(project)==='ae' && firstPendingRecordedSceneDirection(project)!==null
+}
+
+export function motionAutomationEnabled(project:any) { const m=motionForProject(project);return Boolean(m?.enabled && m.automation)||hasScriptSpeechBubbles(project)||hasSavedSceneExecution(project)||isWuxiaMovingtoon(project)||hasAmbientLoops(project)||hasWuxiaMouths(project)||requiresRecordedDirectionRender(project) }
 export async function registerMotionAutomation(project:any,scenes:any[],assets:any[],userId:string,resubmission=false) {
     project=withWuxiaStateClips(project,assets)
     if(project.project_payload?.wuxia_state_clip_issues?.length)throw new Error(project.project_payload.wuxia_state_clip_issues.join(' '))
@@ -41,7 +45,9 @@ export async function registerMotionAutomation(project:any,scenes:any[],assets:a
     const videoPostwork=hasSubmittedVideoPostwork(project,scenes,assets)
     const postworkNumbers=new Set(videoPostwork?assets.filter(a=>originalPostworkVideo(a)&&Number(a.scene_number)>=1&&Number(a.scene_number)<=18).map(a=>Number(a.scene_number)):[])
     assertPreparationFinished(assets.filter(a=>!postworkNumbers.has(Number(a.scene_number))))
-    const motion=videoPostwork||allParallax||hasScriptSpeechBubbles(project)||hasSavedSceneExecution(project)||isWuxiaMovingtoon(project)||hasAmbientLoops(project)||hasWuxiaMouths(project)?postworkMotion(project):motionForProject(project)!
+    const savedMotion=motionForProject(project)
+    const needsAutomaticDraft=requiresRecordedDirectionRender(project)&&!(savedMotion?.enabled&&savedMotion.automation)
+    const motion=videoPostwork||allParallax||hasScriptSpeechBubbles(project)||hasSavedSceneExecution(project)||isWuxiaMovingtoon(project)||hasAmbientLoops(project)||hasWuxiaMouths(project)||needsAutomaticDraft?postworkMotion(project):savedMotion!
     if(allParallax)motion.edit_mode=undefined
     const horizontal=!allParallax&&horizontalWebtoon(project)
     const horizontalInputs=horizontal?webtoonInputs(project,scenes,assets):[]
