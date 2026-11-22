@@ -4,7 +4,11 @@ test('recovered video is archived before registration',async()=>{
  let uploaded=false;const exports={};
  const comic={};
  new Function('exports','require',ts.transpile(fs.readFileSync(path.join(root,'lib/stdComic.ts'),'utf8'),{module:1,target:7,esModuleInterop:true}))(comic,()=>require('../public/comic/layouts.json'));
- const db={storage:{from:()=>({download:async()=>({data:{arrayBuffer:async()=>Buffer.from('video')},error:null}),getPublicUrl:()=>({data:{publicUrl:'https://example.test/video'}})})},from:()=>({insert:row=>({select:()=>({single:async()=>{assert.equal(uploaded,true);return {data:{id:'asset',...row},error:null}}})})})};
+ let stored=[];
+ const db={storage:{from:()=>({download:async()=>({data:{arrayBuffer:async()=>Buffer.from('video')},error:null}),getPublicUrl:()=>({data:{publicUrl:'https://example.test/video'}})})},from:()=>({
+   upsert:async rows=>{assert.equal(uploaded,true);stored=rows;return {error:null}},
+   select:()=>({eq:()=>({in:async()=>({data:stored,error:null})})}),
+ })};
  vm.runInNewContext(ts.transpile(fs.readFileSync(path.join(root,'lib/stdRenderQueue.ts'),'utf8'),{module:1,target:7}),{exports,Buffer,URL,console,require:name=>{
  if (name.includes('stdNonverbal')) { const ex = {}; new Function('exports', ts.transpile(fs.readFileSync('lib/stdNonverbal.ts','utf8'),{module:1,target:7}))(ex); return ex }
  if(name==='crypto')return require('crypto');

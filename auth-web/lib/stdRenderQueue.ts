@@ -149,6 +149,7 @@ async function prepareGeneratedSceneStorage(source: GeneratedSceneStorage, kind:
 export async function ensureStdGeneratedSceneAssetsArchived(project: any, scenes: any[], assets: any[]) {
     const activeAssets = Array.isArray(assets) ? [...assets] : []
     let checkedGcsConfig = false
+    const preparations: Array<() => Promise<{ existingAsset: any; assetPayload: any }>> = []
     for (const kind of ['video', 'image'] as const) {
         for (const scene of scenes || []) {
             const sceneNumber = Number(scene?.scene_number)
@@ -187,50 +188,83 @@ export async function ensureStdGeneratedSceneAssetsArchived(project: any, scenes
                 source = kind === 'image' ? generatedImageStorageSource(sourceScene) : generatedVideoStorageSource(sourceScene)
             }
             if (!source) continue
-            const stored = await prepareGeneratedSceneStorage(source, kind, sceneNumber)
-            const metadata = { ...(existingAsset?.metadata || {}) }
-            // A recovered reference must not retain stale URLs to another provider.
-            delete metadata.storage_public_url
-            delete metadata.gcs_public_url
-            delete metadata.gcs_signed_url
-            delete metadata.secondary_storage_provider
-            if (origin) {
-                if (Number(origin.origin_topic_queue_id) !== Number(project.topic_queue_id)) throw new Error('CONTENT_IDENTITY_MISMATCH: 생성 원본의 토픽이 다릅니다.')
-                metadata.content_identity = { ...assetContentIdentity(project, { type: kind, scene }),
-                    script_sha256: origin.script_sha256, script_revision: `sha256:${origin.script_sha256}`,
-                    visual_sha256: origin.visual_sha256, generation_job_id: origin.generation_job_id, origin_topic_queue_id: origin.origin_topic_queue_id }
-            }
-            Object.assign(metadata, {
-                storage_provider: 'gcs',
-                storage_bucket: stored.bucket,
-                storage_path: stored.path,
-                gcs_bucket: stored.bucket,
-                gcs_path: stored.path,
-                upload_mode: source.provider === 'gcs' ? 'worker_generated_gcs_reference' : 'worker_generated_gcs_archive',
+            const sourceToArchive = source
+            preparations.push(async () => {
+                const stored = await prepareGeneratedSceneStorage(sourceToArchive, kind, sceneNumber)
+                const metadata = { ...(existingAsset?.metadata || {}) }
+                // A recovered reference must not retain stale URLs to another provider.
+                delete metadata.storage_public_url
+                delete metadata.gcs_public_url
+                delete metadata.gcs_signed_url
+                delete metadata.secondary_storage_provider
+                if (origin) {
+                    if (Number(origin.origin_topic_queue_id) !== Number(project.topic_queue_id)) throw new Error('CONTENT_IDENTITY_MISMATCH: 생성 원본의 토픽이 다릅니다.')
+                    metadata.content_identity = { ...assetContentIdentity(project, { type: kind, scene }),
+                        script_sha256: origin.script_sha256, script_revision: `sha256:${origin.script_sha256}`,
+                        visual_sha256: origin.visual_sha256, generation_job_id: origin.generation_job_id, origin_topic_queue_id: origin.origin_topic_queue_id }
+                }
+                Object.assign(metadata, {
+                    storage_provider: 'gcs',
+                    storage_bucket: stored.bucket,
+                    storage_path: stored.path,
+                    gcs_bucket: stored.bucket,
+                    gcs_path: stored.path,
+                    upload_mode: source.provider === 'gcs' ? 'worker_generated_gcs_reference' : 'worker_generated_gcs_archive',
+                })
+                const extension = mediaExtension(stored.path, stored.contentType, kind === 'image' ? '.png' : '.mp4')
+                const assetPayload = {
+                    scene_id: scene?.id || existingAsset?.scene_id || null,
+                    scene_number: sceneNumber,
+                    asset_type: kind,
+                    drive_file_id: null,
+                    drive_folder_id: null,
+                    file_name: existingAsset?.file_name || `scene_${String(sceneNumber).padStart(3, '0')}${extension}`,
+                    mime_type: stored.contentType,
+                    file_size: stored.size,
+                    status: 'assigned',
+                    metadata,
+                    updated_at: new Date().toISOString(),
+                }
+                return { existingAsset, assetPayload }
             })
-            const extension = mediaExtension(stored.path, stored.contentType, kind === 'image' ? '.png' : '.mp4')
-            const assetPayload = {
-                scene_id: scene?.id || existingAsset?.scene_id || null,
-                scene_number: sceneNumber,
-                asset_type: kind,
-                drive_file_id: null,
-                drive_folder_id: null,
-                file_name: existingAsset?.file_name || `scene_${String(sceneNumber).padStart(3, '0')}${extension}`,
-                mime_type: stored.contentType,
-                file_size: stored.size,
-                status: 'assigned',
-                metadata,
-                updated_at: new Date().toISOString(),
+        }
+    }
+    const prepared = []
+    for (let offset = 0; offset < preparations.length; offset += 6) {
+        prepared.push(...await Promise.all(preparations.slice(offset, offset + 6).map(prepare => prepare())))
+    }
+    const newAssets = []
+    for (const {existingAsset, assetPayload} of prepared) {
+        if (!existingAsset?.id) {
+            const key = createHash('sha256').update(JSON.stringify([project.id, assetPayload.scene_number,
+                assetPayload.asset_type, assetPayload.metadata.gcs_bucket, assetPayload.metadata.gcs_path,
+                assetPayload.metadata.content_identity?.script_sha256 || ''])).digest('hex').slice(0, 32)
+            const id = [key.slice(0,8),key.slice(8,12),key.slice(12,16),key.slice(16,20),key.slice(20)].join('-')
+            newAssets.push({id,project_id:project.id,...assetPayload})
+            continue
+        }
+        const {data,error} = await supabaseAdmin.from('std_project_assets').update(assetPayload)
+            .eq('id',existingAsset.id).eq('project_id',project.id).select('*').single()
+        if (error) throw new Error(error.message || 'Generated asset update failed')
+        if (!data) throw new Error(`Scene ${assetPayload.scene_number} asset could not be registered`)
+        activeAssets[activeAssets.indexOf(existingAsset)] = data
+    }
+    if (newAssets.length) {
+        const ids = newAssets.map(asset => asset.id)
+        const table = supabaseAdmin.from('std_project_assets')
+        const {error} = await table.upsert(newAssets,{onConflict:'id',ignoreDuplicates:true})
+        if (error) throw new Error(error.message || 'Generated asset registration failed')
+        const {data,error:readError} = await supabaseAdmin.from('std_project_assets').select('*')
+            .eq('project_id',project.id).in('id',ids)
+        if (readError) throw new Error(readError.message || 'Generated asset readback failed')
+        const readback = new Map((data || []).map((asset:any) => [asset.id, asset]))
+        for (const expected of newAssets) {
+            const saved:any = readback.get(expected.id)
+            if (!saved || !activeAsset(saved) || saved.metadata?.gcs_path !== expected.metadata.gcs_path
+                || saved.metadata?.gcs_bucket !== expected.metadata.gcs_bucket) {
+                throw new Error(`Scene ${expected.scene_number} ${expected.asset_type} asset could not be verified`)
             }
-            const query = existingAsset?.id
-                ? supabaseAdmin.from('std_project_assets').update(assetPayload).eq('id', existingAsset.id).eq('project_id', project.id)
-                : supabaseAdmin.from('std_project_assets').insert({ project_id: project.id, ...assetPayload })
-            const { data: recovered, error } = await query.select('*').single()
-            if (error) throw new Error(error.message)
-            if (!recovered) throw new Error(`Scene ${sceneNumber} ${kind} asset could not be registered`)
-            const index = activeAssets.findIndex((asset: any) => asset.id === recovered.id)
-            if (index >= 0) activeAssets[index] = recovered
-            else activeAssets.push(recovered)
+            activeAssets.push(saved)
         }
     }
     return activeAssets

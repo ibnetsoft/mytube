@@ -17,6 +17,7 @@ import {motionProductionMethod} from '@/lib/stdMotionStudio'
 import { assetMatchesContentRevision } from '@/lib/stdContentIdentity'
 
 export const dynamic = 'force-dynamic'
+export const maxDuration = 300
 
 function hasStoredAssetFile(asset: any): boolean {
     const metadata = asset?.metadata && typeof asset.metadata === 'object' ? asset.metadata : {}
@@ -186,9 +187,11 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         if (!isNonverbalProject(project)) assets = await recoverStoredTtsAsset(project, assets)
         assets = assets.filter((asset: any) => assetMatchesContentRevision(project, asset))
     } catch (archiveError: any) {
+        const details = typeof archiveError?.message === 'string' ? archiveError.message.trim() : ''
+        console.error('[STD submit] Stored asset preparation failed', { projectId: project.id, code: archiveError?.code, detail: details.slice(0, 300) })
         return NextResponse.json({
             success: false,
-            error: archiveError?.message || 'Failed to prepare stored assets for render',
+            error: details || '렌더에 필요한 저장 자산을 준비하는 중 오류가 발생했습니다.',
         }, { status: 500 })
     }
 

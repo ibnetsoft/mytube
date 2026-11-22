@@ -111,7 +111,19 @@ function harness({ missingGcs = false, missingSupabase = false, existingRows = [
             assert.equal(table, 'std_project_assets')
             let payload, operation, id
             const query = {
-                insert(row) { payload = row; operation = 'insert'; return query },
+                async upsert(rows, options) {
+                    assert.deepEqual(options, { onConflict: 'id', ignoreDuplicates: true })
+                    for (const row of rows) {
+                        calls.push({type:'db-insert',payload:structuredClone(row)})
+                        if (!records.some(saved => saved.id === row.id)) records.push(row)
+                    }
+                    calls.push({type:'db-batch',count:rows.length})
+                    return {error:null}
+                },
+                async in(field, ids) {
+                    assert.equal(field,'id')
+                    return {data:records.filter(row=>ids.includes(row.id)),error:null}
+                },
                 update(row) { payload = row; operation = 'update'; return query },
                 eq(field, value) {
                     if (field === 'id') id = value
@@ -281,4 +293,14 @@ test('recovering a legacy asset updates its existing row and retains unrelated m
     assert.equal(result[0].metadata.gcs_bucket, gcsBucket)
     assert.equal(h.calls.filter(call => call.type === 'db-update').length, 1)
     assert.equal(h.calls.some(call => call.type === 'db-insert'), false)
+})
+
+test('multiple missing assets register in one idempotent batch', async () => {
+    const h=harness()
+    const scenes=[gcsScene(19),gcsScene(20),gcsScene(21)]
+    const initial=await h.prepare(project,scenes,[])
+    const retry=await h.prepare(project,scenes,[])
+    assert.deepEqual(retry.map(row=>row.id),initial.map(row=>row.id))
+    assert.equal(h.records.length,3)
+    assert.deepEqual(h.calls.filter(call=>call.type==='db-batch').map(call=>call.count),[3,3])
 })
