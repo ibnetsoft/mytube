@@ -6563,6 +6563,7 @@ export default function StdPortalPage() {
             const payload = await safeParseJson(res, copy.error)
             if (!res.ok || payload.success !== true) {
                 throw Object.assign(new Error(payload.error || copy.error), {
+                    needsPreparation: res.status === 409 || res.status === 422,
                     missingScenes: Array.isArray(payload.missing_scene_numbers) ? payload.missing_scene_numbers.map(Number).filter(Number.isFinite) : [],
                 })
             }
@@ -6625,7 +6626,7 @@ export default function StdPortalPage() {
             const knownLocalMessage = [copy.error, copy.subtitleSaveFailed, copy.scriptSaveFailed, copy.projectChanged].includes(error?.message)
             const detail = knownLocalMessage ? error.message : localizeStdActionError(error, currentLocale, 'submit')
             const missing = error?.missingScenes?.length ? ` ${copy.missingScenes(error.missingScenes)}` : ''
-            report(postStarted && timedOut ? 'warning' : 'error', timedOut ? (postStarted ? copy.timeout : copy.subtitleSaveFailed) : detail + missing)
+            report((postStarted && timedOut) || error?.needsPreparation ? 'warning' : 'error', timedOut ? (postStarted ? copy.timeout : copy.subtitleSaveFailed) : detail + missing)
         } finally {
             if (submittingProjectRef.current === targetId) {
                 submittingProjectRef.current = ''
@@ -6655,8 +6656,15 @@ export default function StdPortalPage() {
                 headers: authedJsonHeaders,
             })
             const payload = await safeParseJson(res, copy.error)
+            if (res.status === 409 && payload.success === false) {
+                const detail = localizeStdActionError(new Error(payload.error || copy.error), currentLocale, 'submit')
+                setRenderSubmissionNotice({ projectId, title: projects.find((p: any) => String(p.id) === projectId)?.title || '', phase: 'warning', detail })
+                setMessage(detail)
+                return
+            }
             if (!res.ok || payload.success === false) throw new Error(payload.error || copy.error)
             if (payload.postprocess_pending) {
+                setProjects(prev => prev.map(p => String(p.id) === projectId ? { ...p, render_pending: true } : p))
                 setRenderSubmissionNotice({ projectId, title: projects.find((p: any) => String(p.id) === projectId)?.title || copy.project, phase: 'pending', detail: copy.postprocessPending })
                 setMessage(copy.postprocessPending)
                 return
@@ -8866,6 +8874,7 @@ export default function StdPortalPage() {
                                         { label: 'TTS', done: status.isTtsDone }, { label: ui('자막'), done: status.isSubtitlesDone }, { label: ui('썸네일'), done: status.isThumbnailDone },
                                     ]
                                     const canSubmit = status.allDone || Boolean(p.shared_submission)
+                                    const renderState = p.render_pending ? ui('작업 중') : p.render_needs_audio ? ui('TTS 재생성 필요') : null
                                     const submitting = submittingProjectId === String(p.id)
                                     return (
                                         <article key={p.id} className="rounded-xl border border-gray-700 bg-[#1c2027] p-3">
@@ -8888,7 +8897,7 @@ export default function StdPortalPage() {
                                             </div>
                                             <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-white/5 pt-2 text-[11px] text-gray-400">
                                                 <span>{ui('수정일')} {formatProjectListDate(p.updated_at)} {Number(p.latest_render_version) > 0 && <span className="ml-1 text-cyan-300">v{p.latest_render_version}</span>}</span>
-                                                <button type="button" disabled={Boolean(submittingProjectId) || (!p.submitted_at && !canSubmit)} onClick={() => p.submitted_at ? reopenProjectForRerender(String(p.id)) : submitProject(String(p.id))} className="min-h-9 rounded-lg border border-indigo-400/40 bg-indigo-500/15 px-3 font-bold text-indigo-200 disabled:opacity-40">{submitting ? ui('처리 중…') : p.submitted_at ? '↻ Re' : ui('렌더')}</button>
+                                                <button type="button" disabled={Boolean(submittingProjectId) || Boolean(renderState) || (!p.submitted_at && !canSubmit)} onClick={() => p.submitted_at ? reopenProjectForRerender(String(p.id)) : submitProject(String(p.id))} className="min-h-9 rounded-lg border border-indigo-400/40 bg-indigo-500/15 px-3 font-bold text-indigo-200 disabled:opacity-40">{renderState || (submitting ? ui('처리 중…') : p.submitted_at ? '↻ Re' : ui('렌더'))}</button>
                                             </div>
                                         </article>
                                     )
@@ -9022,7 +9031,9 @@ export default function StdPortalPage() {
                                                                 </td>
                                                                 {/* 제출 버튼 컬럼 */}
                                                                 <td className="px-2 py-2 text-center" onClick={e => e.stopPropagation()}>
-                                                                    {isSubmitted ? (
+                                                                    {p.render_pending || p.render_needs_audio ? (
+                                                                        <span className="text-xs text-amber-300">{p.render_pending ? ui('작업 중') : ui('TTS 재생성 필요')}</span>
+                                                                    ) : isSubmitted ? (
                                                                         <button
                                                                             type="button"
                                                                             onClick={() => reopenProjectForRerender(String(p.id))}
@@ -9061,7 +9072,7 @@ export default function StdPortalPage() {
                                                                             }`}
                                                                             title={hasSharedSubmission
                                                                                 ? '공동 작업 제출 확인: 클릭하면 중복 렌더 없이 제출 완료로 처리됩니다.'
-                                                                                : '모든 조건 완료! 클릭하여 GCS API 렌더 큐 접수'}
+                                                                                : '소재 준비 완료 · 저장된 원본과 렌더 조건 확인 후 제출'}
                                                                         >
                                                                             {isRenderSuccessHighlighted ? (
                                                                                 <Check className="h-3.5 w-3.5" />

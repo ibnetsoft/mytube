@@ -1,3 +1,4 @@
+import { activeStdRenderJobs, needsFreshNarration } from '@/lib/stdRenderReadiness'
 import { motionAutomationEnabled, registerMotionAutomation } from '@/lib/stdMotionAutomation'
 import { loadStdProjectAssets } from '@/lib/stdProjectAssets'
 import { aeMouthApplicable } from '@/lib/stdAeMouth'
@@ -24,8 +25,12 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
     if (projectError) return NextResponse.json({ success: false, error: projectError.message }, { status: 500 })
     if (!project) return NextResponse.json({ success: false, error: 'Project not found' }, { status: 404 })
 
+    if (needsFreshNarration(project)) return NextResponse.json({ success: false, error: '대본이 변경되었습니다. 새 대본으로 TTS를 다시 생성한 뒤 렌더링해 주세요.' }, { status: 409 })
+
     let renderHistory: any[]
     try {
+        const activeJob = (await activeStdRenderJobs(supabaseAdmin, [project.id])).get(project.id)
+        if (activeJob) return NextResponse.json({ success: true, postprocess_pending: true, job_id: activeJob }, { status: 202 })
         renderHistory = await getStdProjectRenderHistory(project.id)
     } catch (error: any) {
         return NextResponse.json({ success: false, error: error?.message || 'Could not load render history' }, { status: 500 })
@@ -34,10 +39,10 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
     const activeRender = renderHistory.find(row => ['pending', 'rendering'].includes(String(row?.status || '')))
     if (activeRender) {
         return NextResponse.json({
-            success: false,
-            error: '현재 렌더링 작업이 대기 또는 진행 중입니다. 완료 후 다시 수정할 수 있습니다.',
+            success: true,
+            postprocess_pending: true,
             render_queue_id: activeRender.id,
-        }, { status: 409 })
+        }, { status: 202 })
     }
 
     // Accept submission while Codex/AE postprocessing runs; enqueue only reviewed outputs.

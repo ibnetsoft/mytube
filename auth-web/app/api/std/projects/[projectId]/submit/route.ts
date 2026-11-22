@@ -1,3 +1,4 @@
+import { needsFreshNarration } from '@/lib/stdRenderReadiness'
 import { hasAllSceneParallax, hasSubmittedVideoPostwork } from '@/lib/stdSubmittedVideoPostwork'
 import { isNonverbalProject, hasReadyNonverbalPlan } from '@/lib/stdNonverbal'
 import { loadStdProjectAssets } from '@/lib/stdProjectAssets'
@@ -194,7 +195,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
             error: 'Project has no scenes to render',
         }, { status: 409 })
     }
-    if (!isNonverbalProject(project) && project.progress_payload?.script_changed_requires_audio_regeneration) {
+    if (needsFreshNarration(project)) {
         return NextResponse.json({
             success: false,
             error: '대본이 변경되었습니다. 새 대본으로 TTS를 다시 생성한 뒤 렌더링해 주세요.',

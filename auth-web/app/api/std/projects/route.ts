@@ -1,3 +1,4 @@
+import { activeStdRenderJobs, activeStdRenderQueueRows, needsFreshNarration } from '@/lib/stdRenderReadiness'
 import { stdProjectListDisplay } from '@/lib/stdProjectListDisplay'
 import { attachStdProjectCategories } from '@/lib/stdProjectCategories'
 import { summarizeStdProject } from '@/lib/stdProjectStepStatus'
@@ -24,7 +25,7 @@ async function boundedCache<T>(operation: Promise<T>, fallback: T): Promise<T> {
 
 function projectListCacheKey(email: string, projects: any[]) {
     const digest = createHash('sha256').update(JSON.stringify([email.toLowerCase(), projects])).digest('hex')
-    return `std-project-list:v3:${digest}`
+    return `std-project-list:v4:${digest}`
 }
 
 export async function GET(req: Request) {
@@ -94,9 +95,9 @@ async function buildProjectList(baseProjects: any[]) {
             if (!batch || batch.length < 1000) return assets
         }
     }
-    let projects: any[], contexts: any[], assets: any[], topicTitles: any[], sharedSubmissions: any[]
+    let projects: any[], contexts: any[], assets: any[], topicTitles: any[], sharedSubmissions: any[], activeJobs: Map<string, string>
     try {
-        const [categories, statusContexts, projectAssets, titles, submissions] = await Promise.all([
+        const [categories, statusContexts, projectAssets, titles, submissions, jobs, renderQueue] = await Promise.all([
             attachStdProjectCategories(supabaseAdmin, baseProjects),
             loadStdProjectListStatusContext(supabaseAdmin, ids),
             loadAssets(),
@@ -106,8 +107,11 @@ async function buildProjectList(baseProjects: any[]) {
             topicQueueIds.length ? supabaseAdmin.from('std_projects')
                 .select('id,topic_queue_id,submitted_at,updated_at').in('topic_queue_id', topicQueueIds)
                 .not('submitted_at', 'is', null).order('submitted_at', { ascending: false }) : Promise.resolve({ data: [], error: null }),
+            activeStdRenderJobs(supabaseAdmin, ids),
+            activeStdRenderQueueRows(supabaseAdmin, ids),
         ])
         if (titles.error || submissions.error) throw titles.error || submissions.error
+        activeJobs = new Map([...jobs, ...renderQueue])
         projects = categories
         contexts = statusContexts
         assets = projectAssets
@@ -148,12 +152,16 @@ async function buildProjectList(baseProjects: any[]) {
             const sharedSubmission = submissionByTopic.get(Number(project.topic_queue_id))
             const summary = project
             const context = contextById.get(project.id)
+            const needsAudio = needsFreshNarration(context)
+            const steps = summarizeStdProject(context || project, assetsByProject.get(project.id) || [])
             return {
                 ...summary,
                 ...stdProjectListDisplay(project, context, assetsByProject.get(project.id) || []),
                 title_localization: titleLocalizationByTopic.get(Number(project.topic_queue_id)) || null,
                 progress_payload: protectCharacterReferenceUrls(context?.progress_payload, project.id),
-                step_status: summarizeStdProject(context || project, assetsByProject.get(project.id) || []),
+                render_pending: activeJobs.has(project.id),
+                render_needs_audio: needsAudio,
+                step_status: needsAudio ? { ...steps, isTtsDone: false, allDone: false } : steps,
                 shared_submission: sharedSubmission && sharedSubmission.id !== project.id
                     ? { project_id: sharedSubmission.id, submitted_at: sharedSubmission.submitted_at }
                     : null,
