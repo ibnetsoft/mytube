@@ -242,6 +242,7 @@ import { canEditStdAsset } from '@/lib/stdAssetEditPolicy'
 import { isStdRequiredVideoScene as baseIsStdRequiredVideoScene, isStdRequiredClipScene as baseIsStdRequiredClipScene, isStdVideoPromptScene as baseIsStdVideoPromptScene, isStdMiddleVideoScene as baseIsStdMiddleVideoScene, stdRequiredVideoSceneCount } from '@/lib/stdPolicy'
 import {
     generateSynchronizedSubtitles as generateAnnotatedSubtitles,
+    authoredSceneNarrations,
     calculateLongformSceneTimings,
     buildSceneDurationSchedule,
     cleanKoreanScriptLine,
@@ -5803,16 +5804,25 @@ export default function StdPortalPage() {
                     ])
                 )
 
+                const authoredNarrations = authoredSceneNarrations(fullScript, payloadScenes)
+                const authoredNarrationByNumber = authoredNarrations
+                    ? new Map(payloadScenes.map((scene: any, index: number) => [
+                        Number(scene?.scene_number || scene?.scene_order || index + 1), authoredNarrations[index],
+                    ]))
+                    : new Map<number, string>()
+
                 const normalizedScenes = serverScenes.map((s: any, idx: number) => {
                     const sceneNumber = Number(s.scene_number || s.scene_order || idx + 1)
                     const payloadScene = payloadSceneByNumber.get(sceneNumber) || {}
-                    const rawText = s.script_excerpt || s.scene_text || s.scene_situation || s.scene_summary || `Scene ${idx + 1}`
+                    const authoredText = authoredNarrationByNumber.get(sceneNumber)
+                    const rawText = authoredText ?? (s.script_excerpt || s.scene_text || s.scene_situation || s.scene_summary || `Scene ${idx + 1}`)
                     const cleanedText = cleanScriptContextText(rawText)
                     const requiresVideoPrompt = baseIsStdVideoPromptScene(sceneNumber, payload.project)
                     return {
                         ...s,
                         scene_text: cleanedText,
                         script_excerpt: cleanedText,
+                        ...(authoredText !== undefined ? { narration: cleanedText } : {}),
                         video_prompt: (requiresVideoPrompt || isComicProject(payload.project))
                             ? (s.video_prompt || payloadScene.video_prompt || s.prompt_en || s.prompt || '')
                             : '',

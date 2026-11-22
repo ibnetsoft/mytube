@@ -235,3 +235,24 @@ const annotations = {version: 1, source: 'codex-ai', scenes: [{scene_number: 15,
 const generated = generateSynchronizedSubtitles(annotatedScript, annotatedScenes, 20, annotations)
 assert.deepEqual(generated.filter(s => s.scene_number === 15).map(s => s.text), [mother, narration, daughter])
 console.log('Complete clauses and confirmed speaker turns passed')
+
+// Source text can remain on a deliberately silent scene after a narration edit.
+{
+    const scenes = [
+        { scene_number: 1, scene_text: '', text: '이전 버전의 대사입니다.' },
+        { scene_number: 2, scene_text: '치료만 적어. 인계는 네 일이 아니다.' },
+        { scene_number: 3, scene_text: '', text: '치료만 적어.' },
+        { scene_number: 4, scene_text: '누구에게 내줬는지도 적어야지요.' },
+    ]
+    const script = scenes.map(scene => scene.scene_text).join('\n\n')
+    assert.deepEqual(partitionScriptByExistingSceneBoundaries(script, scenes, 4), scenes.map(scene => scene.scene_text))
+    const rows = generateSynchronizedSubtitles(script, scenes)
+    assert.deepEqual([...new Set(rows.map(row => row.scene_number))], [2, 4])
+    assert.equal(rows.map(row => row.text).join(' ').match(/치료만 적어/g)?.length, 1)
+}
+
+// When the full script was edited, exhausting it must never replay a stale scene.
+{
+    const scenes = [{ scene_number: 1 }, { scene_number: 2, scene_text: '이전 대사' }]
+    assert.deepEqual(generateSynchronizedSubtitles('가', scenes).map(row => row.text), ['가'])
+}

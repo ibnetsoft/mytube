@@ -740,6 +740,15 @@ export function partitionScriptToScenes(rawScriptText: string, totalScenesCount:
     return result
 }
 
+// A matching authored storyboard can include intentionally silent scenes even
+// when old display fields still contain their previous text.
+export function authoredSceneNarrations(script: string, scenes: any[]): string[] | null {
+    if (!scenes.length || !scenes.every(scene => typeof scene?.scene_text === 'string')) return null
+    const narrations = scenes.map(scene => scene.scene_text.trim())
+    return normalizedScriptText(narrations.join('\n\n')) === normalizedScriptText(script)
+        ? narrations : null
+}
+
 export function partitionScriptByExistingSceneBoundaries(
     rawScriptText: string,
     scenes: any[],
@@ -751,9 +760,10 @@ export function partitionScriptByExistingSceneBoundaries(
     }
 
     const normalizedScenes = Array.from({ length: totalScenesCount }, (_, i) => scenes?.[i] || {})
+    const authoredNarrations = authoredSceneNarrations(rawScriptText, normalizedScenes)
+    if (authoredNarrations) return authoredNarrations
     const exactNarrations = normalizedScenes.map(sceneNarrationText)
-    if (exactNarrations.every(Boolean)
-        && normalizedScriptText(exactNarrations.join('\n\n')) === fullText) {
+    if (normalizedScriptText(exactNarrations.join('\n\n')) === fullText) {
         return exactNarrations
     }
     const existingLengths = normalizedScenes.map(scene => sceneNarrationText(scene).length)
@@ -827,10 +837,10 @@ export function generateSynchronizedSubtitles(
         const sceneData = normalizedScenes[sNum - 1] || {}
         const isHook = sNum <= 12
 
-        let pureText = cleanKoreanScriptLine(partitionedScenes[sNum - 1] || sceneNarrationText(sceneData))
-        if (!pureText || pureText.length < 2) {
-            pureText = cleanKoreanScriptLine(sceneNarrationText(sceneData) || `Scene ${sNum} narration`)
-        }
+        // The partition already consumed the script in order. Refilling an
+        // empty slot from scene text can replay words assigned elsewhere.
+        const pureText = cleanKoreanScriptLine(partitionedScenes[sNum - 1] ?? '')
+        if (!pureText) continue
 
         // Classify the complete scene before length-based splitting so confirmed
         // dialogue cannot be fragmented or mixed with intervening narration.
