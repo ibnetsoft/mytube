@@ -20,6 +20,8 @@ import { resolveSceneMedia, storageSourceForAsset } from './stdSceneMedia'
 export { reviewedScenePostprocessAsset } from './stdSceneMedia'
 import { templateOverlayPng } from './stdTemplateOverlayPng'
 import { createHash, randomUUID } from 'crypto'
+import { createClient } from '@supabase/supabase-js'
+import { submissionStorageRequest } from './stdSubmissionStorage'
 import { frozenRenderBundle } from './stdSubmissionPipeline'
 import { supabaseAdmin } from './supabaseAdmin'
 import { isStdRequiredVideoScene, isStdVideoPromptScene } from './stdPolicy'
@@ -28,7 +30,7 @@ import { resolveGeneratedSceneStorage, type GeneratedSceneStorage } from './stdG
 import {
     createGcsSignedReadUrl,
     downloadGcsObject,
-    getGcsObjectMetadata,
+    createGcsSignedUploadUrl,
     isGcsConfiguredAsync,
     gcsBucketName,
     uploadGcsBuffer,
@@ -121,13 +123,15 @@ async function downloadStorageSource(storage: { bucket: string; path: string; pr
     throw new Error('스토리지 파일을 GCS에서 불러오지 못했습니다.')
 }
 
-async function prepareGeneratedSceneStorage(source: GeneratedSceneStorage, kind: 'image' | 'video', sceneNumber: number) {
+async function prepareGeneratedSceneStorage(source: GeneratedSceneStorage, kind: 'image' | 'video', sceneNumber: number, signal: AbortSignal) {
     const label = kind === 'image' ? '생성 이미지' : '생성 영상'
     const fallbackMime = kind === 'image' ? 'image/png' : 'video/mp4'
     if (source.provider === 'gcs') {
         try {
             // Check the object without downloading/re-uploading every generated image.
-            const file = await getGcsObjectMetadata({ bucket: source.bucket, objectPath: source.path })
+            const url = await createGcsSignedReadUrl({ bucket: source.bucket, objectPath: source.path })
+            const response = await submissionStorageRequest(url, { headers: { Range: 'bytes=0-0' } }, signal)
+            const file = { size: Number(response.headers.get('content-range')?.split('/').pop() || response.headers.get('content-length') || 0), contentType: response.headers.get('content-type') }
             if (!file.size) throw new Error('파일이 비어 있습니다.')
             return { bucket: source.bucket, path: source.path, size: file.size, contentType: file.contentType || fallbackMime }
         } catch (error: any) {
@@ -136,20 +140,25 @@ async function prepareGeneratedSceneStorage(source: GeneratedSceneStorage, kind:
     }
 
     // Only genuine legacy Supabase files need migration into render storage.
-    const { data: file, error } = await supabaseAdmin.storage.from(source.bucket).download(source.path)
+    const client = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+        auth: { persistSession: false, autoRefreshToken: false },
+        global: { fetch: (url, init) => fetch(url, { ...init, signal: AbortSignal.any([signal, AbortSignal.timeout(30000), ...(init?.signal ? [init.signal] : [])]) }) },
+    })
+    const { data: file, error } = await client.storage.from(source.bucket).download(source.path)
     if (error || !file) {
         throw new Error(`${label} ${sceneNumber}번의 이전 저장 파일을 읽을 수 없습니다: ${error?.message || 'missing file'}`)
     }
     const data = Buffer.from(await file.arrayBuffer())
     const contentType = file.type || fallbackMime
-    const stored = await uploadGcsBuffer({ objectPath: source.path, data, contentType })
-    return { ...stored, size: data.length, contentType }
+    const stored = await createGcsSignedUploadUrl({ objectPath: source.path, contentType })
+    await submissionStorageRequest(stored.signedUrl, { method: 'PUT', headers: { 'Content-Type': contentType, 'Cache-Control': 'private, max-age=86400', 'Content-MD5': createHash('md5').update(data).digest('base64') }, body: data }, signal)
+    return { bucket: stored.bucket, path: stored.path, size: data.length, contentType }
 }
 
 export async function ensureStdGeneratedSceneAssetsArchived(project: any, scenes: any[], assets: any[]) {
     const activeAssets = Array.isArray(assets) ? [...assets] : []
     let checkedGcsConfig = false
-    const preparations: Array<() => Promise<{ existingAsset: any; assetPayload: any }>> = []
+    const preparations: Array<(signal: AbortSignal) => Promise<{ existingAsset: any; assetPayload: any }>> = []
     for (const kind of ['video', 'image'] as const) {
         for (const scene of scenes || []) {
             const sceneNumber = Number(scene?.scene_number)
@@ -189,8 +198,8 @@ export async function ensureStdGeneratedSceneAssetsArchived(project: any, scenes
             }
             if (!source) continue
             const sourceToArchive = source
-            preparations.push(async () => {
-                const stored = await prepareGeneratedSceneStorage(sourceToArchive, kind, sceneNumber)
+            preparations.push(async (signal) => {
+                const stored = await prepareGeneratedSceneStorage(sourceToArchive, kind, sceneNumber, signal)
                 const metadata = { ...(existingAsset?.metadata || {}) }
                 // A recovered reference must not retain stale URLs to another provider.
                 delete metadata.storage_public_url
@@ -230,8 +239,13 @@ export async function ensureStdGeneratedSceneAssetsArchived(project: any, scenes
         }
     }
     const prepared = []
+    const preparationSignal = AbortSignal.timeout(90000)
     for (let offset = 0; offset < preparations.length; offset += 6) {
-        prepared.push(...await Promise.all(preparations.slice(offset, offset + 6).map(prepare => prepare())))
+        preparationSignal.throwIfAborted()
+        const results = await Promise.allSettled(preparations.slice(offset, offset + 6).map(prepare => prepare(preparationSignal)))
+        const failed = results.find((result): result is PromiseRejectedResult => result.status === 'rejected')
+        if (failed) throw failed.reason
+        prepared.push(...results.map(result => (result as PromiseFulfilledResult<{ existingAsset: any; assetPayload: any }>).value))
     }
     const newAssets = []
     for (const {existingAsset, assetPayload} of prepared) {

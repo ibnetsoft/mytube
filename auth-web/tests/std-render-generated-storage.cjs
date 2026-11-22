@@ -153,6 +153,8 @@ function harness({ missingGcs = false, missingSupabase = false, existingRows = [
             if (missingGcs) throw new Error('GCS object not found')
             return { size: 4096, contentType: input.objectPath.endsWith('.mp4') ? 'video/mp4' : 'image/png' }
         },
+        async createGcsSignedReadUrl(input) { const metadata = await gcs.getGcsObjectMetadata(input); return JSON.stringify({ kind: 'read', metadata }) },
+        async createGcsSignedUploadUrl(input) { return { signedUrl: JSON.stringify({ kind: 'write', input }), bucket: gcsBucket, path: input.objectPath } },
         async downloadGcsObject() { throw new Error('Existing GCS media must not be downloaded for re-upload') },
         async uploadGcsBuffer(input) {
             assert.equal(configured, true)
@@ -163,6 +165,8 @@ function harness({ missingGcs = false, missingSupabase = false, existingRows = [
     }
     const queue = load('lib/stdRenderQueue.ts', {
         './supabaseAdmin': { supabaseAdmin: db }, './gcsStorage': gcs,
+        '@supabase/supabase-js': { createClient: () => db },
+        './stdSubmissionStorage': { submissionStorageRequest: async (url, init) => { const data = JSON.parse(url); if (data.kind === 'read') return { headers: new Headers({ 'content-range': `bytes 0-0/${data.metadata.size}`, 'content-type': data.metadata.contentType }) }; await gcs.uploadGcsBuffer({ ...data.input, data: init.body }); return { headers: new Headers() } } },
         './stdContentIdentity': { projectContentIdentity: p => p.project_payload?.content_identity || {}, assetContentIdentity: () => ({}), assetMatchesContentRevision: () => true },
     })
     return { prepare: queue.ensureStdGeneratedSceneAssetsArchived, calls, records }
