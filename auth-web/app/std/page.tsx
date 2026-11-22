@@ -6599,6 +6599,29 @@ export default function StdPortalPage() {
         } catch (error: any) {
             const timedOut = ['TimeoutError', 'AbortError'].includes(String(error?.name || ''))
             console.warn('[project submit]', error?.message)
+            if (postStarted && timedOut && isSameSession()) {
+                try {
+                    // The POST may have committed just before its response was lost.
+                    // Confirm an active job without sending a second submission.
+                    const statusRes = await fetch(`/api/std/projects/${targetId}/submit`, {
+                        headers: authedJsonHeaders, signal: AbortSignal.timeout(15000),
+                    })
+                    const status = await safeParseJson(statusRes, copy.error)
+                    const before = (isSelected ? selectedProject?.project : projects.find((p: any) => String(p.id) === targetId))?.submitted_at
+                    if (!isSameSession()) return
+                    if (statusRes.ok && status.success === true && status.accepted === true
+                        && status.submitted_at && (!before || before !== status.submitted_at)) {
+                        const freeze = (p: any) => ({ ...p, submitted_at: status.submitted_at, status: 'review_requested' })
+                        setProjects(prev => prev.map(p => String(p.id) === targetId ? freeze(p) : p))
+                        setSelectedProject(prev => prev?.project?.id === targetId ? { ...prev, project: freeze(prev.project) } : prev)
+                        report('pending', copy.postprocessPending)
+                        setMessage(copy.postprocessPending)
+                        return
+                    }
+                } catch {
+                    // A missing or failed receipt lookup remains uncertain; never retry POST here.
+                }
+            }
             const knownLocalMessage = [copy.error, copy.subtitleSaveFailed, copy.scriptSaveFailed, copy.projectChanged].includes(error?.message)
             const detail = knownLocalMessage ? error.message : localizeStdActionError(error, currentLocale, 'submit')
             const missing = error?.missingScenes?.length ? ` ${copy.missingScenes(error.missingScenes)}` : ''

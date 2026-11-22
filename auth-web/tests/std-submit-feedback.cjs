@@ -50,7 +50,7 @@ function harness(options = {}) {
         project: { id: 'project-a', title: 'Project A', status: 'in_progress', project_payload: {}, progress_payload: {} },
         scenes: [], assets: [],
     }
-    const initialProjects = [selectedProject.project, { id: 'project-b', title: 'Project B', status: 'in_progress' }]
+    const initialProjects = [selectedProject.project, { id: 'project-b', title: 'Project B', status: 'in_progress', submitted_at: options.previousSubmittedAt }]
     const state = {
         notices: [], busy: [], messages: [], accepted: [], requests: [], alerts: [], confirmations: [],
         syncs: 0, saves: [], reloads: [], opens: [], projects: initialProjects, project: selectedProject, projectUpdates: [], timeouts: [], operations: [],
@@ -98,6 +98,11 @@ function harness(options = {}) {
         AbortSignal: { timeout: milliseconds => { state.timeouts.push(milliseconds); return { deadline: milliseconds } } },
         safeParseJson: async response => response.payload,
         fetch: async (url, init) => {
+            if (url.endsWith('/submit') && !init?.method) {
+                state.operations.push('receipt')
+                if (options.receiptError) throw Error(options.receiptError)
+                return { ok: options.receiptStatus !== 500, payload: options.receipt || { success: true, accepted: false } }
+            }
             if (url === '/api/std/projects') {
                 state.reloads.push({ url, init })
                 if (options.reloadGate) await options.reloadGate.promise
@@ -283,6 +288,33 @@ test('an interrupted POST reports uncertain status so the user checks the queue 
         assert.equal(h.state.reloads.length, 0)
         assert.equal(h.submittingProjectRef.current, '')
     }
+})
+
+test('an interrupted POST recovers a confirmed active submission without issuing another POST', async () => {
+    const h = harness({ requestError: 'Request interrupted', errorName: 'TimeoutError',
+        receipt: { success: true, accepted: true, submitted_at: '2026-11-22T03:31:20Z' } })
+    await h.submitProject('project-b')
+    assert.equal(h.state.requests.length, 1)
+    assert.deepEqual(h.state.operations, ['post', 'receipt'])
+    assert.equal(phases(h).at(-1), 'pending')
+    assert.equal(h.state.projects[1].submitted_at, '2026-11-22T03:31:20Z')
+})
+
+test('a failed receipt lookup leaves the submission status uncertain', async () => {
+    const h = harness({ requestError: 'Request interrupted', errorName: 'TimeoutError', receiptError: 'offline' })
+    await h.submitProject('project-b')
+    assert.equal(h.state.requests.length, 1)
+    assert.equal(phases(h).at(-1), 'warning')
+    assert.equal(h.state.accepted.length, 0)
+})
+
+test('an old active receipt cannot confirm a new interrupted submission', async () => {
+    const submitted = '2026-11-22T03:31:20Z'
+    const h = harness({ requestError: 'Request interrupted', errorName: 'TimeoutError', previousSubmittedAt: submitted,
+        receipt: { success: true, accepted: true, submitted_at: submitted } })
+    await h.submitProject('project-b')
+    assert.equal(h.state.requests.length, 1)
+    assert.equal(phases(h).at(-1), 'warning')
 })
 
 test('a login change during the list refresh does not overwrite the new session list', async () => {

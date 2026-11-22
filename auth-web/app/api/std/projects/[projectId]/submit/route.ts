@@ -19,6 +19,26 @@ import { assetMatchesContentRevision } from '@/lib/stdContentIdentity'
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
 
+/** A lightweight receipt lookup; never infer successful submission from a timeout. */
+export async function GET(req: Request, { params }: { params: { projectId: string } }) {
+    const auth = await requireStdUser(req)
+    if (!auth.ok) return auth.response
+    const { data: project, error } = await supabaseAdmin.from('std_projects')
+        .select('id,status,submitted_at,progress_payload')
+        .eq('id', params.projectId).eq('employee_email', auth.requester.email).maybeSingle()
+    if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 })
+    if (!project) return NextResponse.json({ success: false, error: 'Project not found' }, { status: 404 })
+    const jobId = project.progress_payload?.motion_automation_job_id
+    if (!project.submitted_at || !jobId) return NextResponse.json({ success: true, accepted: false })
+    const { data: job, error: jobError } = await supabaseAdmin.from('std_project_assets')
+        .select('id,kind:metadata->>kind,state:metadata->>state').eq('id', jobId).eq('project_id', project.id).maybeSingle()
+    if (jobError) return NextResponse.json({ success: false, error: jobError.message }, { status: 500 })
+    const accepted = job?.kind === 'motion_automation'
+        && ['queued', 'processing'].includes(String(job?.state || ''))
+    return NextResponse.json({ success: true, accepted, submitted_at: accepted ? project.submitted_at : null })
+}
+
+
 function hasStoredAssetFile(asset: any): boolean {
     const metadata = asset?.metadata && typeof asset.metadata === 'object' ? asset.metadata : {}
     const nestedMetadata = metadata?.metadata && typeof metadata.metadata === 'object' ? metadata.metadata : {}
