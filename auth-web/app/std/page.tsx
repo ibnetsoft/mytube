@@ -10099,16 +10099,16 @@ export default function StdPortalPage() {
                                                     const motionEffect = wuxiaMotionValue(sceneRecord)
                                                     const active = silentScenePreview?.sceneNumber === sNum
                                                     const checked = selectedSubtitleSceneNumbers.includes(sNum)
+                                                    const packageScenes = selectedProject.project.project_payload?.structure?.wuxia_ae_package?.scenes || []
+                                                    const packageIndex = packageScenes.findIndex((scene: any) => Number(String(scene.scene_id || '').match(/S(\d+)$/)?.[1]) === sNum)
+                                                    const packageScene = packageScenes[packageIndex]
+                                                    const sourceScene = selectedProject.project.project_payload?.structure?.scenes?.find((scene: any) => Number(scene.scene_number) === sNum)
+                                                    const duration = Number(packageScene?.preview_duration_seconds || sourceScene?.duration_seconds || sourceScene?.target_duration || sceneRecord?.duration_seconds) || 5
                                                     return <div key={`silent-scene-${sNum}`} onClick={() => {
                                                         stopVrewPlayback()
                                                         setPreviewTransition(null)
                                                         setSilentScenePlaying(false)
-                                                        const packageScenes = selectedProject.project.project_payload?.structure?.wuxia_ae_package?.scenes || []
-                                                        const packageIndex = packageScenes.findIndex((scene: any) => Number(String(scene.scene_id || '').match(/S(\d+)$/)?.[1]) === sNum)
-                                                        const packageScene = packageScenes[packageIndex]
                                                         const start = Number(packageScene?.preview_start_seconds ?? packageScenes.slice(0, Math.max(0, packageIndex)).reduce((sum: number, scene: any) => sum + (Number(scene.preview_duration_seconds) || 0), 0)) || 0
-                                                        const sourceScene = selectedProject.project.project_payload?.structure?.scenes?.find((scene: any) => Number(scene.scene_number) === sNum)
-                                                        const duration = Number(packageScene?.preview_duration_seconds || sourceScene?.duration_seconds || sourceScene?.target_duration || sceneRecord?.duration_seconds) || 5
                                                         setSilentScenePreview({ sceneNumber: sNum, start, duration, elapsed: 0 })
                                                     }} className={`flex cursor-pointer items-start gap-3 rounded-xl border p-2 ${checked ? 'border-cyan-400/70 bg-cyan-500/10' : active ? 'border-blue-500 bg-blue-600/10' : 'border-white/5 bg-[#14181f]'}`}>
                                                         <div className="w-6 shrink-0 text-center" onClick={event => event.stopPropagation()}><input type="checkbox" aria-label={`씬 ${sNum} 선택`} checked={checked} onChange={() => setSelectedSubtitleSceneNumbers(previous => checked ? previous.filter(number => number !== sNum) : [...previous, sNum])} className="h-4 w-4 accent-[#0b1f3a]" /><span className="block text-xs font-bold text-white">{sNum}</span></div>
@@ -10122,7 +10122,7 @@ export default function StdPortalPage() {
                                                             <label onClick={event => event.stopPropagation()} className="mt-1 flex items-center gap-1 text-[10px] text-cyan-200"><input type="checkbox" aria-label={`씬 ${sNum} 열기 왜곡`} disabled={Boolean(group.video_url) || isSceneEffectSaving} checked={splitWuxiaMotion(motionEffect).heat} onChange={event => void applySelectedSceneTransition(splitWuxiaMotion(motionEffect).id + (event.target.checked ? '+heat' : ''), 'image_effect', [sNum])} />열기 왜곡</label>
                                                             <label onClick={event => event.stopPropagation()} className="mt-1 flex items-center gap-1 text-[10px] text-cyan-200">속도 <select aria-label={`씬 ${sNum} 모션 속도`} value={wuxiaMotionSpeed(sceneRecord)} disabled={Boolean(group.video_url) || motionEffect === 'none' || isSceneEffectSaving} onChange={event => void applySelectedSceneTransition(event.target.value, 'motion_speed', [sNum])} className="rounded border border-white/15 bg-[#14181f] p-1 text-white disabled:opacity-40">{[0.5, 1, 1.5, 2, 3].map(speed => <option key={speed} value={speed}>{speed}×</option>)}</select></label>
                                                         </div>
-                                                        <div className="text-xs text-gray-400"><span className="mr-2 rounded bg-blue-500/15 px-1.5 py-0.5 font-bold text-blue-300">씬 {sNum}</span>{selectedProject.project.project_payload?.structure?.scenes?.find((scene: any) => Number(scene.scene_number) === sNum)?.silent_visual === true ? '무음 장면' : '음성 구간 없음'}</div>
+                                                        <div className="text-xs text-gray-400"><span className="mr-2 rounded bg-blue-500/15 px-1.5 py-0.5 font-bold text-blue-300">씬 {sNum}</span>{sourceScene?.silent_visual === true ? '무음 장면' : '음성 구간 없음'} <span className="ml-2 text-cyan-300">미리보기 {duration.toFixed(1)}초</span></div>
                                                     </div>
                                                 }
                                                 const isActive = !silentScenePreview && selectedSubIndex >= group.firstIndex && selectedSubIndex <= group.lastIndex
