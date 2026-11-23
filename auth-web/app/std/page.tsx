@@ -5919,7 +5919,7 @@ export default function StdPortalPage() {
             setMessage(`씬 ${sceneNum}은 필수 영상 구간입니다. 영상 파일을 업로드하세요.`)
             return false
         }
-        if (!revisionedMedia && !comicProject && !isStdRequiredClipScene(sceneNum) && ['image', 'video'].includes(actualAssetType)) {
+        if (!revisionedMedia && !comicProject && !isStdRequiredClipScene(sceneNum) && ['image', 'video'].includes(actualAssetType) && !(actualAssetType === 'video' && isStdVideoPromptScene(sceneNum))) {
             setMessage(`씬 ${sceneNum}의 미디어는 교체할 수 없습니다.`)
             return false
         }

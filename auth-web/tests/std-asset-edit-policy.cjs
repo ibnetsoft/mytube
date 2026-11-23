@@ -11,11 +11,12 @@ test('revisioned documentary permits submitted selected motion clips only',()=>{
  for(const n of [20,50,101])assert.equal(can(p,'video',n),false)
 })
 const can=moduleExports.canEditStdAsset
-test('submitted project accepts replacement of scenes 1–18 only',()=>{
+test('submitted project accepts replacement of planned clips',()=>{
  const p={status:'review_requested',project_payload:{}}
  assert.equal(can(p,'video',4),true)
  assert.equal(can(p,'video',18),true)
- for(const [type,scene] of [['video',19],['image',4],['thumbnail',null],['video',null]])assert.equal(can(p,type,scene),false)
+ for(const n of [19,60,70])assert.equal(can(p,'video',n),true)
+ for(const [type,scene] of [['video',20],['image',4],['thumbnail',null],['video',null]])assert.equal(can(p,type,scene),false)
  assert.equal(can(p,'sfx',null),true)
  assert.equal(can(p,'bgm',null),true)
  assert.equal(can(p,'sfx',4),false)

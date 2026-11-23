@@ -5,7 +5,7 @@ import { canEditStdAsset } from '@/lib/stdAssetEditPolicy'
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { requireStdUser } from '@/lib/stdWeb'
-import { isStdRequiredClipScene, stdRequiredVideoSceneCount, strictRevisionSceneUploadAllowed } from '@/lib/stdPolicy'
+import { isStdRequiredClipScene, isStdVideoPromptScene, stdRequiredVideoSceneCount, strictRevisionSceneUploadAllowed } from '@/lib/stdPolicy'
 import {
     buildStdGcsObjectPath,
     createGcsSignedUploadUrl,
@@ -80,6 +80,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         && project.project_payload?.strict_content_identity !== true
         && sceneNumber > stdRequiredVideoSceneCount(project)
         && ['image', 'video'].includes(assetType)
+        && !(assetType === 'video' && isStdVideoPromptScene(sceneNumber, project))
     ) {
         return NextResponse.json({
             success: false,

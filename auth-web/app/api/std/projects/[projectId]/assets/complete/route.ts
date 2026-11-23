@@ -163,6 +163,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         && project.project_payload?.strict_content_identity !== true
         && sceneNumber > stdRequiredVideoSceneCount(project)
         && ['image', 'video'].includes(assetType)
+        && !(assetType === 'video' && isStdVideoPromptScene(sceneNumber, project))
     ) {
         return NextResponse.json({
             success: false,
