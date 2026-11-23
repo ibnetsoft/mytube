@@ -2763,6 +2763,23 @@ export default function StdPortalPage() {
         return groups
     }, [localSubtitles, sceneVisualSignature])
 
+    // Silent moving-toon scenes still occupy a visual slot even without a voice row.
+    const displayedSubtitleSceneGroups = useMemo(() => {
+        if (!isWuxiaMovingtoon(selectedProject?.project)) return subtitleSceneGroups
+        const groups = new Map(subtitleSceneGroups.map(group => [Number(group.scene_number), group]))
+        const scenes = selectedProject?.scenes || []
+        scenes.forEach((scene: any, index: number) => {
+            const sceneNumber = Number(scene.scene_number || scene.scene_order || index + 1)
+            if (!Number.isInteger(sceneNumber) || sceneNumber < 1 || groups.has(sceneNumber)) return
+            groups.set(sceneNumber, {
+                scene_number: sceneNumber, subtitles: [], silent: true,
+                image_url: runtimeAssetUrl(scene.image_url || scene.image || scene.metadata?.image_url) || '',
+                video_url: runtimeAssetUrl(scene.video_url || scene.video || scene.metadata?.video_url) || null,
+            })
+        })
+        return [...groups.values()].sort((a, b) => Number(a.scene_number) - Number(b.scene_number))
+    }, [subtitleSceneGroups, selectedProject?.project, selectedProject?.scenes])
+
     const voiceNameById = useMemo(() => {
         const map = new Map<string, string>()
         ;(allVoices || []).forEach((voice: any) => {
@@ -10050,7 +10067,26 @@ export default function StdPortalPage() {
                                     {/* 자막 카드 목록 */}
                                     <div className="flex flex-1 overflow-hidden">
                                         <div className="subtitle-navy-scrollbar flex-1 overflow-y-auto p-0 space-y-0">
-                                            {subtitleSceneGroups.map((group) => {
+                                            {displayedSubtitleSceneGroups.map((group) => {
+                                                if (group.silent) {
+                                                    const sNum = Number(group.scene_number)
+                                                    const sceneRecord = selectedProject.scenes.find((scene: any) => Number(scene.scene_number) === sNum)
+                                                    const motionEffect = wuxiaMotionValue(sceneRecord)
+                                                    return <div key={`silent-scene-${sNum}`} className="flex items-start gap-3 rounded-xl border border-white/5 bg-[#14181f] p-2">
+                                                        <span className="w-6 text-center text-xs font-bold text-white">{sNum}</span>
+                                                        <div className="w-28 shrink-0 sm:w-40">
+                                                            <div className="aspect-video overflow-hidden rounded-lg border border-white/10"><LazySceneMedia imageUrl={group.image_url} videoUrl={group.video_url} /></div>
+                                                            <select aria-label={`씬 ${sNum} 이미지 모션`} value={splitWuxiaMotion(motionEffect).id} disabled={Boolean(group.video_url) || isSceneEffectSaving}
+                                                                onChange={event => void applySelectedSceneTransition(event.target.value + (splitWuxiaMotion(motionEffect).heat ? '+heat' : ''), 'image_effect', [sNum])}
+                                                                className="mt-2 w-full rounded border border-white/15 bg-[#14181f] p-1 text-[10px] text-white disabled:opacity-40">
+                                                                {WUXIA_MOTIONS.map(motion => <option key={motion.id} value={motion.id}>{ui(motion.label)}</option>)}
+                                                            </select>
+                                                            <label className="mt-1 flex items-center gap-1 text-[10px] text-cyan-200"><input type="checkbox" aria-label={`씬 ${sNum} 열기 왜곡`} disabled={Boolean(group.video_url) || isSceneEffectSaving} checked={splitWuxiaMotion(motionEffect).heat} onChange={event => void applySelectedSceneTransition(splitWuxiaMotion(motionEffect).id + (event.target.checked ? '+heat' : ''), 'image_effect', [sNum])} />열기 왜곡</label>
+                                                            <label className="mt-1 flex items-center gap-1 text-[10px] text-cyan-200">속도 <select aria-label={`씬 ${sNum} 모션 속도`} value={wuxiaMotionSpeed(sceneRecord)} disabled={Boolean(group.video_url) || motionEffect === 'none' || isSceneEffectSaving} onChange={event => void applySelectedSceneTransition(event.target.value, 'motion_speed', [sNum])} className="rounded border border-white/15 bg-[#14181f] p-1 text-white disabled:opacity-40">{[0.5, 1, 1.5, 2, 3].map(speed => <option key={speed} value={speed}>{speed}×</option>)}</select></label>
+                                                        </div>
+                                                        <div className="text-xs text-gray-400"><span className="mr-2 rounded bg-blue-500/15 px-1.5 py-0.5 font-bold text-blue-300">씬 {sNum}</span>음성 없는 장면</div>
+                                                    </div>
+                                                }
                                                 const isActive = selectedSubIndex >= group.firstIndex && selectedSubIndex <= group.lastIndex
                                                 const sNum = group.scene_number
                                                 const isChecked = selectedSubtitleSceneNumbers.includes(Number(sNum))
