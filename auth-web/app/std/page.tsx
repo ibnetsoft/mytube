@@ -1148,6 +1148,19 @@ export default function StdPortalPage() {
     const [selectedSubIndex, setSelectedSubIndex] = useState(0)
     const [selectedSubtitleBlockIndexes, setSelectedSubtitleBlockIndexes] = useState<number[]>([])
     const [selectedSubtitleSceneNumbers, setSelectedSubtitleSceneNumbers] = useState<number[]>([])
+    const [silentScenePreview, setSilentScenePreview] = useState<{ sceneNumber: number; start: number; duration: number; elapsed: number } | null>(null)
+    const [silentScenePlaying, setSilentScenePlaying] = useState(false)
+    useEffect(() => { setSilentScenePreview(null); setSilentScenePlaying(false) }, [selectedProject?.project?.id])
+    useEffect(() => {
+        if (!silentScenePlaying || !silentScenePreview) return
+        const started = performance.now() - silentScenePreview.elapsed * 1000
+        const timer = window.setInterval(() => {
+            const elapsed = Math.min(silentScenePreview.duration, (performance.now() - started) / 1000)
+            setSilentScenePreview(previous => previous ? { ...previous, elapsed } : previous)
+            if (elapsed >= silentScenePreview.duration) setSilentScenePlaying(false)
+        }, 40)
+        return () => window.clearInterval(timer)
+    }, [silentScenePlaying, silentScenePreview?.sceneNumber])
     const [hoveredSubtitleSceneNumber, setHoveredSubtitleSceneNumber] = useState<number | null>(null)
     const subtitleBlockSelectionAnchorRef = useRef<number | null>(null)
     const subtitleTextSelectionRef = useRef<{ subtitleIndex: number; cursor: number } | null>(null)
@@ -3126,6 +3139,8 @@ export default function StdPortalPage() {
         const subtitle = localSubtitles[subtitleIndex]
         if (!subtitle) return
         stopVrewPlayback()
+        setSilentScenePlaying(false)
+        setSilentScenePreview(null)
         setPreviewTransition(null)
         setSelectedSubIndex(subtitleIndex)
         const start = Number(subtitle.start_num ?? subtitle.start_time ?? 0)
@@ -7526,12 +7541,12 @@ export default function StdPortalPage() {
         end_time: '4.6',
         image_url: '',
     }
-    const currentSubVisual = subtitleSceneVisual(currentSub, selectedSubIndex)
+    const currentSubVisual = subtitleSceneVisual(silentScenePreview ? { scene_number: silentScenePreview.sceneNumber } : currentSub, selectedSubIndex)
     const currentSubImageUrl = currentSubVisual.image_url
         || ''
     const currentSubVideoCandidate = currentSubVisual.video_url
         || ''
-    const currentPreviewSceneNumber = Number(currentSub?.scene_number || currentSubVisual.scene_number || selectedSubIndex + 1)
+    const currentPreviewSceneNumber = Number(silentScenePreview?.sceneNumber || currentSub?.scene_number || currentSubVisual.scene_number || selectedSubIndex + 1)
     const currentPreviewVideoAsset = sceneVideos.get(currentPreviewSceneNumber)
     const currentPreviewIsWorkerVideo = isWorkerSceneVideo(currentPreviewVideoAsset)
     const previewVideoKey = `${selectedProject?.project?.id}:${currentPreviewVideoAsset?.id || ''}`
@@ -7734,6 +7749,16 @@ export default function StdPortalPage() {
     }, [currentNav, isPlayingPreview, currentPreviewSceneNumber, currentSubImageUrl, currentSubVideoUrl])
 
     const updatePreviewVideoPlayback = () => {
+        if (silentScenePreview) {
+            const video = vrewPreviewVideoRef.current
+            if (video && video.readyState >= HTMLMediaElement.HAVE_METADATA) {
+                video.pause()
+                const target = Math.min(silentScenePreview.elapsed, Number.isFinite(video.duration) ? Math.max(0, video.duration - 0.04) : silentScenePreview.elapsed)
+                if (Math.abs(video.currentTime - target) > 0.08) video.currentTime = target
+            }
+            setPreviewVideoBuffering(false)
+            return
+        }
         const waiting = syncScenePreviewPlayback(
             vrewPreviewVideoRef.current, vrewAudioRef.current, playbackTime, previewMotionStart,
             currentNav === 'subtitle_vrew' && isPlayingPreview,
@@ -7741,7 +7766,7 @@ export default function StdPortalPage() {
         )
         setPreviewVideoBuffering(waiting)
     }
-    useEffect(updatePreviewVideoPlayback, [currentNav, currentSubVideoUrl, currentPreviewVideoAsset?.id, isPlayingPreview, playbackTime, previewMotionStart])
+    useEffect(updatePreviewVideoPlayback, [currentNav, currentSubVideoUrl, currentPreviewVideoAsset?.id, isPlayingPreview, playbackTime, previewMotionStart, silentScenePreview])
     useEffect(() => { setSelectedSfxAssetId('') }, [selectedProject?.project?.id])
     const bgmSfxSettings = selectedProject?.project?.project_payload?.render_settings || {}
     useEffect(() => {
@@ -9472,7 +9497,7 @@ export default function StdPortalPage() {
                             localSubtitles[selectedSubtitleBlockIndexes[0]]?.voice_id
                             || selectedVoice
                         )
-                        const allSubtitleScenesSelected = subtitleSceneGroups.length > 0 && subtitleSceneGroups.every(group => (
+                        const allSubtitleScenesSelected = displayedSubtitleSceneGroups.length > 0 && displayedSubtitleSceneGroups.every(group => (
                             selectedSubtitleSceneNumbers.includes(Number(group.scene_number))
                         ))
                         const hasSelectedSubtitleSections = selectedSubtitleSceneNumbers.length > 0
@@ -9863,7 +9888,7 @@ export default function StdPortalPage() {
                                                         setIsTransitionPickerOpen(false)
                                                         setSelectedSubtitleSceneNumbers(allSubtitleScenesSelected
                                                             ? []
-                                                            : subtitleSceneGroups.map(group => Number(group.scene_number)))
+                                                            : displayedSubtitleSceneGroups.map(group => Number(group.scene_number)))
                                                     }}
                                                     aria-label={ui("전체 씬 선택")}
                                                     className="w-4 h-4 accent-[#0b1f3a] cursor-pointer"
@@ -10072,22 +10097,35 @@ export default function StdPortalPage() {
                                                     const sNum = Number(group.scene_number)
                                                     const sceneRecord = selectedProject.scenes.find((scene: any) => Number(scene.scene_number) === sNum)
                                                     const motionEffect = wuxiaMotionValue(sceneRecord)
-                                                    return <div key={`silent-scene-${sNum}`} className="flex items-start gap-3 rounded-xl border border-white/5 bg-[#14181f] p-2">
-                                                        <span className="w-6 text-center text-xs font-bold text-white">{sNum}</span>
+                                                    const active = silentScenePreview?.sceneNumber === sNum
+                                                    const checked = selectedSubtitleSceneNumbers.includes(sNum)
+                                                    return <div key={`silent-scene-${sNum}`} onClick={() => {
+                                                        stopVrewPlayback()
+                                                        setPreviewTransition(null)
+                                                        setSilentScenePlaying(false)
+                                                        const packageScenes = selectedProject.project.project_payload?.structure?.wuxia_ae_package?.scenes || []
+                                                        const packageIndex = packageScenes.findIndex((scene: any) => Number(String(scene.scene_id || '').match(/S(\d+)$/)?.[1]) === sNum)
+                                                        const packageScene = packageScenes[packageIndex]
+                                                        const start = Number(packageScene?.preview_start_seconds ?? packageScenes.slice(0, Math.max(0, packageIndex)).reduce((sum: number, scene: any) => sum + (Number(scene.preview_duration_seconds) || 0), 0)) || 0
+                                                        const sourceScene = selectedProject.project.project_payload?.structure?.scenes?.find((scene: any) => Number(scene.scene_number) === sNum)
+                                                        const duration = Number(packageScene?.preview_duration_seconds || sourceScene?.duration_seconds || sourceScene?.target_duration || sceneRecord?.duration_seconds) || 5
+                                                        setSilentScenePreview({ sceneNumber: sNum, start, duration, elapsed: 0 })
+                                                    }} className={`flex cursor-pointer items-start gap-3 rounded-xl border p-2 ${checked ? 'border-cyan-400/70 bg-cyan-500/10' : active ? 'border-blue-500 bg-blue-600/10' : 'border-white/5 bg-[#14181f]'}`}>
+                                                        <div className="w-6 shrink-0 text-center" onClick={event => event.stopPropagation()}><input type="checkbox" aria-label={`씬 ${sNum} 선택`} checked={checked} onChange={() => setSelectedSubtitleSceneNumbers(previous => checked ? previous.filter(number => number !== sNum) : [...previous, sNum])} className="h-4 w-4 accent-[#0b1f3a]" /><span className="block text-xs font-bold text-white">{sNum}</span></div>
                                                         <div className="w-28 shrink-0 sm:w-40">
                                                             <div className="aspect-video overflow-hidden rounded-lg border border-white/10"><LazySceneMedia imageUrl={group.image_url} videoUrl={group.video_url} /></div>
-                                                            <select aria-label={`씬 ${sNum} 이미지 모션`} value={splitWuxiaMotion(motionEffect).id} disabled={Boolean(group.video_url) || isSceneEffectSaving}
+                                                            <select onClick={event => event.stopPropagation()} aria-label={`씬 ${sNum} 이미지 모션`} value={splitWuxiaMotion(motionEffect).id} disabled={Boolean(group.video_url) || isSceneEffectSaving}
                                                                 onChange={event => void applySelectedSceneTransition(event.target.value + (splitWuxiaMotion(motionEffect).heat ? '+heat' : ''), 'image_effect', [sNum])}
                                                                 className="mt-2 w-full rounded border border-white/15 bg-[#14181f] p-1 text-[10px] text-white disabled:opacity-40">
                                                                 {WUXIA_MOTIONS.map(motion => <option key={motion.id} value={motion.id}>{ui(motion.label)}</option>)}
                                                             </select>
-                                                            <label className="mt-1 flex items-center gap-1 text-[10px] text-cyan-200"><input type="checkbox" aria-label={`씬 ${sNum} 열기 왜곡`} disabled={Boolean(group.video_url) || isSceneEffectSaving} checked={splitWuxiaMotion(motionEffect).heat} onChange={event => void applySelectedSceneTransition(splitWuxiaMotion(motionEffect).id + (event.target.checked ? '+heat' : ''), 'image_effect', [sNum])} />열기 왜곡</label>
-                                                            <label className="mt-1 flex items-center gap-1 text-[10px] text-cyan-200">속도 <select aria-label={`씬 ${sNum} 모션 속도`} value={wuxiaMotionSpeed(sceneRecord)} disabled={Boolean(group.video_url) || motionEffect === 'none' || isSceneEffectSaving} onChange={event => void applySelectedSceneTransition(event.target.value, 'motion_speed', [sNum])} className="rounded border border-white/15 bg-[#14181f] p-1 text-white disabled:opacity-40">{[0.5, 1, 1.5, 2, 3].map(speed => <option key={speed} value={speed}>{speed}×</option>)}</select></label>
+                                                            <label onClick={event => event.stopPropagation()} className="mt-1 flex items-center gap-1 text-[10px] text-cyan-200"><input type="checkbox" aria-label={`씬 ${sNum} 열기 왜곡`} disabled={Boolean(group.video_url) || isSceneEffectSaving} checked={splitWuxiaMotion(motionEffect).heat} onChange={event => void applySelectedSceneTransition(splitWuxiaMotion(motionEffect).id + (event.target.checked ? '+heat' : ''), 'image_effect', [sNum])} />열기 왜곡</label>
+                                                            <label onClick={event => event.stopPropagation()} className="mt-1 flex items-center gap-1 text-[10px] text-cyan-200">속도 <select aria-label={`씬 ${sNum} 모션 속도`} value={wuxiaMotionSpeed(sceneRecord)} disabled={Boolean(group.video_url) || motionEffect === 'none' || isSceneEffectSaving} onChange={event => void applySelectedSceneTransition(event.target.value, 'motion_speed', [sNum])} className="rounded border border-white/15 bg-[#14181f] p-1 text-white disabled:opacity-40">{[0.5, 1, 1.5, 2, 3].map(speed => <option key={speed} value={speed}>{speed}×</option>)}</select></label>
                                                         </div>
-                                                        <div className="text-xs text-gray-400"><span className="mr-2 rounded bg-blue-500/15 px-1.5 py-0.5 font-bold text-blue-300">씬 {sNum}</span>음성 없는 장면</div>
+                                                        <div className="text-xs text-gray-400"><span className="mr-2 rounded bg-blue-500/15 px-1.5 py-0.5 font-bold text-blue-300">씬 {sNum}</span>{selectedProject.project.project_payload?.structure?.scenes?.find((scene: any) => Number(scene.scene_number) === sNum)?.silent_visual === true ? '무음 장면' : '음성 구간 없음'}</div>
                                                     </div>
                                                 }
-                                                const isActive = selectedSubIndex >= group.firstIndex && selectedSubIndex <= group.lastIndex
+                                                const isActive = !silentScenePreview && selectedSubIndex >= group.firstIndex && selectedSubIndex <= group.lastIndex
                                                 const sNum = group.scene_number
                                                 const isChecked = selectedSubtitleSceneNumbers.includes(Number(sNum))
                                                 const isHook = sNum <= 12
@@ -10659,7 +10697,7 @@ export default function StdPortalPage() {
                                             {selectedImageTemplatePreset && <StdTemplateOverlay locale={currentLocale} layers={textLayers}
                                                 savedImage={selectedProject?.project?.project_payload?.render_settings?.std_template_overlay_png_data_url}
                                                 savedLayers={selectedProject?.project?.project_payload?.render_settings?.std_template_overlay_layers} />}
-                                            {wuxiaMode && <StdWuxiaScenePreview project={selectedProject.project} sceneNumber={Number(currentSub.scene_number)} subtitles={localSubtitles} seconds={playbackTime} headers={authedJsonHeaders} playing={isPlayingPreview} audioClock={vrewVisualClockRef} />}
+                                            {wuxiaMode && <StdWuxiaScenePreview project={selectedProject.project} sceneNumber={currentPreviewSceneNumber} subtitles={silentScenePreview ? [] : localSubtitles} seconds={silentScenePreview ? silentScenePreview.start + silentScenePreview.elapsed : playbackTime} headers={authedJsonHeaders} playing={silentScenePreview ? silentScenePlaying : isPlayingPreview} audioClock={silentScenePreview ? undefined : vrewVisualClockRef} />}
                                             {/* 실시간 폰트/스타일 자막 오버레이 (항상 1줄 고정) */}
                                             {(() => {
                                                 if (!usesStandardSubtitles(selectedProject.project)) return null
@@ -10695,7 +10733,14 @@ export default function StdPortalPage() {
                                         </div>
 
                                         {/* 커스텀 플레이어 바 */}
-                                        <div className="p-2 bg-[#13171e] border-t border-white/5 flex flex-col gap-1.5">
+                                        {silentScenePreview ? <div className="flex items-center gap-3 border-t border-white/5 bg-[#13171e] p-2 text-xs text-gray-300">
+                                            <button type="button" aria-label={silentScenePlaying ? '씬 미리보기 일시정지' : '씬 미리보기 재생'} onClick={() => {
+                                                if (silentScenePreview.elapsed >= silentScenePreview.duration) setSilentScenePreview({ ...silentScenePreview, elapsed: 0 })
+                                                setSilentScenePlaying(!silentScenePlaying)
+                                            }} className="rounded-full bg-cyan-500/10 p-1 text-cyan-400">{silentScenePlaying ? <Pause size={16} /> : <Play size={16} />}</button>
+                                            <span>씬 {silentScenePreview.sceneNumber} 미리보기 · {silentScenePreview.elapsed.toFixed(1)} / {silentScenePreview.duration.toFixed(1)}초</span>
+                                            <input aria-label="씬 미리보기 위치" type="range" min={0} max={silentScenePreview.duration} step={0.04} value={silentScenePreview.elapsed} onChange={event => { setSilentScenePlaying(false); setSilentScenePreview({ ...silentScenePreview, elapsed: Number(event.target.value) }) }} className="min-w-0 flex-1" />
+                                        </div> : <div className="p-2 bg-[#13171e] border-t border-white/5 flex flex-col gap-1.5">
                                             <div
                                                 role="slider" tabIndex={0} aria-label="Preview playback position"
                                                 aria-valuemin={0} aria-valuemax={totalDuration} aria-valuenow={playbackTime}
@@ -10778,7 +10823,7 @@ export default function StdPortalPage() {
                                             {bgmAsset && bgmRange.valid && playbackTime >= bgmRange.start && playbackTime < bgmRange.end && <BackgroundAudioWaveform locale={currentLocale} src={previewBgmUrl} time={Math.max(0, playbackTime - bgmRange.start)}
                                                 startTime={bgmRange.start} fadeIn={bgmRange.fadeIn} fadeOut={bgmRange.fadeOut}
                                                 timelineDuration={Math.max(0, bgmRange.end - bgmRange.start)} muted={bgmVolume === 0 || playbackTime < bgmRange.start || playbackTime >= bgmRange.end} loop={bgmLoop} />}
-                                        </div>
+                                        </div>}
                                     </div>
 
                                     {/* 탭: 자막 편집 / 배경음/효과음 */}
@@ -10802,7 +10847,7 @@ export default function StdPortalPage() {
                                             </button>
                                         </div>
 
-                                        {subEditTab === 'subtitle' ? (
+                                        {subEditTab === 'subtitle' && silentScenePreview ? <div className="text-xs text-gray-400">씬 {silentScenePreview.sceneNumber}에는 편집할 음성 구간이 없습니다.</div> : subEditTab === 'subtitle' ? (
                                             <div className="space-y-2">
                                                 <div className="flex flex-col gap-1.5 text-xs font-bold text-white min-[420px]:flex-row min-[420px]:items-center min-[420px]:justify-between">
                                                     <span>{t('sub_selected_range_edit')}</span>
@@ -11031,8 +11076,8 @@ export default function StdPortalPage() {
                                         revision={selectedProject.project.updated_at || ''} headers={authedJsonHeaders}
                                         speakerProgress={dialogueSpeakerProgress}
                                         onMotionApplied={() => { void (async () => { const r = await fetch(`/api/std/projects/${selectedProject.project.id}`, { headers: authedJsonHeaders }); if (r.ok) { const value = await r.json(); setSelectedProject(prev => prev && prev.project.id === value.project?.id ? { ...prev, scenes: value.scenes, assets: value.assets } : prev) } })() }}
-                                        selectedSceneNumber={Number(localSubtitles[selectedSubIndex]?.scene_number || 0)} />
-                                    {wuxiaMode && <StdWuxiaClipEditor project={selectedProject.project} sceneNumber={Number(localSubtitles[selectedSubIndex]?.scene_number || 1)} subtitles={localSubtitles} headers={authedJsonHeaders}
+                                        selectedSceneNumber={currentPreviewSceneNumber} />
+                                    {wuxiaMode && <StdWuxiaClipEditor project={selectedProject.project} sceneNumber={currentPreviewSceneNumber} subtitles={localSubtitles} headers={authedJsonHeaders}
                                         onChange={(clipPayload,assets,updatedAt)=>setSelectedProject(prev=>prev?{...prev,assets,project:{...prev.project,updated_at:updatedAt,project_payload:{...prev.project.project_payload,...clipPayload}}}:prev)} />}
                                     {wuxiaMode && <div role="note" className="order-5 lg:order-none lg:mt-auto rounded border border-cyan-700/50 bg-cyan-950/30 p-2 text-xs text-cyan-100">무협 무빙툰 · 아래 대본은 음성·화자 편집용입니다. 일반 자막은 출력하지 않습니다. 화면에는 저장된 말풍선·반응·효과음 타이포만 표시합니다. 현재 연출 미리보기는 실제 녹음의 단어별 동기화 검증과 구분됩니다.</div>}
                                     {isVrewSubtitleMode && message && (
