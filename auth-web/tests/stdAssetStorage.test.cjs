@@ -16,9 +16,9 @@ test('legacy storage and secondary GCS copies retain primary backend',()=>{
  assert.equal(assetStorageRef({storage_provider:'gcs',storage_bucket:'bucket',storage_path:'a'}).provider,'supabase');
  assert.equal(assetStorageRef({gcs_bucket:'bucket',gcs_path:'a'}).provider,'supabase');
 });
-function harness({authorized=true,project=true,asset=true,missing=false,storageError=false,gcsMissing=false,metadata}={}) {
+function harness({authorized=true,project=true,asset=true,missing=false,storageError=false,gcsMissing=false,metadata,video=false}={}) {
  let signed=0, ranged='', gcs=0;
- const row={id:'asset',asset_type:'other',mime_type:'audio/mpeg',metadata:metadata || {storage_bucket:'content-assets',storage_path:'a'}};
+ const row={id:'asset',asset_type:video?'video':'other',mime_type:video?'video/mp4':'audio/mpeg',metadata:metadata || {storage_bucket:'content-assets',storage_path:'a'}};
  const db={from(table){const q={select(){return q},eq(){return q},in(){return q},limit(){return q},async maybeSingle(){return {data:table==='std_projects'?(project?{id:'p'}:null):(asset?row:null)}}};return q},storage:{from(){return {async createSignedUrl(){signed++;if(missing)return {error:{statusCode:404,message:'Object not found'}};if(storageError)return {error:{statusCode:403,message:'Forbidden'}};return {data:{signedUrl:'https://storage.test/a'}}}}}}};
  const route=load(root+'app/api/std/projects/[projectId]/assets/file/route.ts',{
   'next/server':{NextResponse:Response},'@/lib/supabaseAdmin':{supabaseAdmin:db},
@@ -26,8 +26,14 @@ function harness({authorized=true,project=true,asset=true,missing=false,storageE
   '@/lib/stdAssetStorage':{assetStorageRef},'@/lib/gcsStorage':{isGcsConfiguredAsync:()=>true, createGcsSignedReadUrl:async()=> 'https://gcs.test/a', downloadGcsObjectViaSignedUrl:async(args)=>{gcs++;assert.equal(args.range,'bytes=0-2');if(gcsMissing)throw Error('Object not found');return {buffer:Buffer.from([4,5,6]),status:206,contentRange:'bytes 0-2/30',contentLength:'3',contentType:'audio/mpeg'}}},
   fetch:async(url,options)=>{if(url==='https://gcs.test/a'){gcs++;assert.equal(options.headers.Range,'bytes=0-2');if(gcsMissing)return new Response(null,{status:404});return new Response(new Uint8Array([4,5,6]),{status:206,headers:{'content-type':'audio/mpeg','content-range':'bytes 0-2/30','content-length':'3'}})}signed++;assert.equal(options.headers.Authorization,'Bearer test-key');if(missing)return Response.json({message:'Object not found'},{status:400});if(storageError)return Response.json({message:'Forbidden'},{status:403});ranged=options.headers.Range;return new Response(new Uint8Array([1,2,3]),{status:206,headers:{'content-type':'audio/mpeg','content-range':'bytes 0-2/30','content-length':'3'}})},
  });
- return {get:()=>route.GET(new Request('https://app.test/file?assetId=asset',{headers:{Range:'bytes=0-2'}}),{params:{projectId:'10b3d223-1457-415a-ba40-7b947c6c1b3d'}}),stats:()=>({signed,ranged,gcs})};
+ return {get:()=>route.GET(new Request('https://app.test/file?assetId=asset',{headers:{Range:'bytes=0-2'}}),{params:{projectId:'10b3d223-1457-415a-ba40-7b947c6c1b3d'}}),playback:()=>route.GET(new Request('https://app.test/file?assetId=asset&delivery=url'),{params:{projectId:'10b3d223-1457-415a-ba40-7b947c6c1b3d'}}),stats:()=>({signed,ranged,gcs})};
 }
+test('legacy video restoration returns an authorized playback URL without downloading bytes',async()=>{
+ const h=harness({video:true});const r=await h.playback();assert.equal(r.status,200);assert.equal((await r.json()).url,'https://storage.test/a');assert.equal(h.stats().signed,1);assert.equal(h.stats().gcs,0);
+});
+test('legacy playback URL is not issued without project ownership',async()=>{
+ const h=harness({video:true,project:false});assert.equal((await h.playback()).status,404);assert.equal(h.stats().signed,0);
+});
 test('authorized legacy segment audio streams ranged bytes without GCS',async()=>{const h=harness();const r=await h.get();assert.equal(r.status,206);assert.equal(r.headers.get('X-STD-Media-Source'),'supabase');assert.equal((await r.arrayBuffer()).byteLength,3);assert.equal(h.stats().ranged,'bytes=0-2')});
 for(const scenario of [{authorized:false,status:401},{project:false,status:404},{asset:false,status:404}])test('denies unauthorized/missing resource '+JSON.stringify(scenario),async()=>{const h=harness(scenario);assert.equal((await h.get()).status,scenario.status);assert.equal(h.stats().signed,0)});
 
@@ -56,7 +62,7 @@ test('legacy archive failure can reuse Supabase without generation',async()=>{
 test('new audio persistence stores GCS metadata without a Supabase upload',async()=>{
  const calls=[];
  const {persistSegmentAudio}=load(root+'lib/stdSegmentAudioCache.ts',{
-  crypto:require('node:crypto'), '@/lib/gcsStorage':{isGcsConfiguredAsync:async()=>true,uploadGcsBuffer:async(args)=>{calls.push('gcs');assert.equal(args.buffer.toString(),'audio');return {bucket:'gcs-bucket',path:args.objectPath}}}
+  crypto:require('node:crypto'), './stdContentIdentity':{fileContentHash:()=> 'fixture-hash',assetContentIdentity:()=>({})}, './stdVoicePerformance':{voicePerformanceKey:()=>''}, '@/lib/gcsStorage':{isGcsConfiguredAsync:async()=>true,uploadGcsBuffer:async(args)=>{calls.push('gcs');assert.equal(args.buffer.toString(),'audio');return {bucket:'gcs-bucket',path:args.objectPath}}}
  });
  let inserted;
  const db={from:()=>({insert(row){calls.push('db');inserted=row;return {select:()=>({single:async()=>({data:row})})}}}),storage:{from(){throw Error('Unexpected Supabase upload')}}};
