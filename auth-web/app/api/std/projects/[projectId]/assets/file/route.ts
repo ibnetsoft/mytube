@@ -106,6 +106,14 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
             const playbackUrl = await createGcsSignedReadUrl({ bucket: gcsBucket, objectPath: gcsPath, expiresInMinutes: 1440 })
             return NextResponse.json({ url: playbackUrl }, { headers: { 'Cache-Control': 'private, no-store' } })
         }
+        if (url.searchParams.get('delivery') === 'url' && asset.asset_type === 'video'
+            && asset.metadata?.storage_provider !== 'gcs') {
+            // Legacy videos must also return a playback URL. Returning the file
+            // here makes project restoration download every clip as a blob.
+            const { data, error } = await supabaseAdmin.storage.from(storage.bucket).createSignedUrl(storage.path, 86400)
+            if (error || !data?.signedUrl) throw new Error('Legacy video playback URL unavailable')
+            return NextResponse.json({ url: data.signedUrl }, { headers: { 'Cache-Control': 'private, no-store' } })
+        }
         // Prefer GCS for new primary recordings and older archived recordings.
         if ((asset.metadata?.gcs_path || asset.metadata?.storage_provider === 'gcs') && await isGcsConfiguredAsync()) {
             try {
