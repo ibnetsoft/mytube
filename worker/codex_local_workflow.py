@@ -45,6 +45,10 @@ def produce(identity, request, snapshot, output, notify, sources=None):
         from worker.script_worker_guidance import load_production_guidance
         instruction = ('[로컬 대본워커 제작 기준 · 사용자 요청과 확정 설정 우선]\n'
                        + load_production_guidance() + '\n\n' + instruction)
+    if request.get('manual_stages') is True and request.get('mode') == 'new':
+        from worker.script_manual_workflow import initial
+        applied = [{k: row[k] for k in ('id','version','title','instruction')} for row in rows]
+        return initial(identity, {**request, '_approved_guidance': instruction}, notify, applied)
     package = _produce(identity, {**request, '_approved_guidance': instruction}, snapshot, output, notify, sources)
     if request.get('mode') in ('new', 'grounded'):
         from worker.elevenlabs_performance import annotate_new_package

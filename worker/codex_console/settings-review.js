@@ -21,7 +21,7 @@ window.reviewScriptSettings=function(form,canStart=()=>true){
   const cancel=make('button','취소'),back=make('button','이전'),next=make('button','이 설정으로 다음');
   for(const b of [cancel,back,next])b.type='button';next.className='primary';nav.className='settings-review-actions';nav.append(cancel,back,next);
   dialog.append(progress,heading,body,message,nav);document.body.append(dialog);
-  const questions=window.scriptSettingsQuestions.map(([title,names])=>[title,names.filter(name=>form.elements.namedItem(name))]).filter(([,names])=>names.length);
+  const questions=window.scriptSettingsQuestions.map(([title,names])=>[title,names.filter(name=>form.elements.namedItem(name)&&!form.elements.namedItem(name).disabled)]).filter(([,names])=>names.length);
   let step=0,finished=false;
   const field=name=>form.elements.namedItem(name);
   const label=c=>{const l=c.closest('label');return l?[...l.childNodes].filter(n=>n.nodeType===3).map(n=>n.textContent).join('').trim():c.name;};
@@ -33,6 +33,7 @@ window.reviewScriptSettings=function(form,canStart=()=>true){
    back.disabled=step===0;next.disabled=false;
    if(step===questions.length){
     heading.textContent='이 설정으로 대본 생성을 시작할까요?';
+    if(field('production_mode')?.value!=='nonverbal_preschool')body.append(make('p','진행 방식: 1단계 대본만 생성합니다. 결과 확정 후 이미지 프롬프트 → 영상 씬·프롬프트 → AE 지침을 직접 시작합니다.'));
     if(field('production_mode')?.value==='standard' && field('parallax_mode')?.value==='selective' && field('image_layer_mode')?.value==='hybrid' && field('image_layer_scene_start')?.value && field('image_layer_scene_end')?.value && Number(field('character_state_count')?.value||0)===0){
      body.append(make('p',`선택 범위 ${field('image_layer_scene_start').value}~${field('image_layer_scene_end').value}씬은 분리 레이어와 입모양·패럴럭스 등 AE 연출을 준비합니다. 범위 밖은 씬당 이미지 1장입니다. 범위 이후에는 문맥에 맞는 줌·좌우 이동과 씬 전환을 사용하며 느린 줌은 사용하지 않습니다.`));
     }

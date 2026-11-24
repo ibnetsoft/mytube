@@ -273,6 +273,7 @@ def source(kind, identity):
 class StartRequest(BaseModel):
     mode: str
     settings_confirmed: bool = False
+    manual_stages: bool = Field(default=False, strict=True)
     kind: str = 'topic'
     source_id: str = Field(default='', max_length=64)
     title: str = Field(default='', max_length=200)
@@ -317,6 +318,8 @@ class StartRequest(BaseModel):
 
     @model_validator(mode='after')
     def validate_image_layer_scene_range(self):
+        if self.manual_stages and (self.mode != 'new' or self.production_mode == 'nonverbal_preschool'):
+            raise ValueError('단계별 진행은 신규 대본 작업에서 사용하세요. 논버벌 전용 작업은 기존 흐름을 유지합니다.')
         if self.character_state_count and (self.mode != 'new' or self.production_mode != 'standard'):
             raise ValueError('장면 상태 레이어는 신규 기본 영상 작업에서 선택하세요.')
         if self.character_state_count:
@@ -531,6 +534,8 @@ class Jobs:
             if self.busy():
                 raise ValueError('이미 실행 또는 대기 중인 작업이 있습니다. 완료 후 시작하세요.')
             previous = self.load(identity)['job'] if identity and retry_of == identity else None
+            if previous and previous.get('manual_workflow'):
+                raise ValueError('단계별 결과 화면에서 실패한 단계만 다시 생성하세요.')
             if previous and previous['status'] not in ('failed', 'interrupted'):
                 raise ValueError('실패하거나 중단된 작업만 재실행할 수 있습니다.')
             identity = identity or uuid.uuid4().hex
@@ -540,6 +545,8 @@ class Jobs:
             if not retry_of and request.mode in ('new', 'grounded'):
                 from worker.script_generation_defaults import DEFAULTS
                 request = StartRequest.model_validate({**DEFAULTS, **request.model_dump(exclude_unset=True)})
+            if not retry_of and request.mode == 'new' and 'manual_stages' not in request.model_fields_set and request.production_mode != 'nonverbal_preschool':
+                request = StartRequest.model_validate({**request.model_dump(), 'manual_stages': True})
             if not retry_of and request.mode == 'new':
                 validate_script_category(request.category, request.category_id)
             title = snapshot['summary']['title'] if snapshot else request.title.strip()
@@ -554,8 +561,11 @@ class Jobs:
                     'image_style': setting['image_style'],
                     'content_setting': setting,
                     'published': False, 'worker_id': self.worker_id, 'retry_of': retry_of}
+            if request.manual_stages:
+                from worker.script_manual_workflow import CONTRACT, LABELS
+                item['manual_workflow']={'contract':CONTRACT,'revision':0,'stages':[{'name':n,'status':'running' if i==0 else 'pending'} for i,n in enumerate(LABELS)]}
             item['auto_delivery_requested'] = bool(
-                request.mode == 'new' and request.settings_confirmed
+                request.mode == 'new' and request.settings_confirmed and not request.manual_stages
                 and request.production_mode == 'standard' and request.category_id.isdigit())
             if previous and 'storage_revision' in previous:
                 item['storage_revision'] = previous['storage_revision']
@@ -590,7 +600,8 @@ class Jobs:
                 write_json(self.root / identity / 'sfx-plan.json', candidate['sfx_plan'])
             (self.root / identity / 'candidate.md').write_text(candidate.get('action_script') or candidate['script'], encoding='utf-8')
             self.update(identity, status='completed' if request.mode == 'topics' else 'awaiting_approval',
-                        stage='토픽 후보 저장 · 선택 가능' if request.mode == 'topics' else '초안 저장 · 검토 대기',
+                        stage='1/4 대본 검토 대기 · 다음 단계 수동 시작' if request.manual_stages else '토픽 후보 저장 · 선택 가능' if request.mode == 'topics' else '초안 저장 · 검토 대기',
+                        **({'manual_workflow': __import__('worker.script_manual_workflow',fromlist=['state_summary']).state_summary(candidate['manual_workflow'])} if candidate.get('manual_workflow') else {}),
                         candidate_hash=digest(candidate), remaining=candidate.get('remaining', []))
         except Exception as exc:
             # Do not expose HTTP URLs, credentials, CLI stdout or source dumps to browser logs.
@@ -608,6 +619,8 @@ class Jobs:
             if not item or item['status'] != 'awaiting_approval':
                 raise ValueError('승인 대기 작업이 아닙니다.')
             candidate = json.loads((self.root / identity / 'candidate.json').read_text(encoding='utf-8'))
+            if candidate.get('manual_workflow'):
+                raise ValueError('단계별 결과 화면에서 각 단계를 확인·확정하세요.')
             if digest(candidate) != expected_hash or item['candidate_hash'] != expected_hash:
                 raise ValueError('수정안 버전이 달라졌습니다. 다시 확인하세요.')
             path = self.root / identity / 'source.json'
@@ -700,7 +713,7 @@ def index():
 
 @app.get('/assets/{name}')
 def asset(name: str):
-    if name not in ('app.js', 'style.css', 'grounded.js', 'topics.js', 'management.js', 'refresh.js', 'submissions.js', 'guidelines.js', 'settings.js', 'settings-review.js', 'settings-review.css', 'modern_japan_watercolor.json'):
+    if name not in ('app.js', 'style.css', 'grounded.js', 'topics.js', 'management.js', 'refresh.js', 'submissions.js', 'guidelines.js', 'settings.js', 'settings-review.js', 'settings-review.css', 'manual-stages.js', 'modern_japan_watercolor.json'):
         raise HTTPException(404)
     return FileResponse(ASSETS / name)
 
@@ -1416,6 +1429,9 @@ def approve(identity: str, request: ApproveRequest):
     except Exception:
         raise HTTPException(502, '원본 재확인 실패. 승인하거나 덮어쓰지 않았습니다.')
 
+
+from worker.script_manual_workflow import register as register_manual_routes
+register_manual_routes(app,jobs)
 
 from worker.script_preparation_api import register as register_preparation_routes
 register_preparation_routes(app,TOKEN)

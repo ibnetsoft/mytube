@@ -14,6 +14,8 @@ from worker.script_delivery_status import active
 def eligible(job, request, worker_id):
     return (job.get('worker_id') == worker_id
             and job.get('auto_delivery_requested') is True
+            and request.get('manual_stages') is not True
+            and not job.get('manual_workflow')
             and not job.get('published')
             and job.get('status') in ('queued', 'running', 'awaiting_approval', 'failed', 'interrupted')
             and request.get('mode') == 'new'

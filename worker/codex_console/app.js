@@ -210,7 +210,7 @@ $('new-form').onsubmit=async e=>{
   const stateEnd=form.get('character_state_scene_end')?Number(form.get('character_state_scene_end')):null;
   if(stateCount&&(!Number.isInteger(stateStart)||!Number.isInteger(stateEnd)||stateStart<1||stateEnd>999||stateStart>stateEnd)){error('장면 상태 레이어의 시작·종료 씬을 올바르게 입력하세요.');return;}
   start({
-    mode:'new',settings_confirmed:true,
+    mode:'new',settings_confirmed:true,manual_stages:($('production-mode').value!=='nonverbal_preschool'),
     concentrated_scene_effects:Boolean(form.get('image_layer_scene_start')) && Boolean(form.get('image_layer_scene_end')) && stateCount===0 && (form.get('production_mode')||'standard')==='standard' && (form.get('parallax_mode')||'selective')==='selective' && (form.get('image_layer_mode')||'hybrid')==='hybrid',
     production_mode:form.get('production_mode')||'standard',youtube_url:form.get('youtube_url')||'',
     direction_profile:form.get('direction_profile')||'auto',
@@ -264,6 +264,7 @@ async function showJob(id,origin='dedicated'){const revision=++resultRevision;tr
   $('candidate').textContent=data.script||'아직 저장된 결과가 없습니다.';
   $('remaining').replaceChildren(...data.remaining.map(text=>element('li',text)));
   $('approve').hidden=origin==='legacy'||data.job.status!=='awaiting_approval';
+  if(window.renderManualStages)window.renderManualStages(data,origin);
   if(window.renderManagementResult)window.renderManagementResult(data,origin);
   if(window.renderGroundedResult)window.renderGroundedResult(data);
   if(window.renderTopicResult)window.renderTopicResult(data);
