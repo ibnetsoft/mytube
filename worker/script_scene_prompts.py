@@ -110,7 +110,7 @@ def register(app,jobs,persist,token):
                 if body.action not in ('save','generate'):raise ValueError('지원하지 않는 작업입니다.')
                 entry=w.setdefault('scene_image_prompts',{}).setdefault(scene['scene_id'],{})
                 # Keep a revision copy before replacing an existing prompt.
-                if entry: 
+                if entry:
                     from worker.script_manual_workflow import write
                     write(jobs.root/identity/'manual-history'/f'{w["revision"]}-scene-{scene["scene_id"]}.json',entry)
                 entry.update(references=refs,source_hash=digest(scene),feedback=body.feedback)
