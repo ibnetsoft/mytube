@@ -71,6 +71,8 @@ def package(workflow, request, applied=None):
         spoken='\n'.join((b['speaker']+': ' if b['kind']=='dialogue' else '')+b['text'] for b in r['spoken_blocks'])
         scenes.append({**r,'scene_number':n,'scene_order':n,'scene_text':spoken,'narration':spoken})
     structure={'scenes':scenes,'manual_workflow_contract':CONTRACT}
+    if request.get('series_naming'):structure['series_naming']=request['series_naming']
+    if workflow.get('scene_image_prompts'):structure['scene_image_prompt_drafts']=workflow['scene_image_prompts']
     for i,key in [(1,'manual_image_prompts'),(2,'manual_video_directions'),(3,'manual_ae_directions')]:
         if workflow['stages'][i].get('output'):structure[key]=workflow['stages'][i]['output']
     return {'script':render_script(first),'structure':structure,'manual_workflow':workflow,
@@ -79,7 +81,7 @@ def package(workflow, request, applied=None):
 
 TASKS = [
  '''Write the requested script only. Return {scenes:[{scene_id,title,visual_action,spoken_blocks:[{kind:narration|dialogue,speaker,text}]}],quality_notes:[]}. Use stable ASCII scene IDs in story order. visual_action is a SHORT, unspoken account of what the audience sees. Spoken blocks contain only words to be voiced; dialogue needs a named speaker. Silent scenes use an empty spoken_blocks list. Follow confirmed language, genre, era and continuity. Improve story causality, character choices and episode payoff; avoid repetitive injuries, waiting and visible-action narration. Do not generate image prompts, video prompts, AE directions, music, metadata or footage. Do not claim assets exist. There is no downstream automatic step.''',
- '''Use the user-approved script unchanged. Return {cuts:[{cut_id,scene_id,image_prompt,references:[string]}],quality_notes:[]}. Cover every approved scene, in story order, with stable unique ASCII cut IDs. Divide into motivated individual full-frame cuts; describe framing, action/contact, characters, anatomy, costume, props and their current states, environment continuity, final 2D style when applicable. references must name required approved asset IDs or explicitly say that an asset is not yet available; do not invent approved assets or claim attachments. Preserve visible identity/prop geometry; no baked text. Follow production guidance and user revisions. No video/AE prompts, actual images, audio, or publication.''',
+ '''Use the user-approved script unchanged. Return {cuts:[{cut_id,scene_id,image_prompt,references:[string]}],quality_notes:[]}. Cover every approved scene, in story order, with stable unique ASCII cut IDs. Reuse source-current scene_image_prompt_drafts and their selected reference IDs/paths faithfully; do not replace user-edited prompts. Stale drafts require re-planning against the changed source. Divide into motivated individual full-frame cuts; describe framing, action/contact, characters, anatomy, costume, props and their current states, environment continuity, final 2D style when applicable. references must name required approved asset IDs or explicitly say that an asset is not yet available; do not invent approved assets or claim attachments. Preserve visible identity/prop geometry; no baked text. Follow production guidance and user revisions. No video/AE prompts, actual images, audio, or publication.''',
  '''Use unchanged approved script and image-cut plan. Return {selections:[{cut_id,selected:boolean,reason,video_prompt:string}],quality_notes:[]}, exactly ONE entry for EVERY image cut in the SAME ORDER. Select only narratively motivated motion; all false is valid and no quota applies. A selected video_prompt specifies start/end states, a short 2-3s action, direction/speed/contact timing, continuity, fixed camera or brief motivated move, and unchanged face/costume/props/background plus no dialogue/no narration/no subtitles/no captions/no music/no sound effects/no audio. Unselected prompts may be empty. Do not generate video or AE directions. User can change selection before approval.''',
  '''Use the approved script, image cuts and user-selected video plan unchanged. Return {directions:[{cut_id,ae_instruction,timing_note}],quality_notes:[]}, exactly ONE entry for EVERY image cut in SAME ORDER. Choose only scene-motivated existing effects, or explicitly no effect. Include timing/holds, face/hand/blade/lettering protection, speech/visual anchors, transition, effects strength and duration. No slow/gentle whole-scene zoom. For visible sword/body aura animate only energy throughout visible state, keeping people/blades/text fixed; actual masks require actual artwork review. For impact use motion -> reviewed contact -> optional flash/outward debris/shake. Video-selected cuts preserve their motion and avoid duplicate camera/effects. Final timing requires actual saved voice; do not invent measured timestamps, source reviews or render success. Return PLANS ONLY, not rendering or publishing.'''
 ]
@@ -89,9 +91,11 @@ def generate(index, request, workflow, identity, notify, runner=None):
         from worker.codex_content_runner import CodexStagedContentRunner
         runner=CodexStagedContentRunner()
     from worker.script_worker_guidance import load_production_guidance
-    context={'confirmed_settings':request,'production_guidance':load_production_guidance(),
+    from worker.wuxia_generation_gate import policy
+    policy_snapshot=policy()
+    context={'execution_policy':policy_snapshot,'confirmed_settings':request,'production_guidance':load_production_guidance(),
              'approved_previous_steps':[s['output'] for s in workflow['stages'][:index]],
-             'approved_guidance':workflow.get('approved_guidance',''),'current_revision':workflow['revision'],'user_notes':workflow.get('feedback','')}
+             'approved_guidance':workflow.get('approved_guidance',''),'current_revision':workflow['revision'],'user_notes':workflow.get('feedback',''),'scene_image_prompt_drafts':workflow.get('scene_image_prompts',{}),'recorded_quality_findings':workflow.get('quality_control',{})}
     notify(f'{index+1}/4 {LABELS[index]} 생성 중')
     from worker.generation_validation import validated_stage
     value=validated_stage(lambda name,ctx,task:runner._stage('manual-'+identity,name,ctx,task),
@@ -102,6 +106,8 @@ def generate(index, request, workflow, identity, notify, runner=None):
     review=validated_stage(lambda name,ctx,task:runner._stage('manual-'+identity,name,ctx,task),
         f'manual_{index+1}_{workflow["revision"]}_review',{**context,'result':value},
         'Independently review THIS step only against the approved inputs and requested scope. Return {passed:boolean,issues:[string],evidence:string}. Check continuity, no invented facts/approved assets, script visual/speech separation and pacing in step 1, full cut coverage and consistent geometry/state in step 2, sparse motivated user-controllable silent video directions in step 3, selective source-safe time-bound AE plans in step 4. Never claim actual artwork, audio or rendered output was reviewed. Record uncertainty truthfully. Do not generate any later step.',review_valid)
+    from worker.wuxia_generation_gate import policy
+    value['guidance_applied']={'policy_sha256':policy_snapshot['sha256'],'scope':'planned_content_only'}
     value['review']=review
     if not review['passed']:value['quality_notes'].append({'step_review':review})
     return value
@@ -115,7 +121,7 @@ def initial(identity, request, notify, applied=None, runner=None):
 def state_summary(workflow):
     return {'contract':CONTRACT,'revision':workflow['revision'],'stages':[{'name':s['name'],'status':s['status']} for s in workflow['stages']]}
 
-def register(app, jobs):
+def register(app, jobs, token=""):
     from fastapi import HTTPException
     from pydantic import BaseModel, Field
     # Module-level annotations allow FastAPI to resolve the model.
@@ -128,13 +134,27 @@ def register(app, jobs):
     globals()['ManualAction']=ManualAction
     def persist(identity, candidate, **fields):
         write(jobs.root/identity/'candidate.json',candidate)
+        if jobs.rows[identity].get('sync_status')=='pending':
+            # Continue an existing durable local draft during a known outage.
+            # Retain the last cloud CAS revision and visible pending-sync status.
+            jobs.rows[identity].update(candidate_hash=digest(candidate),manual_workflow=state_summary(candidate['manual_workflow']),updated_at=time.time(),**fields)
+            write(jobs.root/identity/'job.json',jobs.rows[identity])
+            return
         jobs.update(identity,candidate_hash=digest(candidate),manual_workflow=state_summary(candidate['manual_workflow']),**fields)
         if jobs.store and jobs.rows[identity].get('sync_status')!='synced':jobs.sync(identity,required=True)
+    from worker.script_scene_prompts import register as register_scene_prompts
+    register_scene_prompts(app,jobs,persist,token)
+    from worker.wuxia_generation_gate import register as register_quality_routes
+    register_quality_routes(app,jobs,persist)
     def run(identity,index,request,candidate):
         workflow=candidate['manual_workflow']
         try:
             value=generate(index,request,workflow,identity,lambda stage:jobs.update(identity,stage=stage))
             with jobs.lock:
+                if index==0:
+                    for sid,entry in workflow.get('scene_image_prompts',{}).items():
+                        current=next((s for s in value['scenes'] if s['scene_id']==sid),None)
+                        if current is None or digest(current)!=entry.get('source_hash'):entry['status']='stale'
                 step=workflow['stages'][index];step.update(status='review',output=value,output_hash=digest(value),input_hash=digest([s['approved_hash'] for s in workflow['stages'][:index]]));step.pop('error',None)
                 persist(identity,package(workflow,request,candidate.get('applied_guidelines')),status='awaiting_approval',stage=f'{index+1}/4 {LABELS[index]} 검토 대기',error='')
         except Exception as exc:
@@ -162,6 +182,9 @@ def register(app, jobs):
                     changed=step.get('output')!=body.output
                     if not changed:return {'status':job['status'],'candidate_hash':digest(candidate)}
                     write(jobs.root/identity/'manual-history'/f'{workflow["revision"]}-step-{index+1}.json',step)
+                    for scene in body.output.get('scenes',[]):
+                        entry=workflow.get('scene_image_prompts',{}).get(scene['scene_id'])
+                        if entry and entry.get('source_hash')!=digest(scene):entry['status']='stale'
                     body.output['review']={'status':'user_edited','passed':None,'issues':[],'evidence':'사용자 수정본입니다. 이전 자동 검토는 수정 전 버전에 한정됩니다.'}
                     step.update(status='review',output=body.output,output_hash=digest(body.output));step.pop('approved_hash',None)
                 elif body.action=='approve':

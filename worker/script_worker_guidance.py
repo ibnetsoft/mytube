@@ -19,7 +19,15 @@ def load_production_guidance():
     wuxia = GUIDE_PATH.with_name('wuxia-webtoon-production-defaults.md').read_text(encoding='utf-8').strip()
     if not wuxia:
         raise ValueError('무협 웹툰 제작 기본 지침이 비어 있습니다.')
+    props = (GUIDE_PATH.parent / 'wuxia-props' / 'PROP_BIBLE.md').read_text(encoding='utf-8').strip()
+    if not props:
+        raise ValueError('무협 고정 소품 기준 문서가 비어 있습니다.')
+    plan = GUIDE_PATH.with_name('WUXIA_SERIES_PLAN_03_50.md').read_text(encoding='utf-8').strip()
+    if not plan:
+        raise ValueError('무협 전체 회차 계획 문서가 비어 있습니다.')
     motion = GUIDE_PATH.with_name('WUXIA_TRANSITIONS.md').read_text(encoding='utf-8').strip()
     if not motion:
         raise ValueError('무협 자동 모션·실제 AE 검수 지침이 비어 있습니다.')
-    return f'{text}\n\n{japanese_guide}\n\n{delivery}\n\n{wuxia}' + '\n\n' + motion
+    from worker.wuxia_generation_gate import instruction
+    execution_rules = instruction()
+    return f'{text}\n\n{japanese_guide}\n\n{delivery}\n\n{wuxia}\n\n{props}\n\n{plan}' + '\n\n' + motion + '\n\n' + execution_rules

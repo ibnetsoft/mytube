@@ -157,7 +157,10 @@ def review_state(state, scene, identity, download, check, runner):
     sha = state.get('sha256')
     if not isinstance(sha, str) or len(sha) != 64 or any(c not in '0123456789abcdef' for c in sha):
         raise RuntimeError('waiting_images: anatomy source SHA missing')
-    key = hashlib.sha256((CONTRACT + sha + TASK).encode()).hexdigest()
+    from worker.wuxia_generation_gate import policy, instruction, assert_sources_usable
+    assert_sources_usable([state])
+    current_policy=policy()
+    key = hashlib.sha256((CONTRACT + sha + TASK + current_policy['sha256']).encode()).hexdigest()
     directory = ROOT / key
     directory.mkdir(parents=True, exist_ok=True)
     original = directory / 'source.png'
@@ -187,6 +190,7 @@ def review_state(state, scene, identity, download, check, runner):
     else:
         raw = validated_stage(lambda name, context, task: runner._stage(identity+'-'+key, name, context, task),
             'anatomy_actual_source', {'source_sha256': sha, '_local_image_paths': attachments,
+             'execution_policy':current_policy,'correction_instructions':instruction(),
              'tile_layout': '2 rows x 3 overlapping native-pixel tiles, row-major; original first'},
             TASK, lambda value: validate(value, sha))
         decision = validate(raw, sha)
@@ -212,7 +216,7 @@ def review_state(state, scene, identity, download, check, runner):
                 'write a versioned candidate, never claim a prompt or a successful tool call is visual approval.'}
         (directory / 'repair-request.json').write_text(json.dumps(repair, ensure_ascii=False, indent=2), encoding='utf-8')
     return {'contract': CONTRACT, 'asset_id': state['asset_id'], 'scene_id': scene['scene_id'], 'source_sha256': sha, 'decision': decision,
-            'passed': decision == 'passed', 'evidence_file': str(path.resolve()),
+            'passed': decision == 'passed', 'execution_policy_sha256':current_policy['sha256'], 'evidence_file': str(path.resolve()),
             'people_reviewed': len(raw['people']), 'hands_reviewed': len(raw['hands']),
             'checks': copy.deepcopy(raw['checks']), 'repair_request': repair,
             'source_preserved': True, 'actual_repair_performed': False}

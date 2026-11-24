@@ -19,13 +19,17 @@ def files(root=ROOT):
                 continue
             if path.suffix in ALLOWED:
                 yield path
+    for path in sorted((root / 'docs' / 'wuxia-props').rglob('*')):
+        if path.is_file() and path.suffix in {'.md', '.json', '.png'}:
+            yield path
     for name in ['config.py', 'db.py', 'database.py', 'remote_drive_worker.py',
                  'worker/connection.env.example', 'docs/리페어프로세스.md',
                  'docs/신규생성프로세스.md', 'docs/worker-installation.md',
                  'docs/SCRIPT_WORKER_PRODUCTION_GUIDE.md', 'docs/JAPANESE_CATEGORY_SCRIPT_GUIDE.md',
                  'docs/current-affairs-production-defaults.md', 'docs/japanese-historical-documentary.md',
                  'docs/JAPANESE_DOMESTIC_DRAMA.md', 'docs/CURRENT_VIDEO_PRODUCTION_WORKFLOW.md',
-                 'docs/wuxia-webtoon-production-defaults.md', 'docs/WUXIA_TRANSITIONS.md',
+                 'docs/wuxia-generation-rules.json', 'docs/WUXIA_GENERATION_GATE.md',
+                 'docs/wuxia-webtoon-production-defaults.md', 'docs/WUXIA_TRANSITIONS.md', 'docs/WUXIA_SERIES_PLAN_03_50.md', 'docs/WUXIA_SERIES_DELIVERY.md', 'docs/wuxia-props/PROP_BIBLE.md',
                  'docs/pawnshop-series/SERIES_BIBLE_AND_TOPICS_2026-11-01.md',
                  'scripts/install_script_worker.ps1', 'auth-web/lib/japaneseDomesticDramaStyle.json',
                  'auth-web/lib/japaneseHistoricalDocumentaryStyle.json', 'auth-web/lib/japaneseFolktaleStyle.json', 'worker/codex_console/modern_japan_watercolor.json']:

@@ -1,0 +1,110 @@
+{
+  "contract": "wuxia_prop_references/v1",
+  "series": "나 혼자 무공을 진화시킨다",
+  "bible": "docs/wuxia-props/PROP_BIBLE.md",
+  "references": [
+    {
+      "character_id": "seojin",
+      "prop_ids": [
+        "SEJ_DAGGER_01",
+        "SEJ_SHEATH_01",
+        "SEJ_PACK_01"
+      ],
+      "path": "docs/wuxia-props/references/seojin-approved-character-reference-v1.png",
+      "sha256": "2fac67c8b58e4bb33fe85001d77435e01bea4af4b094f6c25f438dad67546af2",
+      "status": "existing_approved_reference_reused_not_new_prop_sheet"
+    },
+    {
+      "character_id": "dogyeom",
+      "prop_ids": [
+        "DOG_FLASK_01",
+        "DOG_PACK_01",
+        "DOG_SCARF_01"
+      ],
+      "path": "docs/wuxia-props/references/dogyeom-props-v1.png",
+      "sha256": "472dcea87759ae40a276e244bd2c021e5288398e0c920672d8bdbdd18e67e5df",
+      "status": "new_prop_sheet_generated_and_visually_reviewed"
+    },
+    {
+      "character_id": "jangho",
+      "prop_ids": [
+        "JAN_SWORD_01",
+        "JAN_SCABBARD_01",
+        "JAN_CASE_01"
+      ],
+      "path": "docs/wuxia-props/references/jangho-approved-character-reference-v1.png",
+      "sha256": "c6e1e9bc0dc63ae221c64fb90efb62a0923ca65fd1f087fc01a5cb2e541112c8",
+      "status": "existing_approved_reference_reused_not_new_prop_sheet"
+    },
+    {
+      "character_id": "clerk",
+      "prop_ids": [
+        "CLK_LEDGER_01",
+        "CLK_BRUSH_01",
+        "CLK_SCALE_01"
+      ],
+      "path": "docs/wuxia-props/references/clerk-approved-character-reference-v1.png",
+      "sha256": "e2164882b15c317ff0abd739be4e02bd48244600e23bb776568ae34ac20eae2e",
+      "status": "existing_approved_reference_reused_not_new_prop_sheet"
+    },
+    {
+      "character_id": "guard",
+      "prop_ids": [
+        "GRD_SWORD_01",
+        "GRD_SCABBARD_01"
+      ],
+      "path": "docs/wuxia-props/references/guard-approved-character-reference-v1.png",
+      "sha256": "67147a5c99eda06887255761e9a106cdba6ef47dafbc1bd6dbc84f217be750d5",
+      "status": "existing_approved_reference_reused_not_new_prop_sheet"
+    }
+  ],
+  "new_weapon_sheet_status": "approved_source_crops_complete_no_regeneration",
+  "review_notes": [
+    "도겸 시트의 목도리 착용도는 일반 형태 참조이며 현재 회차 목 위치를 뜻하지 않는다. 부상 고정 상태 우선.",
+    "서진 기존 시트의 복식 착용도보다 기준서의 해부학적 오른쪽 허리 규칙 우선.",
+    "새로 정한 치수와 리벳 등 세부 기준은 텍스트 기준서에 고정했으며, 기존 시트가 새 기준에 맞춰 재생성됐다고 주장하지 않는다.",
+    "사용자 요청에 따라 승인 원화 소품 크롭이 형태의 최종 기준이다. 이전 텍스트에서 새로 제안한 치수·리벳 위치보다 실제 추출 이미지가 우선한다. 보이지 않는 측면/뒷면은 새로 그린 것으로 간주하지 않는다."
+  ],
+  "weapon_sheets": [
+    {
+      "character_id": "seojin",
+      "path": "docs/wuxia-props/references/seojin-weapon-sheet-v1.png",
+      "sha256": "2bf32f85ffd897ddc70d245364d9906653bfd04a78cbc56b42d4ce9ab84df559",
+      "crop_path": "docs/wuxia-props/references/seojin-weapon-crop-v1.png",
+      "crop_sha256": "0e7544dc373bdff5678755dee9d6018f066289ffcdfd58356eea5730e4d34330",
+      "source_path": "docs/wuxia-props/references/seojin-approved-character-reference-v1.png",
+      "source_sha256": "2fac67c8b58e4bb33fe85001d77435e01bea4af4b094f6c25f438dad67546af2",
+      "crop_box": [
+        899,
+        12,
+        1043,
+        318
+      ],
+      "method": "exact_crop_then_uniform_2x_layout",
+      "prop_ids": [
+        "SEJ_DAGGER_01",
+        "SEJ_SHEATH_01"
+      ]
+    },
+    {
+      "character_id": "jangho",
+      "path": "docs/wuxia-props/references/jangho-weapon-sheet-v1.png",
+      "sha256": "3409634f67ed7d29f0861981a2e47b82b511b85f2a5f47052b7dfa6bcd2ad521",
+      "crop_path": "docs/wuxia-props/references/jangho-weapon-crop-v1.png",
+      "crop_sha256": "baea0a7d45bec2816c607d99a21befed1c58d99c189e6d31ee683b55e3a6132b",
+      "source_path": "docs/wuxia-props/references/jangho-approved-character-reference-v1.png",
+      "source_sha256": "c6e1e9bc0dc63ae221c64fb90efb62a0923ca65fd1f087fc01a5cb2e541112c8",
+      "crop_box": [
+        861,
+        32,
+        1007,
+        583
+      ],
+      "method": "exact_crop_then_uniform_2x_layout",
+      "prop_ids": [
+        "JAN_SWORD_01",
+        "JAN_SCABBARD_01"
+      ]
+    }
+  ]
+}

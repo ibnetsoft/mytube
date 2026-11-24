@@ -504,6 +504,13 @@ class Jobs:
                 raise
 
     def load(self, identity):
+        # Pending durable recovery copies remain readable during a cloud outage.
+        # Mutation routes already hold self.lock and still use the same CAS sync.
+        if self.rows.get(identity, {}).get('sync_status') == 'pending':
+            snapshot = self.bundle(identity)
+            candidate = snapshot.get('candidate') or {}
+            if not candidate or digest(candidate) == snapshot['job'].get('candidate_hash'):
+                return snapshot
         with self.lock:
             if self.store and identity not in self.inflight and self.rows.get(identity, {}).get('sync_status') != 'pending':
                 self.restore(self.store.get(identity))
@@ -692,7 +699,7 @@ async def local_boundary(request: Request, call_next):
         return JSONResponse({'error': 'Origin denied'}, status_code=403)
     media_file = (request.method == 'GET' and re.fullmatch(r'/api/jobs/[a-f0-9]{32}/sermon-media', request.url.path)
                   and secrets.compare_digest(request.query_params.get('token', ''), TOKEN))
-    prepared_media = (request.method in ('GET','PUT') and ('/assets/file' in request.url.path or request.url.path=='/api/std/assets/gcs-file' or request.url.path.startswith('/api/local/uploads/')) and secrets.compare_digest(request.query_params.get('local_token',''),TOKEN))
+    prepared_media = (request.method in ('GET','PUT') and ('/assets/file' in request.url.path or request.url.path=='/api/std/assets/gcs-file' or request.url.path.startswith('/api/local/uploads/') or request.url.path.startswith('/api/manual-reference-images/')) and secrets.compare_digest(request.query_params.get('local_token',''),TOKEN))
     if request.url.path.startswith('/api/') and not prepared_media and not media_file and not secrets.compare_digest(request.headers.get('x-codex-local', ''), TOKEN):
         return JSONResponse({'error': '로컬 화면을 새로고침하세요.'}, status_code=401)
     if request.url.path.startswith('/api/ae-highlight'):
@@ -1431,7 +1438,7 @@ def approve(identity: str, request: ApproveRequest):
 
 
 from worker.script_manual_workflow import register as register_manual_routes
-register_manual_routes(app,jobs)
+register_manual_routes(app,jobs,TOKEN)
 
 from worker.script_preparation_api import register as register_preparation_routes
 register_preparation_routes(app,TOKEN)

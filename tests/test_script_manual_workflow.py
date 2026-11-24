@@ -117,3 +117,73 @@ def test_retry_of_saved_legacy_job_does_not_switch_to_manual(tmp_path,monkeypatc
  j.start(req,None,retry_of=i,identity=i);wait(j)
  assert seen[0]['manual_stages'] is False and 'manual_workflow' not in j.rows[i]
  j.pool.shutdown()
+
+def test_per_scene_prompt_refs_isolated_and_source_edit_invalidation(tmp_path,monkeypatch):
+ from worker import script_scene_prompts as sp
+ j,i,c=seed(tmp_path)
+ monkeypatch.setattr(sp,'catalog',lambda:[{'id':'hero','label':'1화 서진','path':'/verified/ref.png','sha256':'a'*64}])
+ captured=[]
+ def generate(identity,scene,neighbors,request,refs,feedback,revision):
+  captured.append((scene,refs));return '참조 인물의 얼굴과 복장 유지. 부러진 단도 상태는 별도 필요.'
+ monkeypatch.setattr(sp,'generate_scene',generate)
+ def scene(action,**extra):return c.post(f'/api/jobs/{i}/scene-image-prompt',json={'action':action,'scene_id':'S1','expected_hash':j.rows[i]['candidate_hash'],'reference_ids':['hero'],**extra})
+ assert scene('generate').status_code==200;wait(j)
+ w=j.bundle(i)['candidate']['manual_workflow'];assert w['stages'][0]['status']=='review'
+ assert all(s['status']=='pending' for s in w['stages'][1:])
+ assert w['scene_image_prompts']['S1']['references'][0]['sha256']=='a'*64
+ assert captured[0][0]['scene_id']=='S1'
+ assert scene('save',image_prompt='편집한 프롬프트').status_code==200
+ output=copy.deepcopy(SCRIPT);output['scenes'][0]['visual_action']='다른 행동'
+ assert call(j,i,c,1,'save',output=output).status_code==200
+ assert j.bundle(i)['candidate']['manual_workflow']['scene_image_prompts']['S1']['status']=='stale'
+ assert c.post(f'/api/jobs/{i}/scene-image-prompt',json={'action':'generate','scene_id':'../bad','expected_hash':j.rows[i]['candidate_hash']}).status_code==409
+ assert c.get('/api/manual-reference-images/unknown/file').status_code==404
+ j.pool.shutdown()
+
+def test_scene_prompt_failure_preserves_text_and_rejects_unlisted_assets(tmp_path,monkeypatch):
+ from worker import script_scene_prompts as sp
+ j,i,c=seed(tmp_path);monkeypatch.setattr(sp,'catalog',lambda:[])
+ def action(**kw):return c.post(f'/api/jobs/{i}/scene-image-prompt',json={'action':'save','scene_id':'S1','expected_hash':j.rows[i]['candidate_hash'],**kw})
+ assert action(reference_ids=['not-an-asset']).status_code==409
+ assert action(image_prompt='이전 사용자 프롬프트').status_code==200
+ def fail(*a):raise RuntimeError('SECRET')
+ monkeypatch.setattr(sp,'generate_scene',fail)
+ assert action(action='generate').status_code==200;wait(j)
+ e=j.bundle(i)['candidate']['manual_workflow']['scene_image_prompts']['S1']
+ assert e['image_prompt']=='이전 사용자 프롬프트' and e['status']=='failed'
+ assert 'SECRET' not in json.dumps(e)
+ j.pool.shutdown()
+
+def test_problem_record_blocks_actual_arguments_and_survives_readback(tmp_path,monkeypatch):
+ from worker import wuxia_generation_gate as g
+ monkeypatch.setattr(g,'STATE',tmp_path/'policies')
+ j,i,c=seed(tmp_path)
+ def quality(action,data=None):return c.post(f'/api/jobs/{i}/scene-quality',json={'action':action,'scene_id':'S1','expected_hash':j.rows[i]['candidate_hash'],'data':data or {}})
+ assert quality('finding',{'rule_id':'anatomical_side','evidence':'오른팔에 왼손 연결'}).status_code==200
+ assert j.bundle(i)['candidate']['manual_workflow']['quality_control']['S1']['image_use_status']=='excluded'
+ assert not quality('preflight').json()['ready']
+ assert quality('prepare_arguments').status_code==409
+ assert quality('resolve_finding',{'index':0,'evidence':'수정 후보 준비, 실제 픽셀 검수 대기'}).status_code==200
+ assert j.bundle(i)['candidate']['manual_workflow']['quality_control']['S1']['image_use_status']=='review_required'
+ assert quality('prepare_arguments').status_code==409
+ j.pool.shutdown()
+
+def test_pending_recovery_result_remains_readable_without_cloud_lock(tmp_path):
+ j,i,c=seed(tmp_path);j.rows[i]['sync_status']='pending'
+ class Unavailable:
+  def get(self,*a):raise AssertionError('pending read must not request cloud')
+ class BusyCloudLock:
+  def __enter__(self):raise AssertionError('pending read must not wait on cloud I/O')
+  def __exit__(self,*a):pass
+ j.store=Unavailable();j.lock=BusyCloudLock()
+ assert j.load(i)['candidate']['script']
+ j.pool.shutdown()
+
+def test_pending_manual_edit_retains_cloud_revision_without_network(tmp_path):
+ j,i,c=seed(tmp_path);j.rows[i].update(sync_status='pending',storage_revision=32)
+ class Offline:
+  def save(self,*a):raise AssertionError('known offline edit must remain local')
+ j.store=Offline();edited=copy.deepcopy(SCRIPT);edited['scenes'][0]['title']='수정된 씬'
+ assert call(j,i,c,1,'save',output=edited).status_code==200
+ assert j.rows[i]['storage_revision']==32 and j.rows[i]['sync_status']=='pending'
+ j.pool.shutdown()

@@ -9,6 +9,8 @@ def prepare(timeline,directory,fresh,download,duration,fps,audio=None):
  if any(s.get('dialogue_mouths') for s in timeline.get('states',[])) and timeline['contract'] not in ('wuxia_native_timeline/v2','wuxia_native_timeline/v3','wuxia_native_timeline/v4','wuxia_native_timeline/v5','wuxia_native_timeline/v6'):raise ValueError('Mouth patches require the updated native timeline contract')
  result=copy.deepcopy(timeline);directory=Path(directory);directory.mkdir(parents=True,exist_ok=True)
  states=result.get('states') or [];samples=result.get('samples') or []
+ from worker.wuxia_generation_gate import assert_sources_usable
+ assert_sources_usable(states)
  if not 1<=len(states)<=100 or len(samples)!=__import__('math').ceil(duration*fps):raise ValueError('Wuxia schedule does not match finalized timing')
  if timeline.get('anatomy_required') is True and any((s.get('anatomy_approval') or {}).get('source_sha256')!=s.get('sha256') or (s.get('anatomy_approval') or {}).get('decision')!='passed' for s in states):raise ValueError('Actual source anatomy approval missing or stale')
  if any(s.get('anatomy_hold') for s in states):raise ValueError('Unapproved anatomy source cannot be rendered; regenerate and review')
