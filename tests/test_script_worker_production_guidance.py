@@ -20,3 +20,20 @@ def test_new_work_receives_local_guidance_without_changing_other_modes(monkeypat
     codex_local_workflow.produce('b', {'mode': 'topics'}, None, None, lambda _: None)
     assert 'TEST OPERATING GUIDE' in captured[0]['_approved_guidance']
     assert 'TEST OPERATING GUIDE' not in captured[1]['_approved_guidance']
+
+
+def test_web_delivery_document_is_loaded_in_full():
+    document = script_worker_guidance.WEB_DELIVERY_PATH.read_text(encoding='utf-8').strip()
+    guidance = script_worker_guidance.load_production_guidance()
+    assert document in guidance
+    assert 'script_worker_web_delivery/v1' in guidance
+    assert '실제 로그인된 유저웹' in document
+
+
+def test_empty_web_delivery_document_does_not_silently_skip_guidance(monkeypatch, tmp_path):
+    import pytest
+    empty = tmp_path / 'delivery.md'
+    empty.write_text('', encoding='utf-8')
+    monkeypatch.setattr(script_worker_guidance, 'WEB_DELIVERY_PATH', empty)
+    with pytest.raises(ValueError, match='유저웹 등록 작업 지침'):
+        script_worker_guidance.load_production_guidance()
