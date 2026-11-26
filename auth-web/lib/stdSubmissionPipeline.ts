@@ -1,3 +1,4 @@
+import { approvedGeneratedSfxPlan } from './stdGeneratedSfx'
 import { createHash, randomUUID } from 'crypto'
 import { supabaseAdmin as db } from './supabaseAdmin'
 import { aeMouthApplicable, aeMouthInput, currentAeMouthJob } from './stdAeMouth'
@@ -10,6 +11,7 @@ import { aeSceneArtifactReviewMatches, aeSceneRenderReviewMatches } from './stdA
 export const SUBMISSION_PIPELINE_VERSION = 2
 export function submissionSnapshot(project: any, scenes: any[], assets: any[], mouthRequired: boolean) {
     assertPreparationFinished(assets)
+    approvedGeneratedSfxPlan(project)
     const frozen = JSON.parse(JSON.stringify({ project, scenes, assets }))
     frozen.project.project_payload = { ...frozen.project.project_payload, submission_pipeline_version: 2 }
     mouthRequired = mouthRequired || hasAeSceneIntent(frozen.project, frozen.scenes, frozen.assets)

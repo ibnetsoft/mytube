@@ -1019,6 +1019,12 @@ def process_one(engine='ae', job_id=None):
                 local=resolve_sfx_path(library)
             if not local:raise NeedsReview('효과음 원본을 작업 에셋으로 저장한 뒤 다시 제출해 주세요.')
             cues.append({**cue,'path':str(local)})
+        from worker.generated_sfx import ensure as ensure_generated_sfx
+        if snapshot.get('sfx_generation_plan'):
+            save(phase='sound_effects',progress='확정 효과음 프롬프트 생성·씬 연결')
+            generated_cues=ensure_generated_sfx(snapshot['sfx_generation_plan'],directory,ae=ae,base=base,headers=headers,fresh=fresh,existing=snapshot.get('sfx_cues',[]))
+            cues.extend(generated_cues)
+            save(generated_sfx_cues=[{k:v for k,v in cue.items() if k!='path'} for cue in generated_cues])
         neutral_scenes={}
         for submitted_scene in snapshot['scenes']:
             number=submitted_scene['number'];reviewed=next((p for p in plans if p['number']==number),None)

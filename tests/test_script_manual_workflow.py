@@ -7,7 +7,7 @@ from worker import script_manual_workflow as m
 from worker import codex_local_console as console
 
 SCRIPT={'scenes':[{'scene_id':'S1','title':'탈출','visual_action':'두 사람이 열린 통로를 확인한다.','spoken_blocks':[{'kind':'dialogue','speaker':'서진','text':'같이 나가자.'}]}],'quality_notes':[]}
-OUTPUTS=[SCRIPT,{'cuts':[{'cut_id':'C1','scene_id':'S1','image_prompt':'같은 복장과 부상 상태, 열린 통로를 보는 두 사람의 2D 중경.','references':['기존 서진 참조 · 확인 필요']}],'quality_notes':[]},{'selections':[{'cut_id':'C1','selected':False,'reason':'정지 반응 컷으로 충분하다.','video_prompt':''}],'quality_notes':[]},{'directions':[{'cut_id':'C1','ae_instruction':'고정 화면. 전환은 하드 컷. 얼굴과 문자는 보호한다.','timing_note':'실제 음성 저장 후 대사 앵커에 연결한다.'}],'quality_notes':[]}]
+OUTPUTS=[SCRIPT,{'cuts':[{'cut_id':'C1','scene_id':'S1','image_prompt':'같은 복장과 부상 상태, 열린 통로를 보는 두 사람의 2D 중경.','references':['기존 서진 참조 · 확인 필요']}],'quality_notes':[]},{'selections':[{'cut_id':'C1','selected':False,'reason':'정지 반응 컷으로 충분하다.','video_prompt':''}],'quality_notes':[]},{'directions':[{'cut_id':'C1','ae_instruction':'고정 화면. 전환은 하드 컷. 얼굴과 문자는 보호한다.','timing_note':'실제 음성 저장 후 대사 앵커에 연결한다.'}],'quality_notes':[]},{'cues':[{'id':'hit','cut_id':'C1','prompt':'Dry stone impact, no human speech or music','duration_seconds':1,'offset_seconds':0,'volume_db':-18,'reason':'단발 접촉'}],'quality_notes':[]}]
 class Runner:
  def __init__(self):self.calls=[]
  def _stage(self,identity,name,context,task):
@@ -31,7 +31,7 @@ def wait(j):
 def test_script_only_runs_script_and_its_review():
  r=Runner();p=m.initial('qa',{'mode':'new'},lambda _:None,runner=r)
  assert r.calls==['manual_1_1','manual_1_1_review']
- assert [s['status'] for s in p['manual_workflow']['stages']]==['review','pending','pending','pending']
+ assert [s['status'] for s in p['manual_workflow']['stages']]==['review','pending','pending','pending','pending']
  assert '화면 상황' in p['script'] and '대사 · 서진' in p['script']
  assert console.digest(p)==m.digest(p)
 
@@ -40,14 +40,14 @@ def test_explicit_steps_edits_invalidation_and_stale_requests(tmp_path,monkeypat
  def gen(index,*args,**kw):calls.append(index);return copy.deepcopy(OUTPUTS[index])
  monkeypatch.setattr(m,'generate',gen)
  assert call(j,i,c,2,'generate').status_code==409
- for step in range(1,5):
+ for step in range(1,6):
   if step>1:
    assert call(j,i,c,step,'generate').status_code==200;wait(j)
   before=len(calls);assert call(j,i,c,step,'approve').status_code==200;assert len(calls)==before
- assert calls==[1,2,3] and j.rows[i]['status']=='completed'
+ assert calls==[1,2,3,4] and j.rows[i]['status']=='completed'
  old_hash=j.rows[i]['candidate_hash'];out=copy.deepcopy(SCRIPT);out['scenes'][0]['spoken_blocks'][0]['text']='먼저 길을 확인하자.'
  assert call(j,i,c,1,'save',output=out).status_code==200
- w=j.bundle(i)['candidate']['manual_workflow'];assert [s['status'] for s in w['stages']]==['review','stale','stale','stale']
+ w=j.bundle(i)['candidate']['manual_workflow'];assert [s['status'] for s in w['stages']]==['review','stale','stale','stale','stale']
  assert c.post(f'/api/jobs/{i}/manual-stage',json={'step':1,'action':'approve','expected_hash':old_hash}).status_code==409
  assert call(j,i,c,3,'generate').status_code==409
  assert j.rows[i]['auto_delivery_requested'] is False
@@ -86,7 +86,7 @@ def test_new_default_stops_after_script_and_legacy_retry_keeps_saved_policy(tmp_
  job=j.start(r,None);wait(j)
  b=j.bundle(job['id']);assert b['request']['manual_stages'] is True
  assert b['job']['auto_delivery_requested'] is False and b['job']['status']=='awaiting_approval'
- assert [s['status'] for s in b['candidate']['manual_workflow']['stages']]==['review','pending','pending','pending']
+ assert [s['status'] for s in b['candidate']['manual_workflow']['stages']]==['review','pending','pending','pending','pending']
  j.pool.shutdown()
 
 def test_review_failure_is_kept_as_notes_instead_of_a_false_pass():
@@ -186,4 +186,16 @@ def test_pending_manual_edit_retains_cloud_revision_without_network(tmp_path):
  j.store=Offline();edited=copy.deepcopy(SCRIPT);edited['scenes'][0]['title']='수정된 씬'
  assert call(j,i,c,1,'save',output=edited).status_code==200
  assert j.rows[i]['storage_revision']==32 and j.rows[i]['sync_status']=='pending'
+ j.pool.shutdown()
+
+def test_legacy_four_step_job_can_explicitly_start_fifth_without_rewriting_prior_outputs(tmp_path,monkeypatch):
+ j,i,c=seed(tmp_path);bundle=j.bundle(i);w=bundle['candidate']['manual_workflow'];w['stages']=w['stages'][:4]
+ for n,s in enumerate(w['stages']):s.update(status='approved',output=copy.deepcopy(OUTPUTS[n]),approved_hash=m.digest(OUTPUTS[n]))
+ old=copy.deepcopy(w['stages']);candidate=m.package(w,bundle['request']);m.write(tmp_path/i/'candidate.json',candidate);j.rows[i]['candidate_hash']=m.digest(candidate)
+ monkeypatch.setattr(m,'generate',lambda index,*args:copy.deepcopy(OUTPUTS[index]))
+ assert call(j,i,c,5,'generate').status_code==200;wait(j)
+ result=j.bundle(i)['candidate'];assert result['manual_workflow']['stages'][:4]==old
+ assert result['structure']['sfx_generation_plan']['status']=='review'
+ assert call(j,i,c,5,'approve').status_code==200
+ assert j.bundle(i)['candidate']['structure']['sfx_generation_plan']['status']=='approved'
  j.pool.shutdown()

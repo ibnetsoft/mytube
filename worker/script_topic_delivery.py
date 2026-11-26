@@ -310,6 +310,7 @@ def topic_row(identity, package, request):
             'script_translations': package.get('script_translations', {}),
             'required_video_scene_count': request.get('required_video_scene_count', 18),
             'character_anchors': package.get('character_anchors', {}), 'sfx_plan': package.get('sfx_plan'),
+            'sfx_generation_plan': structure.get('sfx_generation_plan'),
             'sfx_cues': package.get('sfx_cues', []), 'bgm_prompt': package.get('bgm_prompt') or structure.get('bgm_prompt'),
             'publish_metadata': package['publish_metadata'], 'thumbnail_hook_texts': package['thumbnail_hook_texts'],
             'thumbnail_image_prompt': package['thumbnail_image_prompt'], 'thumbnail_completed': False,

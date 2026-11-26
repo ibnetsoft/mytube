@@ -1070,6 +1070,11 @@ def remote_render_executor_func(task_id: str, temp_dir: str, use_gpu: bool = Fal
             subs = _sync_subtitle_timings_to_audio_duration(subs, audio_duration)
         from services.sfx_timing import retime_sfx_cues
         sfx_cues = retime_sfx_cues(sfx_cues, subs, strict=True)
+        if metadata.get('sfx_generation_plan'):
+            from worker.generated_sfx import ensure as ensure_generated_sfx
+            update_progress(21, '제출된 효과음 프롬프트 생성·씬 연결')
+            sfx_cues += ensure_generated_sfx(metadata['sfx_generation_plan'], temp_dir, existing=sfx_cues)
+
         if render_settings.get('bgm_path'):
             from services.bgm_timeline import retime_bgm_settings
             render_settings = retime_bgm_settings(render_settings, subs, audio_duration)

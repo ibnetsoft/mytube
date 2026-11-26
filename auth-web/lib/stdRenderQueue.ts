@@ -1,3 +1,4 @@
+import { freezeGeneratedSfx } from './stdGeneratedSfx'
 import { correctedWuxiaPackage, isWuxiaMovingtoon, usesStandardSubtitles } from './stdWuxiaPresentation'
 import { hasAmbientLoops } from './stdAmbientLoop'
 import { hasWuxiaMouths } from './stdWuxiaMouth'
@@ -969,6 +970,7 @@ async function buildGcsRenderConfig(project: any, scenes: any[], assets: any[], 
         ...(isComicProject(project) ? {comic:comicSettingsForProject(project)} : {}),
         app_mode: 'longform',
         thumbnail_filename: thumbnailFilename,
+        sfx_generation_plan: freezeGeneratedSfx(project, scenes, scenes.map((s:any,i:number)=>({number:Number(s.scene_number),start:imageTimingStarts?.[i],end:imageTimingStarts?.[i+1]??Number(narrationIdentity?.duration_seconds||audioAsset.metadata?.duration_seconds||Math.max(0,...subtitles.map((r:any)=>Number(r.end_num??r.end)||0)))}))),
         sfx_cues: sfxCues,
         subtitle_content_identity: { ...contentIdentity, ...narrationIdentity, row_count: subtitles.length },
         asset_manifest: {

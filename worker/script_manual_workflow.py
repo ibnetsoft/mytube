@@ -6,7 +6,7 @@ from pathlib import Path
 from worker.script_worker_store import StoreUnavailable
 
 CONTRACT = 'script_manual_workflow/v1'
-LABELS = ['대본', '이미지 프롬프트', '영상 씬·프롬프트', 'AE 지침']
+LABELS = ['대본', '이미지 프롬프트', '영상 씬·프롬프트', 'AE 지침', '효과음 프롬프트']
 
 def digest(value):
     return hashlib.sha256(json.dumps(value, ensure_ascii=False, sort_keys=True).encode()).hexdigest()
@@ -18,6 +18,10 @@ def write(path, value):
 def validate(index, value, workflow=None):
     if not isinstance(value, dict) or not isinstance(value.get('quality_notes'), list):
         raise ValueError('결과와 검토 메모 형식을 확인하세요.')
+    if index == 4:
+        from worker.script_sfx_plan import validate_output
+        validate_output(value, workflow)
+        return
     key = ['scenes', 'cuts', 'selections', 'directions'][index]
     rows = value.get(key)
     if not isinstance(rows, list) or not 1 <= len(rows) <= 1000:
@@ -78,6 +82,8 @@ def package(workflow, request, applied=None):
     if workflow.get('scene_image_prompts'):structure['scene_image_prompt_drafts']=workflow['scene_image_prompts']
     for i,key in [(1,'manual_image_prompts'),(2,'manual_video_directions'),(3,'manual_ae_directions')]:
         if workflow['stages'][i].get('output'):structure[key]=workflow['stages'][i]['output']
+    if len(workflow['stages']) > 4 and workflow['stages'][4].get('output'):
+        structure['sfx_generation_plan'] = {**copy.deepcopy(workflow['stages'][4]['output']), 'contract':'elevenlabs_sfx_plan/v1', 'status':workflow['stages'][4]['status']}
     return {'script':render_script(first),'structure':structure,'manual_workflow':workflow,
             'applied_guidelines':applied or [],'remaining':[],
             'completion_scope':'manual_script_and_direction_plans_only'}
@@ -89,6 +95,9 @@ TASKS = [
  '''Use the approved script, image cuts and user-selected video plan unchanged. Return {directions:[{cut_id,ae_instruction,timing_note}],quality_notes:[]}, exactly ONE entry for EVERY image cut in SAME ORDER. Choose only scene-motivated existing effects, or explicitly no effect. Include timing/holds, face/hand/blade/lettering protection, speech/visual anchors, transition, effects strength and duration. No slow/gentle whole-scene zoom. For visible sword/body aura animate only energy throughout visible state, keeping people/blades/text fixed; actual masks require actual artwork review. For impact use motion -> reviewed contact -> optional flash/outward debris/shake. Video-selected cuts preserve their motion and avoid duplicate camera/effects. Final timing requires actual saved voice; do not invent measured timestamps, source reviews or render success. Return PLANS ONLY, not rendering or publishing.'''
 ]
 
+from worker.script_sfx_plan import TASK as SFX_TASK
+TASKS.append(SFX_TASK)
+
 def generate(index, request, workflow, identity, notify, runner=None):
     if runner is None:
         from worker.codex_content_runner import CodexStagedContentRunner
@@ -99,16 +108,16 @@ def generate(index, request, workflow, identity, notify, runner=None):
     context={'execution_policy':policy_snapshot,'confirmed_settings':request,'production_guidance':load_production_guidance(),
              'approved_previous_steps':[s['output'] for s in workflow['stages'][:index]],
              'approved_guidance':workflow.get('approved_guidance',''),'current_revision':workflow['revision'],'user_notes':workflow.get('feedback',''),'scene_image_prompt_drafts':workflow.get('scene_image_prompts',{}),'recorded_quality_findings':workflow.get('quality_control',{})}
-    notify(f'{index+1}/4 {LABELS[index]} 생성 중')
+    notify(f'{index+1}/5 {LABELS[index]} 생성 중')
     from worker.generation_validation import validated_stage
     value=validated_stage(lambda name,ctx,task:runner._stage('manual-'+identity,name,ctx,task),
         f'manual_{index+1}_{workflow["revision"]}',context,TASKS[index],lambda v:validate(index,v,workflow))
-    notify(f'{index+1}/4 {LABELS[index]} 결과 검토 중')
+    notify(f'{index+1}/5 {LABELS[index]} 결과 검토 중')
     def review_valid(r):
         if type(r.get('passed')) is not bool or not isinstance(r.get('issues'),list) or not isinstance(r.get('evidence'),str) or not r['evidence'].strip() or (r['passed'] and r['issues']):raise ValueError('단계 검토 근거가 필요합니다.')
     review=validated_stage(lambda name,ctx,task:runner._stage('manual-'+identity,name,ctx,task),
         f'manual_{index+1}_{workflow["revision"]}_review',{**context,'result':value},
-        'Independently review THIS step only against the approved inputs and requested scope. Return {passed:boolean,issues:[string],evidence:string}. Check continuity, no invented facts/approved assets, script visual/speech separation and pacing in step 1, full cut coverage and consistent geometry/state in step 2, sparse motivated user-controllable silent video directions in step 3, selective source-safe time-bound AE plans in step 4. Never claim actual artwork, audio or rendered output was reviewed. Record uncertainty truthfully. Do not generate any later step.',review_valid)
+        'Independently review THIS step only against the approved inputs and requested scope. Return {passed:boolean,issues:[string],evidence:string}. Check continuity, no invented facts/approved assets, script visual/speech separation and pacing in step 1, full cut coverage and consistent geometry/state in step 2, sparse motivated user-controllable silent video directions in step 3, selective source-safe time-bound AE plans in step 4. Never claim actual artwork, audio or rendered output was reviewed. Record uncertainty truthfully. For step 5 inspect sound prompts against approved source cuts, materials, no human speech/music, cut-relative timing and safe levels; zero cues is valid. Do not generate any later step.',review_valid)
     from worker.wuxia_generation_gate import policy
     value['guidance_applied']={'policy_sha256':policy_snapshot['sha256'],'scope':'planned_content_only'}
     value['review']=review
@@ -130,7 +139,7 @@ def register(app, jobs, token=""):
     # Module-level annotations allow FastAPI to resolve the model.
     class ManualAction(BaseModel):
         action: str
-        step: int = Field(ge=1,le=4)
+        step: int = Field(ge=1,le=5)
         expected_hash: str = Field(min_length=64,max_length=64)
         output: dict | None = None
         feedback: str = Field(default='',max_length=12000)
@@ -159,11 +168,11 @@ def register(app, jobs, token=""):
                         current=next((s for s in value['scenes'] if s['scene_id']==sid),None)
                         if current is None or digest(current)!=entry.get('source_hash'):entry['status']='stale'
                 step=workflow['stages'][index];step.update(status='review',output=value,output_hash=digest(value),input_hash=digest([s['approved_hash'] for s in workflow['stages'][:index]]));step.pop('error',None)
-                persist(identity,package(workflow,request,candidate.get('applied_guidelines')),status='awaiting_approval',stage=f'{index+1}/4 {LABELS[index]} 검토 대기',error='')
+                persist(identity,package(workflow,request,candidate.get('applied_guidelines')),status='awaiting_approval',stage=f'{index+1}/5 {LABELS[index]} 검토 대기',error='')
         except Exception as exc:
             with jobs.lock:
                 workflow['stages'][index].update(status='failed',error=type(exc).__name__)
-                persist(identity,package(workflow,request,candidate.get('applied_guidelines')),status='failed',stage=f'{index+1}/4 {LABELS[index]} 실행 실패 · 해당 단계 재시도 가능',error='실행 결과를 확정하지 않았습니다. 저장된 이전 결과와 검토 메모를 확인하세요.')
+                persist(identity,package(workflow,request,candidate.get('applied_guidelines')),status='failed',stage=f'{index+1}/5 {LABELS[index]} 실행 실패 · 해당 단계 재시도 가능',error='실행 결과를 확정하지 않았습니다. 저장된 이전 결과와 검토 메모를 확인하세요.')
         finally:
             with jobs.lock:jobs.inflight.discard(identity)
     @app.post('/api/jobs/{identity}/manual-stage')
@@ -176,6 +185,9 @@ def register(app, jobs, token=""):
                 if job.get('published') or job.get('status') in ('canceled','cancelled'):raise ValueError('종료된 작업은 변경할 수 없습니다.')
                 if jobs.busy():raise ValueError('현재 실행 중인 작업이 끝난 뒤 진행하세요.')
                 if digest(candidate)!=body.expected_hash:raise ValueError('결과 버전이 변경됐습니다. 다시 열어 확인하세요.')
+                # Existing four-step jobs gain an optional fifth stage without rewriting their outputs.
+                if len(workflow['stages']) == 4:
+                    workflow['stages'].append({'name':LABELS[4], 'status':'pending'})
                 index=body.step-1;step=workflow['stages'][index]
                 if any(s['status']!='approved' for s in workflow['stages'][:index]):raise ValueError('앞 단계를 먼저 확인·확정하세요.')
                 if body.action not in ('save','approve','generate'):raise ValueError('지원하지 않는 작업입니다.')
@@ -204,7 +216,7 @@ def register(app, jobs, token=""):
                 workflow['revision']+=1
                 result=package(workflow,bundle['request'],candidate.get('applied_guidelines'))
                 complete=all(s['status']=='approved' for s in workflow['stages'])
-                persist(identity,result,status='running' if body.action=='generate' else 'completed' if complete else 'awaiting_approval',stage=f'{index+1}/4 {LABELS[index]} '+('생성 대기' if body.action=='generate' else '확정 · 다음 단계 수동 시작' if not complete and body.action=='approve' else '수정 저장 · 검토 대기' if body.action=='save' else '확정 · 지침 작성 완료'),error='')
+                persist(identity,result,status='running' if body.action=='generate' else 'completed' if complete else 'awaiting_approval',stage=f'{index+1}/5 {LABELS[index]} '+('생성 대기' if body.action=='generate' else '확정 · 다음 단계 수동 시작' if not complete and body.action=='approve' else '수정 저장 · 검토 대기' if body.action=='save' else '확정 · 지침 작성 완료'),error='')
                 if body.action=='generate':
                     jobs.inflight.add(identity);jobs.pool.submit(run,identity,index,bundle['request'],result)
                 return {'status':jobs.rows[identity]['status'],'candidate_hash':digest(result)}

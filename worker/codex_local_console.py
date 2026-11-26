@@ -607,7 +607,7 @@ class Jobs:
                 write_json(self.root / identity / 'sfx-plan.json', candidate['sfx_plan'])
             (self.root / identity / 'candidate.md').write_text(candidate.get('action_script') or candidate['script'], encoding='utf-8')
             self.update(identity, status='completed' if request.mode == 'topics' else 'awaiting_approval',
-                        stage='1/4 대본 검토 대기 · 다음 단계 수동 시작' if request.manual_stages else '토픽 후보 저장 · 선택 가능' if request.mode == 'topics' else '초안 저장 · 검토 대기',
+                        stage='1/5 대본 검토 대기 · 다음 단계 수동 시작' if request.manual_stages else '토픽 후보 저장 · 선택 가능' if request.mode == 'topics' else '초안 저장 · 검토 대기',
                         **({'manual_workflow': __import__('worker.script_manual_workflow',fromlist=['state_summary']).state_summary(candidate['manual_workflow'])} if candidate.get('manual_workflow') else {}),
                         candidate_hash=digest(candidate), remaining=candidate.get('remaining', []))
         except Exception as exc:

@@ -1,8 +1,8 @@
 'use strict';
 (() => {
- const names=['대본','이미지 프롬프트','영상 씬·프롬프트','AE 지침'];
+ const names=['대본','이미지 프롬프트','영상 씬·프롬프트','AE 지침','효과음 프롬프트'];
  const states={pending:'시작 대기',running:'생성 중',review:'검토 대기',approved:'확정',stale:'이전 단계 변경 · 다시 생성',failed:'실행 실패 · 재시도 가능'};
- const intro=element('p','새 대본은 ① 대본 → ② 이미지 프롬프트 → ③ 영상 씬·프롬프트 → ④ AE 지침 순서로 진행합니다. 각 결과를 수정·확정한 뒤 다음 단계를 직접 시작하세요.','callout');
+ const intro=element('p','새 대본은 ① 대본 → ② 이미지 프롬프트 → ③ 영상 씬·프롬프트 → ④ AE 지침 → ⑤ 효과음 프롬프트 순서로 진행합니다. 각 결과를 수정·확정한 뒤 다음 단계를 직접 시작하세요.','callout');
  $('new-form').prepend(intro);
  function syncManualControls(){
   const manual=!$('production-mode')||$('production-mode').value!=='nonverbal_preschool';intro.hidden=!manual;
@@ -34,16 +34,17 @@
   const loadPolicy=async()=>{currentPolicy=await api('wuxia-generation-policy');policyInfo.replaceChildren(element('p',`기본 ${currentPolicy.revision}판 · 추가 개선 ${currentPolicy.update_revision||0}회 · 확인 항목 ${currentPolicy.rules.length}개`));currentPolicy.rules.forEach(rule=>policyInfo.append(element('p','• '+rule.title)));root.querySelectorAll('[data-reviewed-policy]').forEach(figure=>figure.hidden=figure.dataset.reviewedPolicy!==currentPolicy.sha256);root.querySelectorAll('[data-guidance-sha]').forEach(label=>label.textContent=label.dataset.guidanceSha===currentPolicy.sha256?'최신 지침을 입력에 반영한 프롬프트 · 실제 그림 검수는 별도':'최신 개선 지침으로 프롬프트·생성 준비 재검토 필요');};
   ruleSave.onclick=async()=>{if(root.dataset.dirty==='true'||root.dataset.sceneDirty==='true'){notice('입력 중인 내용을 먼저 저장해 주세요.');return;}ruleSave.disabled=true;try{await api('wuxia-generation-policy',{expected_hash:currentPolicy.sha256,rule_id:'correction_'+Date.now(),title:ruleTitle.value,instruction:ruleText.value,reason:ruleReason.value});await loadPolicy();notice('개선 지침을 저장했습니다. 다음 생성 입력부터 반영되며 기존 그림은 재검토가 필요합니다.');}catch(e){error(e.message);}finally{ruleSave.disabled=false;}};
   void loadPolicy().catch(e=>error(e.message));
+  if(w.stages.length===4)w.stages.push({name:names[4],status:'pending'});
   const nav=element('div',undefined,'toolbar');root.append(nav);
   w.stages.forEach((s,i)=>{const b=element('button',`${i+1}. ${names[i]} · ${states[s.status]||s.status}`);b.setAttribute('aria-pressed',String(i===Number(root.dataset.active)));b.onclick=()=>{if(root.dataset.dirty==='true'||root.dataset.sceneDirty==='true'){notice('수정 내용을 먼저 저장하거나 버려 주세요.');return;}root.dataset.active=String(i);delete root.dataset.key;window.renderManualStages(data,origin)};nav.append(b)});
   const index=Number(root.dataset.active)||0,step=w.stages[index],draft=structuredClone(step.output||{}),locked=w.stages.slice(0,index).some(s=>s.status!=='approved'),running=['queued','running'].includes(data.job.status);
-  root.append(element('h3',`${index+1}/4 ${names[index]} · ${states[step.status]}`));
+  root.append(element('h3',`${index+1}/5 ${names[index]} · ${states[step.status]}`));
   if(locked)root.append(element('p','앞 단계를 확정하면 이 단계를 시작할 수 있습니다.','callout'));
   const controls=element('div',undefined,'toolbar'),form=element('div'),feedback=element('textarea'),save=element('button','수정 저장'),approve=element('button','이 단계 확정'),generate=element('button',step.output?'이 단계 다시 생성':`${names[index]} 생성 시작`),discard=element('button','수정 버리기');
   const dirty=()=>{root.dataset.dirty='true';root.querySelectorAll('section.panel input,section.panel textarea,section.panel button').forEach(control=>control.disabled=true);save.disabled=running;approve.disabled=true;generate.disabled=true;discard.disabled=false;};
   function field(parent,label,value,onChange,short=false){const wrap=element('label',label),input=element(short?'input':'textarea');input.value=value||'';input.setAttribute('aria-label',label);if(!short)input.rows=Math.min(12,Math.max(3,String(value||'').split('\n').length+1));input.disabled=running||locked||step.status==='stale';input.oninput=()=>{onChange(input.value);dirty()};wrap.append(input);parent.append(wrap);}
   if(step.output){
-   const rows=draft[['scenes','cuts','selections','directions'][index]];
+   const rows=draft[['scenes','cuts','selections','directions','cues'][index]];
    rows.forEach((row,n)=>{
     const article=element('article',undefined,'panel');form.append(article);article.append(element('h4',index===0?`씬 ${n+1}`:row.cut_id));
     if(index===0){field(article,`씬 ${n+1} 제목`,row.title,v=>row.title=v,true);field(article,`씬 ${n+1} 화면 상황 · 낭독 제외`,row.visual_action,v=>row.visual_action=v);row.spoken_blocks.forEach((b,j)=>{if(b.kind==='dialogue')field(article,`씬 ${n+1} 대사 ${j+1} 화자`,b.speaker,v=>b.speaker=v,true);field(article,`씬 ${n+1} ${b.kind==='narration'?'나레이션':'대사'} ${j+1}`,b.text,v=>b.text=v)});if(!row.spoken_blocks.length)article.append(element('p','무음 장면'));
@@ -78,6 +79,8 @@
     if(index===1){article.append(element('p','연결 씬: '+row.scene_id));field(article,row.cut_id+' 이미지 프롬프트',row.image_prompt,v=>row.image_prompt=v);field(article,row.cut_id+' 필요한 참조 자산 · 한 줄에 하나',row.references.join('\n'),v=>row.references=v.split('\n').map(s=>s.trim()).filter(Boolean));}
     if(index===2){const label=element('label','영상으로 만들 컷 선택 '),check=element('input');check.type='checkbox';check.checked=row.selected;check.disabled=running||locked||step.status==='stale';check.setAttribute('aria-label',row.cut_id+' 영상 선택');check.onchange=()=>{row.selected=check.checked;dirty()};label.prepend(check);article.append(label);field(article,row.cut_id+' 선택 이유',row.reason,v=>row.reason=v);field(article,row.cut_id+' 영상 프롬프트',row.video_prompt,v=>row.video_prompt=v);}
     if(index===3){field(article,row.cut_id+' AE 지침',row.ae_instruction,v=>row.ae_instruction=v);field(article,row.cut_id+' 적용 시점·읽기 구간',row.timing_note,v=>row.timing_note=v);}
+    if(index===4){field(article,row.cut_id+' 효과음 ID',row.id,v=>row.id=v,true);field(article,row.cut_id+' ElevenLabs 영문 프롬프트',row.prompt,v=>row.prompt=v);for(const [key,label] of [['duration_seconds','생성 길이(초)'],['offset_seconds','씬 시작 후 위치(초)'],['volume_db','음량(dB)']])field(article,row.cut_id+' '+label,String(row[key]),v=>row[key]=Number(v),true);field(article,row.cut_id+' 실제 사건·선택 이유',row.reason,v=>row.reason=v);article.append(element('p','소리 생성은 사용자 제출 후 통합워커에서 실행합니다. 지금은 프롬프트만 저장합니다.'));}
+
    });
    if(draft.review)form.append(element('p',draft.review.status==='user_edited'?'사용자 수정본 · 이전 자동 검토는 수정 전 버전에 한정됩니다.':draft.review.passed?'이 단계 계획 검토 통과':'이 단계 검토 의견을 확인해 주세요.','callout'));
    if(draft.quality_notes.length){const note=element('details');note.append(element('summary','검토 메모'),element('pre',draft.quality_notes.map(v=>typeof v==='string'?v:JSON.stringify(v)).join('\n'),'script'));form.append(note)}
@@ -89,7 +92,7 @@
   save.onclick=()=>void action('save');approve.onclick=()=>void action('approve');generate.onclick=()=>void action('generate');discard.onclick=()=>{root.dataset.dirty='false';root.dataset.sceneDirty='false';delete root.dataset.key;window.renderManualStages(data,origin)};
   controls.append(save,discard,approve,generate);
   if(step.status==='approved'&&index<3){const next=element('button','다음 단계 열기');next.onclick=()=>{if(root.dataset.dirty==='true'||root.dataset.sceneDirty==='true')return;root.dataset.active=String(index+1);delete root.dataset.key;window.renderManualStages(data,origin)};controls.append(next)}
-  if(w.stages.every(s=>s.status==='approved'))root.append(element('p','4단계 결과를 모두 확정했습니다. 대본과 제작 지침이 저장됐습니다.','callout'));
+  if(w.stages.every(s=>s.status==='approved'))root.append(element('p','5단계 결과를 모두 확정했습니다. 대본과 제작 지침이 저장됐습니다.','callout'));
  };
  if(typeof view==='function'){
   const match=location.hash.match(/^#manual=([a-f0-9]{32})$/);
