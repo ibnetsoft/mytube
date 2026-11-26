@@ -1,4 +1,5 @@
 'use client'
+import { scriptSceneSpeech, scriptSceneVisual } from '@/lib/stdScriptSceneFields'
 import { SubtitleWorkerTransition, SubtitleWorkerTransitionList } from '@/components/SubtitleWorkerTransition'
 import StdWuxiaMotionControls from '@/components/StdWuxiaMotionControls'
 import { WUXIA_MOTIONS, wuxiaMotionValue, wuxiaMotionSpeed, splitWuxiaMotion } from '@/lib/stdWuxiaMotion'
@@ -13239,7 +13240,7 @@ export default function StdPortalPage() {
                                                 </span>
                                                 <div>
                                                     <div className="text-xs font-bold text-white">{scene.title || `씬 ${idx + 1}`}</div>
-                                                    <div className="text-[11px] text-gray-400 mt-0.5 line-clamp-1">{scene.narration_text || scene.visual_prompt}</div>
+                                                    <div className="text-[11px] text-gray-400 mt-0.5 line-clamp-1">{scriptSceneSpeech(scene) || scriptSceneVisual(scene)}</div>
                                                 </div>
                                             </div>
                                             <div className="flex items-center gap-2 text-[11px] text-gray-400 self-end md:self-auto shrink-0">
@@ -13301,7 +13302,7 @@ export default function StdPortalPage() {
                                                 <span className="text-xs font-bold text-white">씬 #{idx + 1} 대본 & 연출</span>
                                             </div>
                                             <span className="text-[11px] text-gray-500 font-mono">
-                                                {(scene.narration_text || '').length}자
+                                                {scriptSceneSpeech(scene).length}자
                                             </span>
                                         </div>
 
@@ -13310,7 +13311,7 @@ export default function StdPortalPage() {
                                             <div className="lg:col-span-7 space-y-1">
                                                 <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">나레이션 대본 (TTS)</label>
                                                 <textarea
-                                                    defaultValue={scene.narration_text}
+                                                    defaultValue={scriptSceneSpeech(scene)}
                                                     rows={3}
                                                     className="w-full bg-[#14181f] border border-white/10 rounded-lg p-2.5 text-xs text-gray-200 leading-relaxed focus:outline-none focus:border-blue-500/50 resize-none font-sans"
                                                 />
@@ -13319,7 +13320,7 @@ export default function StdPortalPage() {
                                             <div className="lg:col-span-5 space-y-1">
                                                 <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">이미지 비주얼 프롬프트</label>
                                                 <textarea
-                                                    defaultValue={scene.visual_prompt}
+                                                    defaultValue={scriptSceneVisual(scene)}
                                                     rows={3}
                                                     className="w-full bg-[#14181f] border border-white/10 rounded-lg p-2.5 text-xs text-gray-400 leading-relaxed focus:outline-none focus:border-purple-500/50 resize-none font-mono text-[11px]"
                                                 />
