@@ -1,4 +1,5 @@
 'use client'
+import { SubtitleWorkerTransition, SubtitleWorkerTransitionList } from '@/components/SubtitleWorkerTransition'
 import StdWuxiaMotionControls from '@/components/StdWuxiaMotionControls'
 import { WUXIA_MOTIONS, wuxiaMotionValue, wuxiaMotionSpeed, splitWuxiaMotion } from '@/lib/stdWuxiaMotion'
 import { WUXIA_TRANSITIONS } from '@/lib/stdWuxiaTransition'
@@ -10089,6 +10090,7 @@ export default function StdPortalPage() {
                                     </div>
 
 
+                                    <SubtitleWorkerTransitionList project={selectedProject?.project} />
                                     {/* 자막 카드 목록 */}
                                     <div className="flex flex-1 overflow-hidden">
                                         <div className="subtitle-navy-scrollbar flex-1 overflow-y-auto p-0 space-y-0">
@@ -10122,6 +10124,7 @@ export default function StdPortalPage() {
                                                             <label onClick={event => event.stopPropagation()} className="mt-1 flex items-center gap-1 text-[10px] text-cyan-200"><input type="checkbox" aria-label={`씬 ${sNum} 열기 왜곡`} disabled={Boolean(group.video_url) || isSceneEffectSaving} checked={splitWuxiaMotion(motionEffect).heat} onChange={event => void applySelectedSceneTransition(splitWuxiaMotion(motionEffect).id + (event.target.checked ? '+heat' : ''), 'image_effect', [sNum])} />열기 왜곡</label>
                                                             <label onClick={event => event.stopPropagation()} className="mt-1 flex items-center gap-1 text-[10px] text-cyan-200">속도 <select aria-label={`씬 ${sNum} 모션 속도`} value={wuxiaMotionSpeed(sceneRecord)} disabled={Boolean(group.video_url) || motionEffect === 'none' || isSceneEffectSaving} onChange={event => void applySelectedSceneTransition(event.target.value, 'motion_speed', [sNum])} className="rounded border border-white/15 bg-[#14181f] p-1 text-white disabled:opacity-40">{[0.5, 1, 1.5, 2, 3].map(speed => <option key={speed} value={speed}>{speed}×</option>)}</select></label>
                                                         </div>
+                                                        <SubtitleWorkerTransition project={selectedProject?.project} scene={sceneRecord} number={sNum} />
                                                         <div className="text-xs text-gray-400"><span className="mr-2 rounded bg-blue-500/15 px-1.5 py-0.5 font-bold text-blue-300">씬 {sNum}</span>{sourceScene?.silent_visual === true ? '무음 장면' : '음성 구간 없음'} <span className="ml-2 text-cyan-300">미리보기 {duration.toFixed(1)}초</span></div>
                                                     </div>
                                                 }
@@ -10241,6 +10244,7 @@ export default function StdPortalPage() {
                                                                 {Number(group.start_time).toFixed(1)}s ~ {Number(group.end_time).toFixed(1)}s
                                                                 <span className="ml-1 text-[9px] text-gray-500">{duration.toFixed(1)}s</span>
                                                             </div>
+                                                            <SubtitleWorkerTransition project={selectedProject?.project} scene={sceneRecord} number={Number(sNum)} />
                                                             {transitionEffect && transitionEffect !== 'none' && (
                                                                 <div
                                                                     title={`화면전환효과: ${ui(sceneTransitionLabel(transitionEffect))}`}

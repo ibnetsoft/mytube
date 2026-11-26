@@ -71,6 +71,9 @@ def package(workflow, request, applied=None):
         spoken='\n'.join((b['speaker']+': ' if b['kind']=='dialogue' else '')+b['text'] for b in r['spoken_blocks'])
         scenes.append({**r,'scene_number':n,'scene_order':n,'scene_text':spoken,'narration':spoken})
     structure={'scenes':scenes,'manual_workflow_contract':CONTRACT}
+    from worker.script_transition_export import transition_display_plan
+    transition_display=transition_display_plan(workflow)
+    if transition_display:structure['cut_transition_plan']=transition_display
     if request.get('series_naming'):structure['series_naming']=request['series_naming']
     if workflow.get('scene_image_prompts'):structure['scene_image_prompt_drafts']=workflow['scene_image_prompts']
     for i,key in [(1,'manual_image_prompts'),(2,'manual_video_directions'),(3,'manual_ae_directions')]:
