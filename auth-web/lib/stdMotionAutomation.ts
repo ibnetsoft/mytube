@@ -84,6 +84,17 @@ export async function registerMotionAutomation(project:any,scenes:any[],assets:a
         const preparation=source.asset_type==='original'&&!horizontal?prepared.get(n):null
         if(source.asset_type==='original'&&!horizontal&&!preparation)throw new Error(`${n}번 PSD의 레이어·AE 연출을 대본워커에서 준비한 뒤 제출하세요.`)
         const planned=savedScene(project,n)
+        // Manual script-worker directions live on the scene, not in savedScene().
+        // Freeze the authored material with the submission so downstream execution
+        // can verify it against the selected source rather than silently losing it.
+        const authoredMetadata=scene.metadata||{}
+        const manualDirections=project.project_payload?.manual_ae_directions?.directions
+        const cutId=String(authoredMetadata.cut_id||planned?.cut_id||'')
+        const manualDirection=Array.isArray(manualDirections)&&cutId
+            ? manualDirections.find((item:any)=>String(item?.cut_id||'')===cutId)||null : null
+        const scriptAeDirection=authoredMetadata.ae_instruction||manualDirection||null
+        const scriptAeTypography=authoredMetadata.ae_typography_instruction||null
+        const scriptTransition=authoredMetadata.outgoing_transition||null
         const parallaxFallback=planned?.parallax_plan?.enabled && ['image','video'].includes(source.asset_type)
         if(allParallax&&!planned?.parallax_plan?.enabled)throw new Error(`${n}번 씬의 전체 패럴럭스 연출·레이어 계획을 준비하세요.`)
         const authored=motion.scenes[String(n)]
@@ -112,6 +123,11 @@ export async function registerMotionAutomation(project:any,scenes:any[],assets:a
         if((ambientLoops.length||wuxiaTimeline)&&(sourceKind!=='image'||horizontal||effectcraft||filmcraft||postwork))throw new Error(`${n}번 씬의 보조 움직임은 PNG 원화와 기본 AE 제작 방식을 사용해 주세요.`)
         if(wuxiaTimeline&&motion.aspect!=='16:9')throw new Error('무협 원화·말풍선 보조 움직임은 기존 16:9 구도를 유지해 주세요.')
         return {number:n,text:scene.scene_text||'',title:scene.scene_title||'',direction:motion.scenes[String(n)]?.direction||'',
+            ...((scriptAeDirection||scriptAeTypography||scriptTransition)?{script_worker_directions:{
+                ...(scriptAeDirection?{ae_instruction:scriptAeDirection}:{}),
+                ...(scriptAeTypography?{ae_typography_instruction:scriptAeTypography}:{}),
+                ...(scriptTransition?{outgoing_transition:scriptTransition}:{}),
+            }}:{}),
             ...(wuxiaTimeline?{wuxia_timeline:wuxiaTimeline}:{}),
             ...(ambientLoops.length?{ambient_loops:ambientLoops}:{}),
             ...(effectivePurpose?{purpose_policy:effectivePurpose}:{}),
@@ -138,6 +154,8 @@ export async function registerMotionAutomation(project:any,scenes:any[],assets:a
     const selected=!effectcraft&&motion.automation.mode==='hybrid'?await selectedVideoModel(project.employee_email):null
     const snapshot={version:1,...(allParallax?{all_scene_parallax:'all_scene_parallax/v1',execution_policy:{review_policy:'required_actual_source_output/v1'}}:{}),...(videoPostwork?{submitted_video_postwork:VIDEO_POSTWORK_CONTRACT,video_dialogue_targets:videoDialoguePostworkTargets(ordered),execution_policy:{review_policy:'required_actual_source_output/v1',video_playback_policy:'original_speed_no_freeze_no_loop/v1'}}:{}),...(motion.final_renderer==='filmcraft'?{final_renderer:{engine:'filmcraft',adapter:filmcraftNativeContract.adapter,profile:filmcraftNativeContract.profile}}:{}),...(effectcraft?{renderer:{engine:'effectcraft',revision:effectcraftSource.revision,version:effectcraftSource.version}}:filmcraft?{renderer:{engine:'filmcraft',revision:filmcraftSource.revision,version:filmcraftSource.version,adapter:filmcraftNativeContract.adapter,profile:filmcraftNativeContract.profile,gpu_composition:filmcraftNativeContract.gpu_composition}}:horizontal?{renderer:{engine:'ae_horizontal_webtoon',version:1}}:{}),project:{id:project.id,employee_email:project.employee_email},motion:effectcraft?{...motion,automation:{...motion.automation,mode:'ae_only'}}:motion,...((effectcraft||horizontal)?{execution_policy:{video_playback_policy:'original_speed_no_freeze_no_loop/v1',review_policy:'skip_user_requested/v1',source_policy:'preserve_uploaded_video/v1',authorization:'default_submission_existing_assets_without_review'}}:{}),settings,subtitles,audio,scenes:ordered,sounds,sfx_generation_plan:freezeGeneratedSfx(project,scenes,ordered),sfx_cues:resolveSfxCues(cues,subtitles),
         model_ref:selected?{id:selected.config.id,fingerprint:selected.fingerprint,config:selected.config}:null}
+    const editorialTransitionPlan=project.project_payload?.editorial_transition_plan
+    if(editorialTransitionPlan)Object.assign(snapshot,{editorial_transition_plan:editorialTransitionPlan})
     if(ordered.some(s=>s.speech_bubble_plan?.cues?.length)){
         if(effectcraft||filmcraft)throw new Error('새 말풍선 프리셋은 After Effects 렌더러로 제출해 주세요.')
         Object.assign(snapshot,{execution_policy:{review_policy:'required_actual_source_output/v1',video_playback_policy:'original_speed_no_freeze_no_loop/v1'}})

@@ -67,6 +67,19 @@ export function lipSyncSceneStarts(project: any, scenes: any[], audio: any): num
     const subtitles = (project.project_payload?.subtitles || []).map((s: any) => ({ ...s, start: Number(s.start ?? s.start_num ?? s.start_time), end: Number(s.end ?? s.end_num ?? s.end_time), scene_number: Number(s.scene_number ?? s.scene ?? s.sceneNumber) }))
     const timeline = audio?.metadata?.subtitle_timeline || []
     const total = timeline[timeline.length - 1]?.end || 0
+    const explicit=audio?.metadata?.scene_timing_starts
+    if (explicit != null) {
+        if (!Array.isArray(explicit) || explicit.length !== scenes.length || explicit.some((v:any,i:number)=>
+            typeof v!=='number'||!Number.isFinite(v)||v<0||v>=total||(i>0&&v<=explicit[i-1])) || Math.abs(explicit[0]||0)>.001)
+            throw new Error('확정 음성의 씬별 재생시간을 확인해 주세요.')
+        subtitles.forEach((row:any,i:number)=>{
+            const index=scenes.findIndex((scene:any)=>Number(scene.scene_number)===row.scene_number)
+            const end=explicit[index+1]??total
+            if(index<0||timeline[i].start<explicit[index]-.001||timeline[i].end>end+.001)
+                throw new Error(`${row.scene_number}번 씬의 확정 음성이 씬 시간과 맞지 않습니다.`)
+        })
+        return [...explicit]
+    }
     // Allocate silent scenes only after the preceding recorded speech has ended.
     const starts: (number | null)[] = scenes.map(s => {
         const indices = subtitles.map((t: any, i: number) => Number(t.scene_number) === Number(s.scene_number) ? i : -1).filter((i: number) => i >= 0)
@@ -85,32 +98,6 @@ export function lipSyncSceneStarts(project: any, scenes: any[], audio: any): num
         const gapStart = Math.min(end, speechEnd)
         for (let j = i; j < right; j++) starts[j] = gapStart + (end - gapStart) * (j - i) / (right - i)
         i = right - 1
-    }
-    if (project.id === PACHEON_EP2 && !lipSyncEnabled(project)) {
-        // User-requested 0.7-second visual-only cuts; keep the recording unchanged.
-        const silent = scenes.map((scene: any) => !subtitles.some((s: any) => s.scene_number === Number(scene.scene_number)))
-        const minimum = 1 / 24
-        for (let i = 0; i < scenes.length;) {
-            if (!silent[i]) { i++; continue }
-            let right = i
-            while (right < scenes.length && silent[right]) right++
-            const count = right - i, duration = count * .7
-            const leftStart = i ? starts[i-1]! : 0
-            const originalStart = i ? starts[i]! : 0
-            const originalEnd = right < scenes.length ? starts[right]! : total
-            const nextEnd = right + 1 < scenes.length ? starts[right+1]! : total
-            const availableLeft = i ? Math.max(0, originalStart - leftStart - minimum) : 0
-            const availableRight = right < scenes.length ? Math.max(0, nextEnd - originalEnd - minimum) : 0
-            const deficit = Math.max(0, duration - (originalEnd - originalStart))
-            let left = Math.min(availableLeft, deficit / 2), rightBorrow = Math.min(availableRight, deficit - left)
-            left += Math.min(availableLeft - left, deficit - left - rightBorrow)
-            rightBorrow += Math.min(availableRight - rightBorrow, deficit - left - rightBorrow)
-            if (left + rightBorrow + 1e-7 < deficit) throw new Error(`${Number(scenes[i].scene_number)}번부터 무음 씬의 0.7초 화면 시간을 확보할 수 없습니다.`)
-            const begin = originalStart - left
-            for (let j = 0; j < count; j++) starts[i+j] = begin + j * .7
-            if (right < scenes.length) starts[right] = begin + duration
-            i = right
-        }
     }
     return starts as number[]
 }
