@@ -678,6 +678,8 @@ def start_subtitle_translations():
     app.state.subtitle_translation_stop = start_translation_loop(jobs)
     from worker.script_preparation import start_preparation_loop
     app.state.preparation_stop = start_preparation_loop(jobs)
+    from worker.wuxia_scene_review_queue import start_review_loop
+    app.state.scene_image_review_stop = start_review_loop(jobs)
 
 
 @app.on_event('shutdown')
@@ -686,6 +688,7 @@ def stop_subtitle_translations():
     app.state.delivery_supervisor_stop.set()
     app.state.subtitle_translation_stop.set()
     app.state.preparation_stop.set()
+    app.state.scene_image_review_stop.set()
 
 
 @app.middleware('http')
@@ -816,6 +819,8 @@ def health():
             'generation_validation_profile': PROFILE,
             'effect_scope_version': 1,
             'script_web_delivery_version': 1,
+            'scene_image_review_version': 1,
+            'scene_image_review_running': bool(getattr(app.state, 'scene_image_review_stop', None)) and not app.state.scene_image_review_stop.is_set(),
             'wuxia_mouth_automation': 'wuxia_mouth_auto/v1',
             'documentary_evidence_profile': 'japanese_documentary_evidence/v1'}
 

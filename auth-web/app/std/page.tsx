@@ -1083,6 +1083,9 @@ export default function StdPortalPage() {
 
     // 4. 에셋 및 작업 제어 상태
     const [uploadingKey, setUploadingKey] = useState('')
+    const [sceneImageReviews, setSceneImageReviews] = useState<Record<number, any>>({})
+    const [sceneReviewTick, setSceneReviewTick] = useState(0)
+    const [sceneReviewUploading, setSceneReviewUploading] = useState<number | null>(null)
     const [generatingTts, setGeneratingTts] = useState(false)
     const [backgroundTtsActive, setBackgroundTtsActive] = useState(false)
     const [ttsJobRefreshKey, setTtsJobRefreshKey] = useState(0)
@@ -6163,6 +6166,79 @@ export default function StdPortalPage() {
         }
     }
 
+    useEffect(() => {
+        setSceneImageReviews({})
+        setSceneReviewUploading(null)
+    }, [selectedProject?.project?.id])
+
+    useEffect(() => {
+        const projectId = selectedProject?.project?.id
+        if (!projectId || currentNav !== 'subtitle_vrew' || !isWuxiaMovingtoon(selectedProject?.project)) {
+            setSceneImageReviews({})
+            return
+        }
+        let cancelled = false
+        let timer: ReturnType<typeof setTimeout> | undefined
+        const poll = async () => {
+            try {
+                const response = await fetch(`/api/std/projects/${encodeURIComponent(projectId)}/scene-image-review`, { headers: authedUploadHeaders, cache: 'no-store' })
+                const body = await response.json()
+                if (!response.ok || !body.success) throw new Error('상태 조회 실패')
+                const next: Record<number, any> = {}
+                for (const row of body.reviews || []) if (!next[Number(row.scene_number)]) next[Number(row.scene_number)] = row
+                if (!cancelled) setSceneImageReviews(next)
+                if (!cancelled) timer = setTimeout(poll, Object.values(next).some((r: any) => ['queued', 'running'].includes(r.status)) ? 5000 : 30000)
+            } catch {
+                if (!cancelled) timer = setTimeout(poll, 30000)
+            }
+        }
+        void poll()
+        return () => { cancelled = true; if (timer) clearTimeout(timer) }
+    }, [selectedProject?.project?.id, currentNav, authedUploadHeaders, sceneReviewTick])
+
+    const sceneImageUploadControl = (scene: any, number: number) => {
+        if (!selectedProject || !isWuxiaMovingtoon(selectedProject.project)) return null
+        const review = sceneImageReviews[number]
+        const pending = ['queued', 'running'].includes(review?.status)
+        const editable = Boolean(scene) && ['claimed', 'in_progress'].includes(selectedProject.project.status) && !selectedProject.project.submitted_at
+        const send = async (file: File | null) => {
+            if (!file || !editable || pending || sceneReviewUploading !== null) return
+            if (file.size > 4 * 1024 * 1024) {
+                setMessage('이미지는 4MB 이하의 PNG, JPG 또는 WebP 파일을 선택해 주세요.')
+                return
+            }
+            const requestScope = { ...mediaScopeRef.current }
+            const isCurrent = () => isCurrentMediaScope(requestScope, mediaScopeRef.current)
+            setSceneReviewUploading(number)
+            try {
+                const form = new FormData()
+                form.set('file', file)
+                form.set('scene_number', String(number))
+                const response = await fetch(`/api/std/projects/${encodeURIComponent(selectedProject.project.id)}/scene-image-review`, {
+                    method: 'POST', headers: authedUploadHeaders, body: form,
+                })
+                const body = await response.json()
+                if (!response.ok || !body.success) throw new Error(body.error || '이미지 검수 요청 실패')
+                if (!isCurrent()) return
+                setSceneImageReviews(previous => ({ ...previous, [number]: { ...body.review, scene_number: number } }))
+                setSceneReviewTick(value => value + 1)
+                setMessage(`씬 ${number} 이미지 검수를 요청했습니다. 기존 이미지는 검수 중 유지됩니다.`)
+            } catch (error: any) {
+                if (isCurrent()) setMessage(error?.message || '이미지 검수 요청 실패')
+            } finally { if (isCurrent()) setSceneReviewUploading(null) }
+        }
+        return <div onClick={event => event.stopPropagation()} className="mt-1 text-[10px]">
+            <label className={`inline-flex rounded border border-sky-500/40 px-2 py-1 font-bold ${!editable || pending || sceneReviewUploading !== null ? 'cursor-not-allowed text-gray-500' : 'cursor-pointer text-sky-300 hover:bg-sky-500/10'}`}>
+                {sceneReviewUploading === number ? '업로드 중' : pending ? '검수 중' : '이미지 교체'}
+                <input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" aria-label={`씬 ${number} 이미지 교체`}
+                    disabled={!editable || pending || sceneReviewUploading !== null}
+                    onChange={event => { const file = event.target.files?.[0] || null; event.target.value = ''; void send(file) }} />
+            </label>
+            {review?.status === 'completed' && <div className="mt-1 text-emerald-300">검수 완료 · 입모양·효과 재검토 <button type="button" className="underline" onClick={() => void openProject(selectedProject.project.id, undefined, undefined, true)}>저장 후 다시 열기</button></div>}
+            {review?.error && <p className="mt-1 text-amber-300">{review.error}</p>}
+        </div>
+    }
+
     const splitTtsTextForBrowser = (value: string, maxChars = 4500) => {
         const cleaned = String(value || '')
             .replace(/\r\n/g, '\n')
@@ -10121,6 +10197,7 @@ export default function StdPortalPage() {
                                                         <div className="w-6 shrink-0 text-center" onClick={event => event.stopPropagation()}><input type="checkbox" aria-label={`씬 ${sNum} 선택`} checked={checked} onChange={() => setSelectedSubtitleSceneNumbers(previous => checked ? previous.filter(number => number !== sNum) : [...previous, sNum])} className="h-4 w-4 accent-[#0b1f3a]" /><span className="block text-xs font-bold text-white">{sNum}</span></div>
                                                         <div className="w-28 shrink-0 sm:w-40">
                                                             <div className="aspect-video overflow-hidden rounded-lg border border-white/10"><LazySceneMedia imageUrl={group.image_url} videoUrl={group.video_url} /></div>
+                                                            {sceneImageUploadControl(sceneRecord, sNum)}
                                                             <select onClick={event => event.stopPropagation()} aria-label={`씬 ${sNum} 이미지 모션`} value={splitWuxiaMotion(motionEffect).id} disabled={Boolean(group.video_url) || isSceneEffectSaving}
                                                                 onChange={event => void applySelectedSceneTransition(event.target.value + (splitWuxiaMotion(motionEffect).heat ? '+heat' : ''), 'image_effect', [sNum])}
                                                                 className="mt-2 w-full rounded border border-white/15 bg-[#14181f] p-1 text-[10px] text-white disabled:opacity-40">
@@ -10240,6 +10317,7 @@ export default function StdPortalPage() {
                                                                     </span>
                                                                 )}
                                                             </div>
+                                                            {sceneImageUploadControl(sceneRecord, Number(sNum))}
                                                             {thumbnailMedia.isMouthPreview && (
                                                                 <div className="mt-1 text-[9px] leading-tight text-cyan-300" role="note">
                                                                     {ui(thumbnailMedia.label)}
