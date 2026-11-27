@@ -2,6 +2,8 @@
 import { useEffect, useRef } from 'react'
 import { TtsNotice, ttsNoticeCopy } from './StdTtsNotice'
 import { ttsNoticeAcknowledged } from '@/lib/stdTtsNoticeAcknowledgement'
+import { formatTtsErrorMessage } from '@/lib/stdTtsErrorMessage'
+import { localizeStdActionError } from '@/lib/stdActionFeedback'
 
 export default function StdBackgroundTts({ projectId, projectTitle, headers, locale, refreshKey, onBusy, onNotice, onComplete }: {
     projectId: string; projectTitle: string; headers: Record<string, string>; locale: string; refreshKey: number
@@ -28,7 +30,7 @@ export default function StdBackgroundTts({ projectId, projectTitle, headers, loc
                     onNotice({ projectId, projectTitle, background: true, jobId: job.id,
                         phase: active ? 'running' : job.status === 'completed' ? 'success' : 'error',
                         detail: active ? `${copy.progress(job.ready, job.total)}${job.ready === job.total ? ` · ${copy.assembling}` : ''}`
-                            : job.status === 'completed' ? `${copy.saved} ${copy.counts(job.reused, job.generated)}` : job.error })
+                            : job.status === 'completed' ? `${copy.saved} ${copy.counts(job.reused, job.generated)}` : localizeStdActionError(formatTtsErrorMessage(job.error || 'TTS generation failed'), locale, 'tts') })
                     if (!active) {
                         delivered.current = job.id
                         if (job.status === 'completed') completion.current?.()
