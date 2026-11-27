@@ -4,6 +4,7 @@ function fixture(mode='ae_only', alternativesEnabled=false) {
  const project={id:'qa-project',updated_at:'now',employee_email:'owner@test',project_payload:{render_settings:{motion:{version:1,enabled:true,aspect:'9:16',fps:24,scenes:{},automation:{mode,max_ai_clips:1,max_ai_seconds:5}}},subtitles:[{text:'Final voice',scene_number:1,start:0,end:20}]}}
  const audio={id:'voice',asset_type:'audio',status:'uploaded',metadata:{gcs_path:'voice.wav',subtitle_timeline:[{start:0,end:20}]}},image={id:'image',asset_type:'image',scene_number:1,status:'uploaded',created_at:'now',metadata:{gcs_path:'source.png'}}
  new Function('exports','require',ts.transpileModule(fs.readFileSync('lib/stdMotionAutomation.ts','utf8'),{compilerOptions:{module:1,target:9,esModuleInterop:true}}).outputText)(exports,name=>{
+ if(name.includes('stdGeneratedSfx'))return {freezeGeneratedSfx:()=>[]}
  if(name.includes('stdAmbientLoop'))return require('./load-ts-module.cjs')('lib/stdAmbientLoop.ts');
  if(name.includes('stdWuxiaClips'))return require('./load-ts-module.cjs')('lib/stdWuxiaClips.ts');
  if(name.includes('stdWuxiaPresentation'))return require('./load-ts-module.cjs')('lib/stdWuxiaPresentation.ts');
@@ -16,7 +17,7 @@ function fixture(mode='ae_only', alternativesEnabled=false) {
   if(name.includes('stdMotionSourceReuse'))return {recordedMotionSourceReuse:()=>null}
   if(name.endsWith('.json'))return JSON.parse(fs.readFileSync('lib/'+name.slice(2),'utf8'))
   if(name.includes('stdWorkflowBoundary'))return {assertPreparationFinished:()=>{}}
-  if(name.includes('stdSceneExecution'))return {directedScene:()=>false,bindSceneDirection:()=>null}
+  if(name.includes('stdSceneExecution'))return {directedScene:()=>false,bindSceneDirection:()=>null,firstPendingRecordedSceneDirection:()=>null}
   if(name.includes('supabaseAdmin'))return {supabaseAdmin:{rpc:async(name,args)=>{calls.rpc.push({name,args});return {data:{job_id:'queued'},error:null}}}}
   if(name.includes('stdMotionStudio'))return {...require('./load-ts-module.cjs')('lib/stdMotionStudio.ts'),motionForProject:p=>p.project_payload.render_settings.motion}
   if(name.includes('stdHorizontalWebtoon'))return {horizontalWebtoon:p=>p.project_payload.render_settings.motion.edit_mode==='horizontal_webtoon',webtoonInputs:()=>[{number:1,asset:image,start:0,end:20}],readyWebtoonPlan:()=>({source_sha256:'a'.repeat(64),plan:{version:1,shots:[{start:0,end:1,panels:[]}],evidence:['fixture']}})}
@@ -38,6 +39,23 @@ test('AE-only submission freezes voice and original without reading a provider k
  const args=f.calls.rpc[0].args,raw=args.p_manifest.automation.snapshot_json,s=JSON.parse(raw)
  assert.equal(s.scenes[0].start,0);assert.equal(s.audio.id,'voice');assert.equal(s.scenes[0].source.id,'image');assert.equal(s.model_ref,null)
  assert.equal(crypto.createHash('sha256').update(raw).digest('hex'),args.p_hash)
+})
+test('wuxia submission without a state direction package freezes a reviewed original',async()=>{
+ const f=fixture(),sha='a'.repeat(64)
+ f.project.project_payload.structure={image_style:'wuxia_webtoon',scenes:[{scene_number:1,cut_id:'C001',image_use_status:'approved',source_image_sha256:sha,gcs_bucket:'bucket',gcs_path:'source.png',anatomy_review:{contract:'wuxia_anatomy_review/v1',verdict:'pass',source_sha256:sha,cut_id:'C001'}}]}
+ f.image.metadata.gcs_bucket='bucket'
+ await f.run()
+ const snapshot=JSON.parse(f.calls.rpc[0].args.p_manifest.automation.snapshot_json)
+ assert.equal(snapshot.scenes[0].source.id,'image')
+ assert.equal(snapshot.scenes[0].source.metadata.sha256,sha)
+ assert.equal(snapshot.scenes[0].wuxia_timeline,undefined)
+})
+test('wuxia submission never substitutes an unreviewed still when state direction is absent',async()=>{
+ const f=fixture(),sha='a'.repeat(64)
+ f.project.project_payload.structure={image_style:'wuxia_webtoon',scenes:[{scene_number:1,cut_id:'C001',image_use_status:'review_candidate',source_image_sha256:sha,gcs_bucket:'bucket',gcs_path:'source.png'}]}
+ f.image.metadata.gcs_bucket='bucket'
+ await assert.rejects(()=>f.run(),/해부학 검수/)
+ assert.equal(f.calls.rpc.length,0)
 })
 test('horizontal webtoon freezes the inspected plan and uses a queue older workers cannot claim',async()=>{
  const f=fixture();f.project.project_payload.render_settings.motion.edit_mode='horizontal_webtoon'

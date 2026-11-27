@@ -1,5 +1,19 @@
 const test=require('node:test'),assert=require('node:assert/strict'),load=require('./load-ts-module.cjs')
 const {withWuxiaAnatomyHolds}=load('lib/stdWuxiaArtQuality.ts'),{freezeWuxiaScene}=load('lib/stdWuxiaNative.ts'),sha='a'.repeat(64)
+
+test('wuxia scenes without optional state direction can submit with the actual reviewed source',()=>{
+ const scene={scene_number:1,cut_id:'C001',image_use_status:'approved',source_image_sha256:sha,gcs_bucket:'bucket',gcs_path:'source.png',anatomy_review:{contract:'wuxia_anatomy_review/v1',verdict:'pass',source_sha256:sha,cut_id:'C001'}}
+ const project={project_payload:{image_style:'wuxia_webtoon',structure:{scenes:[scene]}}},source={asset_type:'image',metadata:{gcs_bucket:'bucket',gcs_path:'source.png'}}
+ assert.equal(freezeWuxiaScene(project,1,[],0,2,24,source),null)
+ assert.equal(source.metadata.sha256,sha,'Worker must verify exact reviewed source bytes')
+ scene.image_use_status='review_candidate';assert.throws(()=>freezeWuxiaScene(project,1,[],0,2,24,source),/해부학 검수/)
+ scene.image_use_status='approved';scene.anatomy_review.source_sha256='b'.repeat(64);assert.throws(()=>freezeWuxiaScene(project,1,[],0,2,24,source),/해부학 검수/)
+ scene.anatomy_review.source_sha256=sha;source.metadata.gcs_path='replacement.png';assert.throws(()=>freezeWuxiaScene(project,1,[],0,2,24,source),/해부학 검수/)
+})
+test('uploaded video does not require a nonexistent state direction package',()=>{
+ const project={project_payload:{image_style:'wuxia_webtoon',structure:{scenes:[]}}}
+ assert.equal(freezeWuxiaScene(project,1,[],0,2,24,{asset_type:'video',metadata:{gcs_bucket:'bucket',gcs_path:'source.mp4'}}),null)
+})
 const policy={anatomy_auto:{contract:'wuxia_anatomy_review/v1',enabled:true},energy_auto:{enabled:true,auto_prepare:true}}
 const state={asset_id:'art',sha256:sha,start:0,end:1,face_exclusion_boxes:[],ambient_loops:[],dialogue_mouths:[],media_url:'/api/std/assets/gcs-file?bucket=test&path=art.png'}
 const pkg=()=>({contract:'wuxia_still_ae_episode/v1',scenes:[{scene_id:'E01_S01',preview_duration_seconds:2,states:[{...state}],graphics:[],effects:[]}],mouth_preparation:{anatomy_reviews:[{contract:'wuxia_anatomy_review/v1',asset_id:'art',source_sha256:sha,passed:false,decision:'uncertain',repair_request:{status:'reviewed_repair_request'}}]}})
