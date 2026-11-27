@@ -3256,6 +3256,17 @@ class CodexStagedContentRunner:
             "For a scene carrying ae_template, describe each required character, hand, wall state, reflection source, training apparatus or talisman as separable full cutouts with consistent identity, perspective and lighting; keep panel lines, animated qi, flying debris, glasses reflections, backlight rays, timed titles, ink impacts and all Korean sound lettering out of the base image. "
             f"Every scene needs a unique 120+ character English image_prompt grounded in its visual_action and final scene_text. Make compact strict 2x2 grids for every four-scene window, with exactly four panels at Top-Left, Top-Right, Bottom-Left, Bottom-Right. Scenes 1-{required_video_scene_count} also need a 300+ character English video_prompt, exactly one approved camera movement, and the literal guards 'no dialogue, no narration, no subtitles, no captions, no music, no sound effects, no audio'. Scenes 1-{required_video_scene_count} use video_generation_mode=user_upload. Scenes after {required_video_scene_count} must not contain video_prompt."
         )
+        if wuxia_visual_speech(payload):
+            media_task += (
+                " WUXIA ANATOMY: specify anatomical left/right from the character's own body, separately from screen-left/right. "
+                "Trace each visible shoulder, elbow, forearm, wrist, thumb base and fingers as one coherent limb; five digits alone is not sufficient. "
+                "For grips and palm-up poses, preserve the correct hand laterality through forearm rotation; never attach a mirrored hand to the opposite arm. "
+                "Anonymous clinicians and helpers may have visible heads without becoming named recurring protagonists. "
+                "If their torso or neckline is inside the panel, provide a naturally connected neck, complete head and shoulders. "
+                "Hands-only staging must keep the owner's torso outside the frame; never draw a floating torso with an empty neck to avoid showing a face. "
+                "Keep any local clinician/helper identity consistent across its cuts and protect all heads from lettering. "
+                "These prompt directions require later actual-pixel anatomy review; do not claim image validation from prompt text."
+            )
         media = {}
         for media_attempt in range(2):
             media = self._stage(job_id, "03_media", media_context, media_task)

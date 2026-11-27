@@ -15,6 +15,7 @@ import {
 import { syncStdProjectToLegacy } from '@/lib/stdLegacySync'
 import { protectCharacterReferenceUrls } from '@/lib/stdCharacterProtection'
 import { parseClaimAeSceneDelivery, resolveClaimAeSceneDelivery } from '@/lib/stdAeSceneDelivery'
+import { isAvailablePendingTopic } from '@/lib/stdTopicEligibility'
 
 export const dynamic = 'force-dynamic'
 
@@ -144,6 +145,9 @@ export async function POST(req: Request, { params }: { params: { topicId: string
             employee_email: existingProject.employee_email,
         }, { status: 409 })
     }
+    if (!isAvailablePendingTopic(topic, requester.email)) {
+        return NextResponse.json({ success: false, error: 'Topic is already claimed or reserved for another user' }, { status: 409 })
+    }
     if (!isPreparedStdTopic(topic)) {
         return NextResponse.json({ success: false, error: 'Topic is not ready for STD web claim' }, { status: 409 })
     }
@@ -159,7 +163,7 @@ export async function POST(req: Request, { params }: { params: { topicId: string
         && !Array.isArray(topic.progress_payload.subtitle_translations)
         ? topic.progress_payload.subtitle_translations
         : {}
-    const { data: patchedRows, error: patchError } = await supabaseAdmin
+    let claimQuery = supabaseAdmin
         .from('topics_queue')
         .update({
             status: 'assigned',
@@ -168,7 +172,11 @@ export async function POST(req: Request, { params }: { params: { topicId: string
         })
         .eq('id', topicId)
         .eq('status', 'pending')
-        .select('id')
+        .is('assigned_at', null)
+    claimQuery = topic.assigned_employee_email == null
+        ? claimQuery.is('assigned_employee_email', null)
+        : claimQuery.eq('assigned_employee_email', topic.assigned_employee_email)
+    const { data: patchedRows, error: patchError } = await claimQuery.select('id')
 
     if (patchError) return NextResponse.json({ success: false, error: patchError.message }, { status: 500 })
     if (!patchedRows || patchedRows.length === 0) {
@@ -243,7 +251,7 @@ export async function POST(req: Request, { params }: { params: { topicId: string
             .from('topics_queue')
             .update({
                 status: 'pending',
-                assigned_employee_email: '',
+                assigned_employee_email: topic.assigned_employee_email,
                 assigned_at: null,
             })
             .eq('id', topicId)

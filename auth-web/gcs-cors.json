@@ -1,0 +1,12 @@
+[
+  {
+    "origin": [
+      "https://studio.airing.work",
+      "http://localhost:3000",
+      "http://127.0.0.1:3000"
+    ],
+    "method": ["GET", "HEAD", "PUT"],
+    "responseHeader": ["Content-Type", "Range", "ETag", "x-goog-generation", "x-goog-hash"],
+    "maxAgeSeconds": 3600
+  }
+]

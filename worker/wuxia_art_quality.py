@@ -65,6 +65,13 @@ wrong-side hands, fused torso/arms, missing/extra anatomy and implausible weapon
 Also trace pelvis-hip-knee-ankle-heel/toes for every visible leg/foot, distinguish
 left/right feet, impossible joints, duplicated legs, fused toes and unsupported
 body balance. Occlusion is not automatically a missing part. Inspect body proportions.
+Trace each index/middle/ring/little finger from its own metacarpophalangeal
+knuckle at the distal palm/back-of-hand edge through its flexed joints. Reject
+four fingers grafted along the ulnar/little-finger SIDE of the hand, or impossible
+mixing of a top-view hand with front-view fingers. Correct thumb side and digit
+count alone cannot establish a valid hand. Symbolic four-rod grip diagrams are
+not anatomically validated references. Check knuckle plane, foreshortening and
+handle contact together; unresolved topology is uncertain, never pass.
 A visible four-finger silhouette is NOT automatically missing a digit: record actual
 occlusion. Do not invent hidden joints, digits or owner identity. Unclear is uncertain.
 Return {source_sha256,coverage:{all_people:true,all_visible_hands:true},

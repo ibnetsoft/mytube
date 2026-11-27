@@ -80,6 +80,8 @@ def produce(identity, request, snapshot, output, notify, sources=None):
         from worker.codex_content_runner import CodexStagedContentRunner
         from worker.wuxia_cinematic import plan_new_package as plan_cinematic
         package = plan_cinematic(CodexStagedContentRunner()._stage, 'local-' + identity, package, request, notify)
+        from worker.wuxia_popup import enable_new_package as enable_popups
+        package = enable_popups(package, request)
         from worker.wuxia_art_quality import enable_new_package as anatomy_first
         package = anatomy_first(package, request)
     package['applied_guidelines'] = [{k: row[k] for k in ('id','version','title','instruction')} for row in rows]

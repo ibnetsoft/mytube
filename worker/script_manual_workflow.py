@@ -4,6 +4,7 @@ No delivery, image generation, TTS or render is dispatched from this workflow.
 import copy, hashlib, json, os, re, time
 from pathlib import Path
 from worker.script_worker_store import StoreUnavailable
+from worker.wuxia_script_style import DIRECTIVE as WUXIA_STYLE_DIRECTIVE
 
 CONTRACT = 'script_manual_workflow/v1'
 LABELS = ['대본', '이미지 프롬프트', '영상 씬·프롬프트', 'AE 지침', '효과음 프롬프트']
@@ -35,6 +36,9 @@ def validate(index, value, workflow=None):
         for r in rows:
             if not text(r.get('title'), 200) or not text(r.get('visual_action')) or not isinstance(r.get('spoken_blocks'), list):
                 raise ValueError('씬 제목·화면 상황·나레이션/대사를 구분하세요.')
+            for key in ('sfx', 'screen_text'):
+                if key in r and (not isinstance(r[key], list) or any(not text(v, 4000) for v in r[key])):
+                    raise ValueError('효과음과 화면 글자는 낭독 제외 문자열 목록이어야 합니다.')
             for b in r['spoken_blocks']:
                 if not isinstance(b,dict) or b.get('kind') not in ('narration','dialogue') or not text(b.get('text')) or (b['kind']=='dialogue' and not text(b.get('speaker'),100)):
                     raise ValueError('발화 종류, 대사 화자와 내용을 확인하세요.')
@@ -61,10 +65,12 @@ def validate(index, value, workflow=None):
 def render_script(output):
     lines=[]
     for n, scene in enumerate(output.get('scenes',[]),1):
-        lines += [f"씬 {n}. {scene['title']}", '화면 상황: '+scene['visual_action']]
+        lines += [f"씬 {n}. {scene['title']}", '화면 설명: '+scene['visual_action']]
         for block in scene['spoken_blocks']:
             lines.append(('나레이션' if block['kind']=='narration' else '대사 · '+block['speaker'])+': '+block['text'])
         if not scene['spoken_blocks']: lines.append('무음 장면')
+        for v in scene.get('screen_text', []): lines.append('화면 글자 · 낭독 제외: '+v)
+        for v in scene.get('sfx', []): lines.append('[SFX: '+v+']')
         lines.append('')
     return '\n'.join(lines)
 
@@ -72,13 +78,16 @@ def package(workflow, request, applied=None):
     first=workflow['stages'][0].get('output') or {'scenes':[]}
     scenes=[]
     for n,r in enumerate(first['scenes'],1):
-        spoken='\n'.join((b['speaker']+': ' if b['kind']=='dialogue' else '')+b['text'] for b in r['spoken_blocks'])
+        spoken='\n'.join(b['text'] for b in r['spoken_blocks'])
         scenes.append({**r,'scene_number':n,'scene_order':n,'scene_text':spoken,'narration':spoken})
     structure={'scenes':scenes,'manual_workflow_contract':CONTRACT}
     from worker.script_transition_export import transition_display_plan
     transition_display=transition_display_plan(workflow)
     if transition_display:structure['cut_transition_plan']=transition_display
     if request.get('series_naming'):structure['series_naming']=request['series_naming']
+    if workflow.get('voice_cast'):
+        from worker.script_voice_cast import attach_voice_cast
+        holder={'structure':structure,'manual_workflow':workflow};attach_voice_cast(holder)
     if workflow.get('scene_image_prompts'):structure['scene_image_prompt_drafts']=workflow['scene_image_prompts']
     for i,key in [(1,'manual_image_prompts'),(2,'manual_video_directions'),(3,'manual_ae_directions')]:
         if workflow['stages'][i].get('output'):structure[key]=workflow['stages'][i]['output']
@@ -89,7 +98,7 @@ def package(workflow, request, applied=None):
             'completion_scope':'manual_script_and_direction_plans_only'}
 
 TASKS = [
- '''Write the requested script only. Return {scenes:[{scene_id,title,visual_action,spoken_blocks:[{kind:narration|dialogue,speaker,text}]}],quality_notes:[]}. Use stable ASCII scene IDs in story order. visual_action is a SHORT, unspoken account of what the audience sees. Spoken blocks contain only words to be voiced; dialogue needs a named speaker. Silent scenes use an empty spoken_blocks list. Follow confirmed language, genre, era and continuity. Improve story causality, character choices and episode payoff; avoid repetitive injuries, waiting and visible-action narration. Do not generate image prompts, video prompts, AE directions, music, metadata or footage. Do not claim assets exist. There is no downstream automatic step.''',
+ '''Write the requested script only. Return {scenes:[{scene_id,title,visual_action,spoken_blocks:[{kind:narration|dialogue,speaker,text}]}],quality_notes:[]}. Use stable ASCII scene IDs in story order. Optional sfx:[string] and screen_text:[string] are nonspoken. visual_action is a concrete, unspoken account of what the audience sees. Spoken blocks contain only words to be voiced; dialogue needs a named speaker. Silent scenes use an empty spoken_blocks list. Follow confirmed language, genre, era and continuity. Improve story causality, character choices and episode payoff; avoid repetitive injuries, waiting and visible-action narration. Do not generate image prompts, video prompts, AE directions, music, metadata or footage. Do not claim assets exist. There is no downstream automatic step.''',
  '''Use the user-approved script unchanged. Return {cuts:[{cut_id,scene_id,image_prompt,references:[string]}],quality_notes:[]}. Cover every approved scene, in story order, with stable unique ASCII cut IDs. Reuse source-current scene_image_prompt_drafts and their selected reference IDs/paths faithfully; do not replace user-edited prompts. Stale drafts require re-planning against the changed source. Divide into motivated individual full-frame cuts; describe framing, action/contact, characters, anatomy, costume, props and their current states, environment continuity, final 2D style when applicable. references must name required approved asset IDs or explicitly say that an asset is not yet available; do not invent approved assets or claim attachments. Preserve visible identity/prop geometry; no baked text. Follow production guidance and user revisions. No video/AE prompts, actual images, audio, or publication.''',
  '''Use unchanged approved script and image-cut plan. Return {selections:[{cut_id,selected:boolean,reason,video_prompt:string}],quality_notes:[]}, exactly ONE entry for EVERY image cut in the SAME ORDER. Select only narratively motivated motion; all false is valid and no quota applies. A selected video_prompt specifies start/end states, a short 2-3s action, direction/speed/contact timing, continuity, fixed camera or brief motivated move, and unchanged face/costume/props/background plus no dialogue/no narration/no subtitles/no captions/no music/no sound effects/no audio. Unselected prompts may be empty. Do not generate video or AE directions. User can change selection before approval.''',
  '''Use the approved script, image cuts and user-selected video plan unchanged. Return {directions:[{cut_id,ae_instruction,timing_note}],quality_notes:[]}, exactly ONE entry for EVERY image cut in SAME ORDER. Choose only scene-motivated existing effects, or explicitly no effect. Include timing/holds, face/hand/blade/lettering protection, speech/visual anchors, transition, effects strength and duration. No slow/gentle whole-scene zoom. For visible sword/body aura animate only energy throughout visible state, keeping people/blades/text fixed; actual masks require actual artwork review. For impact use motion -> reviewed contact -> optional flash/outward debris/shake. Video-selected cuts preserve their motion and avoid duplicate camera/effects. Final timing requires actual saved voice; do not invent measured timestamps, source reviews or render success. Return PLANS ONLY, not rendering or publishing.'''
@@ -105,7 +114,7 @@ def generate(index, request, workflow, identity, notify, runner=None):
     from worker.script_worker_guidance import load_production_guidance
     from worker.wuxia_generation_gate import policy
     policy_snapshot=policy()
-    context={'execution_policy':policy_snapshot,'confirmed_settings':request,'production_guidance':load_production_guidance(),
+    context={'execution_policy':policy_snapshot,'confirmed_settings':request,'production_guidance':load_production_guidance(),'wuxia_audiovisual_style':WUXIA_STYLE_DIRECTIVE,
              'approved_previous_steps':[s['output'] for s in workflow['stages'][:index]],
              'approved_guidance':workflow.get('approved_guidance',''),'current_revision':workflow['revision'],'user_notes':workflow.get('feedback',''),'scene_image_prompt_drafts':workflow.get('scene_image_prompts',{}),'recorded_quality_findings':workflow.get('quality_control',{})}
     notify(f'{index+1}/5 {LABELS[index]} 생성 중')
@@ -117,7 +126,7 @@ def generate(index, request, workflow, identity, notify, runner=None):
         if type(r.get('passed')) is not bool or not isinstance(r.get('issues'),list) or not isinstance(r.get('evidence'),str) or not r['evidence'].strip() or (r['passed'] and r['issues']):raise ValueError('단계 검토 근거가 필요합니다.')
     review=validated_stage(lambda name,ctx,task:runner._stage('manual-'+identity,name,ctx,task),
         f'manual_{index+1}_{workflow["revision"]}_review',{**context,'result':value},
-        'Independently review THIS step only against the approved inputs and requested scope. Return {passed:boolean,issues:[string],evidence:string}. Check continuity, no invented facts/approved assets, script visual/speech separation and pacing in step 1, full cut coverage and consistent geometry/state in step 2, sparse motivated user-controllable silent video directions in step 3, selective source-safe time-bound AE plans in step 4. Never claim actual artwork, audio or rendered output was reviewed. Record uncertainty truthfully. For step 5 inspect sound prompts against approved source cuts, materials, no human speech/music, cut-relative timing and safe levels; zero cues is valid. Do not generate any later step.',review_valid)
+        'Independently review THIS step only against the approved inputs and requested scope. Return {passed:boolean,issues:[string],evidence:string}. Check continuity, no invented facts/approved assets, script visual/speech separation and pacing in step 1, including the wuxia_audiovisual_style contract: compare every narration with its same cut and inspect character voice, nonspoken SFX and screen text, full cut coverage and consistent geometry/state in step 2, sparse motivated user-controllable silent video directions in step 3, selective source-safe time-bound AE plans in step 4. Never claim actual artwork, audio or rendered output was reviewed. Record uncertainty truthfully. For step 5 inspect sound prompts against approved source cuts, materials, no human speech/music, cut-relative timing and safe levels; zero cues is valid. Do not generate any later step.',review_valid)
     from worker.wuxia_generation_gate import policy
     value['guidance_applied']={'policy_sha256':policy_snapshot['sha256'],'scope':'planned_content_only'}
     value['review']=review

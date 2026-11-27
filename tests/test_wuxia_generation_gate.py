@@ -15,6 +15,7 @@ def plan(scene,ref):
  'prior_state':'석상 공격 중','current_state':'돌검 회수','result_state':'회전축 일시 정지','reuse_plan':'공간/단도 상태 재사용','pose_plan':'서진 오른팔-엄지 연속','camera_plan':'고정 접촉 근접',
  'contact_required':True,'contact':{k:'실제 구조 근거' for k in ('target_region','visible_structure','mechanism','consequence','setup_cut')},
  'assets':[{**ref,'asset_id':role,'state':'fixed_v1','role':role,'reviewed':True} for role in ('style','structure')],
+ 'render_focus':{'event':'돌갑주 파괴','reader_takeaway':'핵이 깨져 석상이 무너짐','visible_subject_ids':['guardian01'],'one_instant':True,'cut_count':1},
  'required_asset_states':[],'actor_states':[{'id':'guardian01','position':'서쪽 홈 앞','facing':'서진','action_phase':'공격 회수'}]}
 
 def test_missing_plan_never_returns_image_tool_arguments():
@@ -73,7 +74,7 @@ def test_each_rule_requires_concrete_pre_generation_application(tmp_path,monkeyp
  p=plan(scene,ref);p['rule_applications']['weapon_axis_geometry']['input_action']=''
  assert not g.preflight(scene,p)['ready']
  p=plan(scene,ref);args,_=g.prepare_scene_imagegen_arguments(scene,'test',p)
- assert 'weapon_axis_geometry' in args['prompt'] and 'rule_applications' in args['prompt']
+ assert 'weapon_axis_geometry' in args['prompt'] and '현재 컷 적용 지침' in args['prompt']
 
 
 def test_failed_previous_art_cannot_seed_next_cut(tmp_path,monkeypatch):
@@ -88,3 +89,24 @@ def test_worker_bundle_contains_persistent_rules():
  from scripts.build_script_worker_bundle import files,ROOT
  paths={p.relative_to(ROOT).as_posix() for p in files()}
  assert {'docs/wuxia-generation-rules.json','docs/WUXIA_GENERATION_GATE.md','worker/wuxia_generation_gate.py'} <= paths
+
+
+def test_focus_required_and_offscreen_story_not_sent_to_image_model(tmp_path,monkeypatch):
+ ref=source(tmp_path,monkeypatch);scene={'scene_id':'S1'};p=plan(scene,ref)
+ del p['render_focus']
+ assert not g.preflight(scene,p)['ready']
+ p=plan(scene,ref);p['actor_states'].append({'id':'OFFSCREEN_PERSON','position':'left outside','facing':'statue','action_phase':'warning'})
+ p['next_scene_direction']={'actors':['OFFSCREEN_PERSON']}
+ p['rule_applications']['anatomical_side']['applicability']='not_visible'
+ args,receipt=g.prepare_scene_imagegen_arguments(scene,'석상 하나만',p)
+ assert 'OFFSCREEN_PERSON' not in args['prompt'] and 'next_scene_direction' not in args['prompt']
+ assert receipt['visible_subject_ids']==['guardian01']
+ assert 'anatomical_side ·' not in args['prompt']
+
+
+def test_transparent_background_is_part_of_prepared_tool_arguments(tmp_path,monkeypatch):
+ ref=source(tmp_path,monkeypatch);scene={'scene_id':'S1'};p=plan(scene,ref)
+ p['transparent_background']=True
+ args,receipt=g.prepare_scene_imagegen_arguments(scene,'stone statue only',p)
+ assert args['transparent_background'] is True
+ assert receipt['plan_sha256']==g.digest(p)

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { requireStdUser, normalizeTopicSummary } from '@/lib/stdWeb'
 import { getStdRecommendedTopics } from '@/lib/stdRecommendations'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
+import { isAvailablePendingTopic, mergeAvailableTopics } from '@/lib/stdTopicEligibility'
 
 export const dynamic = 'force-dynamic'
 // Recommendations are backed by a live queue. Never reuse an older
@@ -9,14 +10,7 @@ export const dynamic = 'force-dynamic'
 export const revalidate = 0
 export const fetchCache = 'force-no-store'
 
-const ROUTE_REVISION = 'std-topics-direct-refresh-fallback-3341'
-
-function isUnclaimedPendingTopic(topic: any): boolean {
-    const assignee = String(topic?.assigned_employee_email || '').trim()
-    const assignedAt = topic?.assigned_at
-    const hasAssignedAt = assignedAt !== null && assignedAt !== undefined && String(assignedAt).trim().length > 0
-    return String(topic?.status || '') === 'pending' && !hasAssignedAt && assignee.length === 0
-}
+const ROUTE_REVISION = 'std-topics-owned-pending-3433'
 
 function topicMatchesPreferredCategory(topic: any, preferredCategories: Set<string>): boolean {
     return preferredCategories.size === 0 || preferredCategories.has(String(topic?.category_id || ''))
@@ -71,14 +65,14 @@ function normalizeTopicJsonFields(topic: any): any {
     }
 }
 
-async function filterLiveEligibleTopics(topics: any[]) {
+async function filterLiveEligibleTopics(topics: any[], email: string) {
     const ids = Array.from(new Set((topics || []).map((topic: any) => topic?.id).filter(Boolean)))
     if (!ids.length) return []
     const { data } = await supabaseAdmin
         .from('topics_queue')
         .select('id,status,assigned_at,assigned_employee_email')
         .in('id', ids)
-    const eligibleIds = new Set((data || []).filter(isUnclaimedPendingTopic).map((topic: any) => String(topic.id)))
+    const eligibleIds = new Set((data || []).filter((topic: any) => isAvailablePendingTopic(topic, email)).map((topic: any) => String(topic.id)))
     return topics.filter((topic: any) => eligibleIds.has(String(topic?.id)))
 }
 
@@ -125,18 +119,18 @@ async function attachCategories(topics: any[]) {
     }))
 }
 
-async function loadDirectPreparedTopics(limit: number) {
-    const { data, error } = await supabaseAdmin
+async function loadDirectPreparedTopics(limit: number, email: string, reservedOnly = false) {
+    let query = supabaseAdmin
         .from('topics_queue')
         .select('id,topic,generated_title,topic_en,topic_vi,topic_th,category_id,language,assigned_script_style,assigned_image_style,recommended_duration_minutes,assigned_duration_minutes,total_scenes,image_scenes,video_scenes,estimated_payout,created_at,status,assigned_at,assigned_employee_email')
         .eq('status', 'pending')
         .is('assigned_at', null)
         .not('generated_title', 'is', null)
-        .order('created_at', { ascending: false })
-        .limit(300)
+    if (reservedOnly) query = query.eq('assigned_employee_email', email)
+    const { data, error } = await query.order('created_at', { ascending: false }).limit(reservedOnly ? limit : 300)
     if (error) throw error
 
-    const selected = (data || []).filter(isUnclaimedPendingTopic).slice(0, limit)
+    const selected = (data || []).filter((topic: any) => isAvailablePendingTopic(topic, email)).slice(0, limit)
     const ids = selected.map((topic: any) => topic.id)
     const { data: structures, error: structureError } = ids.length
         ? await supabaseAdmin.from('topics_queue').select('id,pregenerated_structure').in('id', ids)
@@ -168,8 +162,9 @@ export async function GET(req: Request) {
     }
 
     try {
+        const reserved = await loadDirectPreparedTopics(limit, auth.requester.email, true)
         if (refresh) {
-            const directTopics = await loadDirectPreparedTopics(limit)
+            const directTopics = mergeAvailableTopics(reserved, await loadDirectPreparedTopics(limit, auth.requester.email), limit)
             if (directTopics.length > 0) {
                 const debug = searchParams.get('debug') === 'eligibility'
                     ? await inspectEligibilityDebug(directTopics, 20)
@@ -185,9 +180,9 @@ export async function GET(req: Request) {
             refresh,
             filters: routeFilters,
         })
-        let topics = await filterLiveEligibleTopics(result.topics)
+        let topics = mergeAvailableTopics(reserved, await filterLiveEligibleTopics(result.topics, auth.requester.email), limit)
         if (topics.length < 1 && refresh) {
-            topics = await loadDirectPreparedTopics(limit)
+            topics = await loadDirectPreparedTopics(limit, auth.requester.email)
         }
         const debug = searchParams.get('debug') === 'eligibility'
             ? await inspectEligibilityDebug(result.topics, 20)

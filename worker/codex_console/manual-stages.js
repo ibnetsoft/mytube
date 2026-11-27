@@ -24,6 +24,67 @@
   if(root.dataset.job!==data.job.id)root.dataset.active=String(Math.max(0,w.stages.findIndex(s=>s.status!=='approved')));
   root.dataset.job=data.job.id;root.dataset.key=key;root.dataset.dirty='false';root.replaceChildren();
   root.append(element('h3','단계별 수동 진행'),element('p','확정과 다음 단계 시작은 별도입니다. 결과는 저장되며, 자동으로 다음 단계나 이미지·영상 제작을 실행하지 않습니다.','muted'));
+  const artwork=w.artwork_collection;
+  if(artwork){
+   const gallery=element('details'),summary=element('summary',artwork.title+' · 이미지 '+artwork.image_count+'장 / 120컷');gallery.id='artwork-collection';gallery.append(summary);root.append(gallery);
+   gallery.append(element('p','사용자 제공 120컷 번호에 연결된 검토용 이미지입니다. 기존 16씬 대본은 보존합니다. 제작 사용 승인은 별도입니다.','callout'));
+   if(artwork.missing?.length)gallery.append(element('p','이미지 없는 컷: '+artwork.missing.join(' / ')));
+   if(data.job.sync_status==='pending')gallery.append(element('p','이 컴퓨터에 저장됨 · 데이터베이스 동기화 대기','callout'));
+   const grid=element('div');grid.style.cssText='display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px';gallery.append(grid);
+   gallery.ontoggle=()=>{if(!gallery.open||grid.childElementCount)return;for(const cut of artwork.cuts){
+    const card=element('article',undefined,'panel');card.dataset.artworkCut=cut.cut_id;card.append(element('h4',cut.cut_id));
+    if(cut.preview_status==='review_candidate'){
+     const img=element('img');img.alt=cut.cut_id+' 생성 이미지 · 검토용';img.loading='lazy';img.style.cssText='width:100%;height:auto;display:block';img.src='/api/jobs/'+data.job.id+'/artwork/file/'+encodeURIComponent(cut.cut_id)+'?local_token='+encodeURIComponent(token);card.append(img);
+    }else card.append(element('p',cut.preview_status==='unavailable'?'생성 서비스 입력 검토 거절 · 이미지 없음':'인체 구조 재검토 필요 · 이미지 표시 제외'));
+    const direction=cut.ae_direction;
+    if(direction){const ae=element('details');ae.dataset.cutAe=cut.cut_id;ae.append(element('summary',cut.cut_id+' AE 작업지침'),element('p','준비: '+direction.preparation));
+     for(const e of direction.effects){const time=e.anchor==='dialogue_recording'?'확정 대사 A0~A1에 연결':('시작 +'+e.start_seconds+'초 · '+(e.duration_seconds===null?'컷 끝까지 / '+e.duration_expression:e.duration_seconds+'초'));ae.append(element('p',e.target+' — '+time+' · '+e.detail));}
+     if(direction.speech_bubble?.selected)ae.append(element('p','선택 말풍선: '+direction.speech_bubble.text_binding));
+     ae.append(element('p',direction.video_overlap));card.append(ae);
+    }
+    if(cut.outgoing_transition){const t=cut.outgoing_transition;const d=element('details');d.dataset.cutTransition=t.transition_id;d.append(element('summary',t.from_cut_id+' → '+t.to_cut_id+' 전환'),element('p',t.effect_label+' · '+t.duration_seconds+'초'),element('p',t.reason),element('p',t.implementation_note));card.append(d);}
+    if(cut.parallax_direction){const r=cut.parallax_direction;const d=element('details');d.dataset.cutParallax=cut.cut_id;d.append(element('summary',cut.cut_id+' 패럴럭스 · AE 작업은 나중에'),element('p',r.camera),element('p','0.15~0.95초 이동 후 컷 끝까지 정지'),element('p',r.edge_safety));for(const l of r.layers)d.append(element('p',l.depth+' · '+l.subjects+' · 수평 '+l.planned_delta_x_at_1920x1080_px+'px 상한'));card.append(d);}
+    const detail=element('details');detail.append(element('summary','이 컷 원본 프롬프트'),element('p',cut.original_prompt));card.append(detail);grid.append(card);
+   }};
+  }
+  const videoPlan=artwork?.video_plan;
+  if(videoPlan){
+   const section=element('details');section.id='artwork-video-prompts';section.append(element('summary',videoPlan.title+' · '+videoPlan.groups.length+'구간'));root.append(section);
+   section.append(element('p','컷 번호에 연결된 영상 프롬프트 검토본입니다. 영상 제작은 별도로 진행합니다. '+videoPlan.duration_note,'muted'));
+   if(data.job.sync_status==='pending')section.append(element('p','이 컴퓨터에 저장됨 · 데이터베이스 동기화 대기','callout'));
+   for(const group of videoPlan.groups){
+    const card=element('article',undefined,'panel');card.dataset.videoGroup=group.id;section.append(card);card.append(element('h4',group.id+' · '+group.title),element('p','연결 컷: '+group.cut_ids.join(' / ')+' · 편집 '+group.duration_seconds+'초'),element('p',group.purpose),element('p','제작 전 준비: '+group.preparation));
+    const prompt=element('textarea');prompt.readOnly=true;prompt.rows=9;prompt.value=group.video_prompt_ko;prompt.setAttribute('aria-label',group.id+' 영상 프롬프트');card.append(prompt,element('p','고정·보호: '+group.protected),element('p','검토: '+group.review),element('p','효과음: '+group.sfx));
+   }
+  }
+  const aePlan=artwork?.ae_plan;
+  if(aePlan){const section=element('details');section.id='artwork-ae-directions';section.append(element('summary',aePlan.title+' · '+aePlan.directions.length+'컷'));root.append(section);
+   section.append(element('p',aePlan.timing_basis),element('p','영상클립 중복 제외: '+aePlan.excluded_video_cut_ids.join(' / ')),element('p','선택 말풍선: '+(aePlan.speech_bubble_policy?.selected_cut_ids||[]).join(' / ')));
+   if(data.job.sync_status==='pending')section.append(element('p','이 컴퓨터에 저장됨 · 데이터베이스 동기화 대기','callout'));
+   for(const row of aePlan.directions){const card=element('article',undefined,'panel');card.dataset.aeCut=row.cut_id;section.append(card);card.append(element('h4',row.cut_id+' · '+row.title),element('p','유형: '+row.category),element('p','준비: '+row.preparation));
+    for(const e of row.effects){const timing=e.anchor==='dialogue_recording'?'시작: 확정 발화 A0 · 종료: A1 및 컷 경계/읽기 시간에 연결':('시작: 컷 +'+e.start_seconds+'초 · 지속: '+(e.duration_seconds===null?e.duration_expression+' (컷 끝까지)':e.duration_seconds+'초'));card.append(element('p',e.target+' — '+timing),element('p',e.detail));}
+    if(row.speech_bubble?.selected)card.append(element('p','중요 대사 말풍선: '+row.speech_bubble.text_binding+' '+row.speech_bubble.placement));
+    card.append(element('p','고정·보호: '+row.protected_regions.join(' / ')),element('p',row.video_overlap));
+   }
+  }
+  const transitions=artwork?.transition_plan;
+  if(transitions){const section=element('details');section.id='artwork-transitions';section.append(element('summary',transitions.title+' · '+transitions.transitions.length+'개'));root.append(section);
+   section.append(element('p','컷별 전환 지침입니다. 실제 AE 렌더 적용 확인과 별도입니다. 원화 누락/제외 경계는 적용 보류합니다.'));
+   if(data.job.sync_status==='pending')section.append(element('p','이 컴퓨터에 저장됨 · 데이터베이스 동기화 대기','callout'));
+   for(const t of transitions.transitions){const card=element('article',undefined,'panel');card.dataset.transitionId=t.transition_id;section.append(card);card.append(element('h4',t.transition_id+' · '+t.from_cut_id+' → '+t.to_cut_id),element('p',t.from_title+' → '+t.to_title),element('p',t.effect_label+' · '+t.duration_seconds+'초'),element('p','선택 이유: '+t.reason),element('p','적용: '+t.implementation_note));}
+  }
+  if(artwork?.parallax_plan){const p=artwork.parallax_plan,d=element('details');d.id='artwork-parallax';d.append(element('summary',p.title+' · AE 작업은 나중에'));root.append(d);d.append(element('p','48·79번의 원화와 깊이 구성·이동 지침 저장. 실제 레이어 분리·AE 합성·렌더는 나중에 진행합니다.'));
+   if(data.job.sync_status==='pending')d.append(element('p','이 컴퓨터에 저장됨 · 데이터베이스 동기화 대기','callout'));
+   for(const r of p.directions){const card=element('article',undefined,'panel');card.dataset.parallaxCut=r.cut_id;d.append(card);card.append(element('h4',r.cut_id+' · '+r.title),element('p',r.camera),element('p','0.00~0.15초 정지 → 0.15~0.95초 이동 → 컷 끝까지 정지'));for(const l of r.layers)card.append(element('p',l.depth+' · '+l.subjects+' · 수평 '+l.planned_delta_x_at_1920x1080_px+'px 상한'));card.append(element('p',r.edge_safety),element('p',r.existing_ae_coordination),element('p',r.transition_coordination));}
+  }
+  const cast=w.voice_cast;
+  if(cast){const section=element('details');section.id='episode-voice-cast';section.append(element('summary','1화 성우 재사용 · 2화 설정 저장'));root.append(section);
+   section.append(element('p','성우 설정만 저장했습니다. 음성 생성은 실행하지 않습니다.'),element('p','출처: '+(cast.source_mode==='live_database_readback'?'1화 DB 조회본':'보관된 1화 저장본')+' · '+cast.source_updated_at));
+   if(data.job.sync_status==='pending')section.append(element('p','이 컴퓨터에 저장됨 · 데이터베이스 동기화 대기','callout'));
+   for(const [role,v] of Object.entries(cast.applied_cast)){const line=element('p',role+' → '+v.voice_name+' · '+cast.bindings.filter(b=>b.speaker===role).length+'개 발화');line.dataset.castSpeaker=role;section.append(line);}
+   if(cast.unassigned.length)section.append(element('p','새 성우 지정 필요: '+[...new Set(cast.unassigned.map(b=>b.speaker))].join(' / ')));
+  }
+  if(w.topic_registration){const r=w.topic_registration,panel=element('section',undefined,'panel');panel.id='registered-topic';panel.append(element('h4','유저웹 주제 #'+r.topic_id+' 등록 완료'),element('p','120컷 대본·이미지·썸네일·성우 설정·제작 지침 연결. 음성 생성·AE 실행은 나중에 진행합니다.'));if(r.project_id){const a=element('a','유저웹 2화 열기');a.href='https://studio.airing.work/std?tab=script_gen&projectId='+encodeURIComponent(r.project_id);a.target='_blank';a.rel='noopener noreferrer';panel.append(a);}root.prepend(panel);}
   const policyPanel=element('section',undefined,'panel');root.append(policyPanel);
   policyPanel.append(element('h4','실행 지침 · 생성 전 준비와 원화 검수'),element('p','지침 확인은 그림 검수 통과가 아닙니다. 실제 원화·고정 자산·좌우·적의 동작 상태를 확인해야 합니다.','muted'));
   const policyInfo=element('div');policyPanel.append(policyInfo);
@@ -47,7 +108,9 @@
    const rows=draft[['scenes','cuts','selections','directions','cues'][index]];
    rows.forEach((row,n)=>{
     const article=element('article',undefined,'panel');form.append(article);article.append(element('h4',index===0?`씬 ${n+1}`:row.cut_id));
-    if(index===0){field(article,`씬 ${n+1} 제목`,row.title,v=>row.title=v,true);field(article,`씬 ${n+1} 화면 상황 · 낭독 제외`,row.visual_action,v=>row.visual_action=v);row.spoken_blocks.forEach((b,j)=>{if(b.kind==='dialogue')field(article,`씬 ${n+1} 대사 ${j+1} 화자`,b.speaker,v=>b.speaker=v,true);field(article,`씬 ${n+1} ${b.kind==='narration'?'나레이션':'대사'} ${j+1}`,b.text,v=>b.text=v)});if(!row.spoken_blocks.length)article.append(element('p','무음 장면'));
+    if(index===0){field(article,`씬 ${n+1} 제목`,row.title,v=>row.title=v,true);field(article,`씬 ${n+1} 화면 상황 · 낭독 제외`,row.visual_action,v=>row.visual_action=v);row.spoken_blocks.forEach((b,j)=>{if(b.kind==='dialogue')field(article,`씬 ${n+1} 대사 ${j+1} 화자`,b.speaker,v=>b.speaker=v,true);field(article,`씬 ${n+1} ${b.kind==='narration'?'나레이션':'대사'} ${j+1}`,b.text,v=>b.text=v)});if(!row.spoken_blocks.length)article.append(element('p','무음 장면'));['screen_text','sfx'].forEach(key=>field(article,`씬 ${n+1} ${key==='sfx'?'효과음':'화면 글자'} · 낭독 제외`,(row[key]||[]).join('\n'),v=>row[key]=v.split('\n').map(x=>x.trim()).filter(Boolean)));
+     const voices=w.voice_cast?.bindings?.filter(b=>b.scene_id===row.scene_id)||[];
+     if(voices.length)article.append(element('p','저장 성우: '+[...new Set(voices.map(b=>b.speaker+' → '+b.voice_name))].join(' / '),'muted'));
      const entry=w.scene_image_prompts?.[row.scene_id]||{},box=element('section',undefined,'panel');article.append(box);
      box.append(element('h4','이 씬의 이미지 프롬프트'),element('p','1화 공용 참조를 선택하고 이 씬만 생성하세요. 실제 이미지 제작은 실행하지 않습니다.','muted'));
      const status=element('p',entry.status==='stale'?'대본 변경 · 프롬프트 재검토 필요':entry.status==='running'?'이 씬 프롬프트 생성 중':entry.status==='failed'?entry.error:entry.image_prompt?'프롬프트 검토 대기':'프롬프트 추가 가능');box.append(status);

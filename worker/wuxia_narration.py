@@ -22,6 +22,24 @@ causality, cast and the ending across spoken AND visual channels. Never require 
 comprehension or prefer narration over dialogue. Do not claim actual artwork/audio was reviewed
 when only a visual plan is supplied.'''
 
+DIRECTIVE += '''\nConsider sparse popup close-up panels in visual_action for a motivated gaze,
+mouth-corner reaction, or hand on a sword hilt. Keep the base shot and name the
+detail, narrative reason and brief appearance moment. At most one popup per six
+scenes and five per episode, with two intervening scenes and at least 20 seconds
+between popup windows; zero is valid. Use 1.8-3.2 seconds total (default 2.2) and a 0.12-second
+snap entrance followed by a readable still hold. Select a 0.24-second fade or
+a 0.32-second left/down exit toward a nearby edge when motivated; never a slow whole-scene zoom. These are
+planned candidates, not approved coordinates: later inspect actual source art,
+protect all base faces and lettering, and prepare via worker.wuxia_popup using
+docs/wuxia-webtoon-production-defaults.md. Do not put these instructions in speech.
+For every visible hand, visual_action specifies the CHARACTER'S anatomical left
+or right, palm/back visibility, wrist rotation and contacted/gripped object.
+Never attach a right hand to a left arm or vice versa. Actual artwork review must
+trace shoulder, elbow, forearm, wrist and thumb base for each hand independently;
+screen-left/right or finger count alone cannot establish anatomical correctness.
+Record source-SHA-bound anatomy review; repair swapped hands and review again
+without mirroring the whole picture or hiding errors beneath popup panels.'''
+
 
 def applies(payload):
     values = [payload.get(k) for k in ('image_style', 'script_style', 'production_mode',
@@ -182,6 +200,91 @@ Text must be exactly joined spoken_blocks. Do not claim actual artwork or audio 
         validate_draft({'sections': sections}, budgets)
     raise ValueError('Wuxia narration review did not converge after three rounds; checkpoints preserved')
 
+DIRECTIVE += """
+When artwork clearly shows a clenched hand, omit redundant narration such as
+'손을 꾹 쥐었습니다'. Preserve hand anatomy/action in visual_action and optionally
+plan context-appropriate editable action typography (not TTS): a tilted, heavy ink accent,
+restrained outline, brief settle entrance and readable 1.5-2.2s hold in safe space.
+Use the existing cloud-shaped bubble_style:'thought' for solitary inner thoughts,
+separating screen-only thoughts from audible speech; never lip-sync screen-only thought.
+Optional stationary diagonal hatching can emphasize tension without any body or
+camera movement. Blink only the restrained local lines at 180-400ms on/off intervals
+for 0.8-2.4s, avoiding all faces, hands and lettering; not every cut. Prepare source-
+reviewed patches using worker.wuxia_hatch and the production defaults. No invented
+motion or redundant audible action reports just to explain visible artwork.
+"""
+
+DIRECTIVE += """
+Typography examples are NEVER defaults to copy. Inspect the actual depicted event,
+contact versus scraping versus gripping, both materials, intensity and duration
+before selecting an onomatopoeia or mimetic word. '꾸욱' is only an example for
+sustained squeezing/pressing, not a stone blade striking the floor. For a brief
+stone-on-stone contact, '탁!' may fit; sustained scraping may call for '카각',
+a heavy impact for '쿵'. These are examples, not fixed mappings or automatic substitutions.
+Record event, materials and word_reason with the reviewed state ID/SHA and timing
+anchor. Put impact typography at actual contact and sustained mimetics only during
+their matching state. Reject mismatched event/material/timing; omit an uncertain
+accent rather than blindly copy an example or narrate the visible action again.
+"""
+
+DIRECTIVE += """
+Select impact debris only for motivated collisions, never every scene or contact.
+Bind the effect to the actual reviewed source contact point and impact time.
+After contact, fragments originate THERE and travel OUTWARD; never send an external
+light beam inward to represent a blade striking the ground. Distinguish actual
+weapon travel from post-impact fragment emission; invent no weapon motion for a still.
+Choose stone chips/dust, wood splinters, soil dust or justified metal sparks from
+actual materials. Scale count, size, spread and distance to impact strength, with
+varied outward velocities/rotation and natural falling/fading. A single yellow line
+or crossed flare does not replace debris. No arbitrary explosions or magical energy.
+Preview counts/colors are examples, not defaults. Record contact position, source
+ID/SHA, timing anchor, materials, strength rationale, emission directions/range and
+aftermath duration. Review early/middle/late composite frames for outward travel,
+correct occlusion and protected faces/hands/text, respecting supported effect timing.
+"""
+
+DIRECTIVE += """
+PRIORITY: NARRATIVE PROGRESSION, not merely fewer spoken descriptions.
+Use docs/WUXIA_SERIES_PLAN_03_50.md revised 1-50 v2 for its named series; preserve
+finalized episodes and carry their actual ending into new episodes.
+Before drafting, state the episode goal, obstacle, character choice, realized
+consequence and changed end state (episode_turn). Record only applicable new
+information, relationship or martial changes, never force all categories per episode.
+Resolve a consequential event WITHIN the episode, not only a promise in its ending.
+Each sequence must change information, goal, relationship, advantage, location or
+agency, or be necessary setup for a specific consequence. If removal leaves later
+causality AND emotion unchanged, merge or cut it. Avoid injury checks, breathing,
+vigilance and repeated resolves as substitutes for events, even in silent visuals.
+Preserve real injury limits but compress recovery/training through elapsed time;
+never pad time with reopening the same wound or heal instantly. Flashbacks must
+change a present decision/action/result. Supporting characters pursue their own
+goals and affect outcomes, not just explain the protagonist. Reward growth through
+newly successful combat/rescue/leadership actions; failures change the next attempt,
+not reset to the same question. Discovery must open a concrete next action. Maintain
+causal transitions, prop custody and earned abilities; no random encounters, new
+technique names or severe injuries solely to fill a checklist. Duration is a target,
+not a quota to fill with visible-action narration, repeated monologue or still holds.
+"""
+
+DIRECTIVE += """
+For motivated action accents, plan the CAUSE before the impact result:
+visible swing/downstroke/throw or incoming object -> actual contact -> optional
+flash/outward material-appropriate debris/shake -> aftermath. Do not substitute
+an impact effect on an already planted still for the missing motion. Misses and
+non-contact actions do not automatically trigger collision effects. Choose only
+needed accents, never apply the entire effect bundle to every scene or attack.
+Store movement start, contact anchor and effect windows on the same editor clock.
+Use prepared pose states when the arm/body changes; simple extracted-object layer
+motion requires a restored background with no original object left behind. Preserve
+grip, anatomy, prop identity and occlusion. The preview's 0.16s descent is an example,
+not a universal speed. Flash/debris cannot precede contact; outgoing debris begins
+at contact. Optional shake follows impact using the established timing/delay, 10Hz,
+axis, amplitude and protection rules. Inspect pre-motion, pre-contact, contact and
+post-impact frames for duplicates, timing and direction. Camera shake never replaces
+object motion. Keep all action directions in visual_action, not audible narration.
+The approved local preview is not proof of an implemented web/AE production path.
+"""
+
 
 # User correction 2026-11-08: applies to newly generated Wuxia directions only.
 DIRECTIVE += '''\nFULL-SCREEN SHOT RHYTHM: A narrative/voice scene is not a single screen cut.
@@ -235,3 +338,7 @@ rewrite. Review narrator_conductor, narration_rhythm and character_agency explic
 with exact-source evidence as well as continuity, clarity and no padding.
 These are script-stage text/planned-visual checks. Actual artwork comparison and
 final audio audition are separate; do not label them complete from this report.'''
+
+
+from worker.wuxia_script_style import DIRECTIVE as THREE_CHANNEL_DIRECTIVE
+DIRECTIVE += "\n" + THREE_CHANNEL_DIRECTIVE

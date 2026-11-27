@@ -32,7 +32,7 @@ def test_script_only_runs_script_and_its_review():
  r=Runner();p=m.initial('qa',{'mode':'new'},lambda _:None,runner=r)
  assert r.calls==['manual_1_1','manual_1_1_review']
  assert [s['status'] for s in p['manual_workflow']['stages']]==['review','pending','pending','pending','pending']
- assert '화면 상황' in p['script'] and '대사 · 서진' in p['script']
+ assert '화면 설명' in p['script'] and '대사 · 서진' in p['script']
  assert console.digest(p)==m.digest(p)
 
 def test_explicit_steps_edits_invalidation_and_stale_requests(tmp_path,monkeypatch):
@@ -199,3 +199,15 @@ def test_legacy_four_step_job_can_explicitly_start_fifth_without_rewriting_prior
  assert call(j,i,c,5,'approve').status_code==200
  assert j.bundle(i)['candidate']['structure']['sfx_generation_plan']['status']=='approved'
  j.pool.shutdown()
+
+def test_nonspoken_channels_preserved_but_excluded_from_voice():
+ out=copy.deepcopy(SCRIPT)
+ out['scenes'][0].update(sfx=['돌 파열음'],screen_text=['무혼록 각성'])
+ m.validate(0,out)
+ w={'stages':[{'output':out}]+[{} for _ in range(3)]}
+ p=m.package(w,{})
+ assert '[SFX: 돌 파열음]' in p['script']
+ assert p['structure']['scenes'][0]['scene_text']=='같이 나가자.'
+ assert p['structure']['scenes'][0]['screen_text']==['무혼록 각성']
+ out['scenes'][0]['sfx']='돌 파열음'
+ with pytest.raises(ValueError):m.validate(0,out)

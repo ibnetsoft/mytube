@@ -87,6 +87,11 @@ def preflight(scene,plan):
   entry=applications.get(rule['id'],{}) if isinstance(applications,dict) else {}
   if not isinstance(entry,dict) or not all(isinstance(entry.get(k),str) and entry[k].strip() for k in ('observation','input_action','verify_after_generation')):
    errors.append(rule['title']+'：생성 전 관찰·입력 반영·생성 후 확인 계획 필요')
+ focus=plan.get('render_focus',{})
+ if not isinstance(focus,dict) or not str(focus.get('event','')).strip() or not str(focus.get('reader_takeaway','')).strip() or focus.get('one_instant') is not True or focus.get('cut_count')!=1 or not isinstance(focus.get('visible_subject_ids'),list) or not focus['visible_subject_ids'] or any(not isinstance(v,str) or not v.strip() for v in focus['visible_subject_ids']):
+  errors.append('한 컷의 핵심 사건·화면 등장 대상·단일 순간을 먼저 확정하세요.')
+ elif not set(focus['visible_subject_ids']).issubset({a.get('id') for a in plan.get('actor_states',[])}):
+  errors.append('화면 등장 대상과 인물/물체 상태표가 일치해야 합니다.')
  previous=plan.get('previous_art') or {}
  try:
   verified_file(previous);assert_sources_usable([previous])
@@ -118,7 +123,15 @@ def preflight(scene,plan):
 def prepare_scene_imagegen_arguments(scene,prompt,plan):
  result=preflight(scene,plan)
  if not result['ready']:raise ValueError('생성 입력 준비 필요: '+' / '.join(result['issues']))
- return {'prompt':prompt+'\n\n'+instruction()+'\n\n실제 준비 상태표: '+json.dumps(plan,ensure_ascii=False),'referenced_image_paths':result['reference_paths']}, {'contract':policy()['contract'],'policy_sha256':result['policy_sha256'],'plan_sha256':digest(plan),'source_hash':digest(scene),'review_required':True}
+ visible=set(plan['render_focus']['visible_subject_ids'])
+ p=policy()
+ # Full continuity is checked above; only this cut's visible subjects reach the image model.
+ render_context={k:copy.deepcopy(plan[k]) for k in ('render_focus','prior_state','current_state','result_state','reuse_plan','pose_plan','camera_plan','assets') if k in plan}
+ render_context['actor_states']=[a for a in plan['actor_states'] if a['id'] in visible]
+ if plan.get('contact_required'):render_context['contact']=copy.deepcopy(plan['contact'])
+ relevant=[r for r in p['rules'] if plan['rule_applications'][r['id']].get('applicability')!='not_visible']
+ directions='\n'.join(r['id']+' · '+r['title']+' 이번 입력: '+plan['rule_applications'][r['id']]['input_action'] for r in relevant)
+ return {'prompt':prompt+'\n\n현재 컷 적용 지침: '+directions+'\n\n현재 컷에 실제로 보이는 대상/상태만: '+json.dumps(render_context,ensure_ascii=False),'referenced_image_paths':result['reference_paths'],**({'transparent_background':plan['transparent_background']} if type(plan.get('transparent_background')) is bool else {})}, {'contract':p['contract'],'policy_sha256':result['policy_sha256'],'plan_sha256':digest(plan),'render_context_sha256':digest(render_context),'visible_subject_ids':sorted(visible),'source_hash':digest(scene),'review_required':True}
 
 def register(app,jobs,persist):
  from fastapi import HTTPException
