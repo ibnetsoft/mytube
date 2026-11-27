@@ -95,6 +95,9 @@ export async function registerMotionAutomation(project:any,scenes:any[],assets:a
         const scriptAeDirection=authoredMetadata.ae_instruction||manualDirection||null
         const scriptAeTypography=authoredMetadata.ae_typography_instruction||null
         const scriptTransition=authoredMetadata.outgoing_transition||null
+        const manualParallax=project.project_payload?.structure?.manual_parallax_plan
+        const scriptParallax=Array.isArray(manualParallax?.directions)&&cutId
+            ? manualParallax.directions.find((item:any)=>String(item?.cut_id||'')===cutId)||null : null
         const parallaxFallback=planned?.parallax_plan?.enabled && ['image','video'].includes(source.asset_type)
         if(allParallax&&!planned?.parallax_plan?.enabled)throw new Error(`${n}번 씬의 전체 패럴럭스 연출·레이어 계획을 준비하세요.`)
         const authored=motion.scenes[String(n)]
@@ -130,10 +133,11 @@ export async function registerMotionAutomation(project:any,scenes:any[],assets:a
         if((ambientLoops.length||wuxiaTimeline)&&(sourceKind!=='image'||horizontal||effectcraft||filmcraft||postwork))throw new Error(`${n}번 씬의 보조 움직임은 PNG 원화와 기본 AE 제작 방식을 사용해 주세요.`)
         if(wuxiaTimeline&&motion.aspect!=='16:9')throw new Error('무협 원화·말풍선 보조 움직임은 기존 16:9 구도를 유지해 주세요.')
         return {number:n,text:scene.scene_text||'',title:scene.scene_title||'',direction:motion.scenes[String(n)]?.direction||'',
-            ...((scriptAeDirection||scriptAeTypography||scriptTransition)?{script_worker_directions:{
+            ...((scriptAeDirection||scriptAeTypography||scriptTransition||scriptParallax)?{script_worker_directions:{
                 ...(scriptAeDirection?{ae_instruction:scriptAeDirection}:{}),
                 ...(scriptAeTypography?{ae_typography_instruction:scriptAeTypography}:{}),
                 ...(scriptTransition?{outgoing_transition:scriptTransition}:{}),
+                ...(scriptParallax?{parallax_instruction:scriptParallax}:{}),
             }}:{}),
             ...(wuxiaTimeline?{wuxia_timeline:wuxiaTimeline}:{}),
             ...(ambientLoops.length?{ambient_loops:ambientLoops}:{}),
