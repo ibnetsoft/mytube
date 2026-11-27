@@ -29,7 +29,7 @@ function loadLibrary(file) {
 const { createSubtitleSaveQueue } = loadLibrary('stdSubtitlePersistence.ts')
 const { restoreSavedSubtitleSnapshot } = loadLibrary('stdSubtitleSnapshot.ts')
 
-const scanQuotes = extract('const DIALOGUE_QUOTE_OPEN_TO_CLOSE:', 'export default function StdPortalPage', 'scanDialogueQuoteState')
+const scanQuotes = loadLibrary('stdDialogueQuoteState.ts').scanDialogueQuoteState
 const fixture = () => [
     { scene_number: 1, text: '첫 번째 설명입니다.' },
     { scene_number: 1, text: '수동으로 지정한 대사입니다.', dialogue_override: true },

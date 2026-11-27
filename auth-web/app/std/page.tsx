@@ -3051,7 +3051,9 @@ export default function StdPortalPage() {
         const parts = mapDialogueAnnotations(currentSubtitles, project?.project_payload?.structure?.dialogue_annotations)
         const speakers = currentSubtitles.map((row: any, i: number) => row.dialogue_override === false ? null
             : subtitleSpeaker(row, parts.get(i), speakerCharacters, currentLocale, speakerNameTranslations))
-        const updated = assignSpeakerVoice(currentSubtitles, index, voiceId, voiceNameById.get(voiceId) || voiceId, allSpeaker, speakers, {
+        const updated = allSpeaker && isSubtitleNarration(currentSubtitles[index], index)
+            ? currentSubtitles.map((row: any, i: number) => isSubtitleNarration(row, i) ? { ...row, voice_id: voiceId, voice_name: voiceNameById.get(voiceId) || voiceId } : row)
+            : assignSpeakerVoice(currentSubtitles, index, voiceId, voiceNameById.get(voiceId) || voiceId, allSpeaker, speakers, {
             characters: speakerCharacters,
             voiceSources: [{ voice_map: characterVoices, explicit: true }, project?.project_payload || {}, project?.progress_payload || {}],
         })
@@ -3374,7 +3376,7 @@ export default function StdPortalPage() {
         tone: 'default' | 'dialogue' = 'default',
         _openDirection: 'left' | 'right' = 'right',
         disabled = false,
-        options: { description?: string; buttonLabel?: string; countBadge?: number; elevenLabsOnly?: boolean; speakerContext?: { name: string; gender: string; count: number; thai: boolean } } = {}
+        options: { description?: string; buttonLabel?: string; countBadge?: number; elevenLabsOnly?: boolean; speakerContext?: { name: string; gender: string; count: number; thai?: boolean; narration?: boolean } } = {}
     ) => {
         const currentVoiceName = ui(voiceNameById.get(voiceId) || voiceId || voiceCopy.chooseVoice)
         const popupTitle = pickerKey === 'selected-scenes-bulk' ? voiceCopy.selectedScenesTitle(selectedSubtitleSceneNumbers.length)
@@ -10527,7 +10529,7 @@ export default function StdPortalPage() {
                                                                                                 isDialogueBlock ? 'dialogue' : 'default',
                                                                                                 'left',
                                                                                                 false,
-                                                                                                { elevenLabsOnly: true, speakerContext: isDialogueBlock ? { name: speakerDisplayName, gender: speakerInfo?.gender || '', count: speakerInfo ? subtitleSpeakers.filter(s => s?.name === speakerInfo.name).length : 1, thai: currentLocale === 'th' } : undefined }
+                                                                                                { elevenLabsOnly: true, speakerContext: isDialogueBlock ? { name: speakerDisplayName, gender: speakerInfo?.gender || '', count: speakerInfo ? subtitleSpeakers.filter(s => s?.name === speakerInfo.name).length : 1, thai: currentLocale === 'th' } : { name: '', gender: '', count: localSubtitles.filter(isSubtitleNarration).length, narration: true } }
                                                                                             )}
                                                                                             <SubtitleVolumePicker
                                                                                                 volume={item.volume ?? (item.volume_ratio != null ? Math.round(item.volume_ratio * 100) : 100)}

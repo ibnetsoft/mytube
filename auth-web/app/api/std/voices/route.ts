@@ -198,6 +198,7 @@ const ELEVENLABS_PRESET_VOICES = [
 
 import { createClient } from '@supabase/supabase-js'
 import { detectVoiceGender } from '@/lib/voiceGender'
+import { filterHiddenVoices, parseHiddenVoiceIds } from '@/lib/stdHiddenVoiceIds'
 
 const getAdmin = () => createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -297,6 +298,7 @@ export async function GET(req: Request) {
     // Voices list is safe for both authenticated users and initial guest preview
 
     const customVoices = await loadCustomVoices()
+    const hiddenVoiceIds = new Set(parseHiddenVoiceIds(await getGlobalSetting('hidden_elevenlabs_voice_ids').catch(() => '[]')))
     const requestUrl = new URL(req.url)
     const requiredChars = Math.max(0, Number.parseInt(requestUrl.searchParams.get('requiredChars') || '0', 10) || 0)
     const requiredBufferChars = requiredChars > 0 ? Math.ceil(requiredChars * 1.03) : 0
@@ -372,7 +374,7 @@ export async function GET(req: Request) {
         })
     }
 
-    const mergedVoices = Array.from(combinedMap.values())
+    const mergedVoices = filterHiddenVoices(Array.from(combinedMap.values()), hiddenVoiceIds)
         .filter(voice => !isGenericElevenLabsVoiceName(voice?.name))
 
     return NextResponse.json({

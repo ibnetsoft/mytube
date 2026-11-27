@@ -4,6 +4,7 @@ import { isAuthResponse, requireSuperAdmin } from '../_auth'
 import { deleteServerCache, getServerCache, setServerCache } from '@/lib/server-cache'
 import { getConfiguredElevenLabsKeys } from '@/lib/elevenLabsKeys'
 import { detectVoiceGender } from '@/lib/voiceGender'
+import { parseHiddenVoiceIds } from '@/lib/stdHiddenVoiceIds'
 
 export const dynamic = 'force-dynamic'
 const VOICES_CACHE_KEY = 'admin:voices'
@@ -76,6 +77,16 @@ const saveVoices = async (voices: CustomVoice[]) => {
         { onConflict: 'key' }
     )
     if (error) throw error
+}
+
+async function updateHiddenVoices(ids: string[], hide: boolean) {
+    const sb = getAdmin()
+    const result = await sb.from('global_settings').select('value').eq('key', 'hidden_elevenlabs_voice_ids').maybeSingle()
+    if (result.error) throw result.error
+    const hidden = new Set(parseHiddenVoiceIds(result.data?.value))
+    for (const id of ids) hide ? hidden.add(id) : hidden.delete(id)
+    const saved = await sb.from('global_settings').upsert({ key: 'hidden_elevenlabs_voice_ids', value: JSON.stringify([...hidden]) }, { onConflict: 'key' })
+    if (saved.error) throw saved.error
 }
 
 const isGenericVoiceName = (value: string) => /^ElevenLabs Voice \d+$/i.test(String(value || '').trim())
@@ -207,6 +218,7 @@ export async function POST(req: Request) {
             }
         }
         await saveVoices(voices)
+        await updateHiddenVoices(requestedVoices.map(voice => voice.voice_id), false)
         await deleteServerCache(VOICES_CACHE_KEY)
         return NextResponse.json({
             success: true,
@@ -232,6 +244,7 @@ export async function DELETE(req: Request) {
 
         const voices = (await loadVoices()).filter(voice => voice.voice_id !== voiceId)
         await saveVoices(voices)
+        await updateHiddenVoices([voiceId], true)
         await deleteServerCache(VOICES_CACHE_KEY)
         return NextResponse.json({ success: true, voices })
     } catch (e: any) {

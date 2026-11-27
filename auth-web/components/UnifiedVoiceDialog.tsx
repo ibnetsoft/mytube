@@ -23,7 +23,7 @@ const sampleTimeLabel = (seconds: number) => {
 export type PickerVoice = { id: string; name?: string; gender?: string; description?: string; description_i18n?: Partial<Record<SupportedLocale, string>>; preview_url?: string; category?: string }
 export default function UnifiedVoiceDialog({ value, direction = '', voices, initialTab, title, description, headers, onApply, onClose, editDirection = false, speakerContext, historyUserId, locale = 'ko' }: {
     locale?: SupportedLocale;
-    speakerContext?: { name: string; gender: string; count: number; thai?: boolean };
+    speakerContext?: { name: string; gender: string; count: number; thai?: boolean; narration?: boolean };
     value: string; direction?: string; voices: PickerVoice[]; initialTab: 'google' | 'elevenlabs'; title: string;
     historyUserId?: string; description?: string; editDirection?: boolean; headers: Record<string, string>; onApply: (id: string, direction: string, allSpeaker?: boolean) => void | Promise<void>; onClose: () => void;
 }) {
@@ -42,7 +42,7 @@ export default function UnifiedVoiceDialog({ value, direction = '', voices, init
         const next = [id, ...readHistory().filter(previous => previous !== id)].slice(0, 200)
         try { localStorage.setItem(historyKey, JSON.stringify(next)) } catch { /* Storage may be disabled. Voice application still succeeds. */ }
     }
-    const [allSpeaker, setAllSpeaker] = useState(Boolean(speakerContext?.name && speakerContext.count > 1))
+    const [allSpeaker, setAllSpeaker] = useState(Boolean(!speakerContext?.narration && speakerContext?.name && speakerContext.count > 1))
     const [allowMismatch, setAllowMismatch] = useState(false)
     const [tab, setTab] = useState(initialTab)
     const [draft, setDraft] = useState(value), [tone, setTone] = useState(direction)
@@ -121,7 +121,8 @@ export default function UnifiedVoiceDialog({ value, direction = '', voices, init
         <div ref={panel} lang={locale} role="dialog" aria-modal="true" aria-label={title} onClick={e => e.stopPropagation()} className="flex max-h-[85dvh] w-full max-w-3xl flex-col gap-3 rounded-xl border border-white/20 bg-[#1c2027] p-5 text-gray-100 shadow-2xl [color-scheme:dark]">
             <div className="flex items-start justify-between gap-3"><div><h2 className="text-sm font-bold">{title}</h2><p className="mt-1 text-xs text-gray-400">{copy.currentVoice}: {stdUiText(locale, catalog.find(v => v.id === value)?.name || value)}</p></div><button type="button" disabled={saving} onClick={onClose} className="rounded border border-white/10 px-3 py-1 text-xs">{copy.close}</button></div>
             {description && <p className="text-xs text-gray-400">{description}</p>}
-            {speakerContext && <div className="space-y-2 rounded-lg border border-cyan-400/25 bg-cyan-500/5 p-3 text-xs">
+            {speakerContext?.narration && speakerContext.count > 1 && <label className="flex items-center gap-2 rounded-lg border border-cyan-400/25 bg-cyan-500/5 p-3 text-xs"><input type="checkbox" checked={allSpeaker} onChange={e => setAllSpeaker(e.target.checked)}/>{{ ko: `모든 내레이션 ${speakerContext.count}개에 적용`, en: `Apply to all ${speakerContext.count} narration segments`, th: `ใช้กับคำบรรยายทั้งหมด ${speakerContext.count} ช่วง`, vi: `Áp dụng cho tất cả ${speakerContext.count} đoạn thuyết minh` }[locale]}</label>}
+            {speakerContext && !speakerContext.narration && <div className="space-y-2 rounded-lg border border-cyan-400/25 bg-cyan-500/5 p-3 text-xs">
                 <p className="font-bold">{copy.speaker}: {speakerContext.name || copy.speakerRequired} · {speakerGender ? copy[speakerGender] : copy.genderUnknown}</p>
                 <p className="text-gray-400">{copy.speakerNote}</p>
                 {speakerContext.name && speakerContext.count > 1 && <label className="flex items-center gap-2"><input type="checkbox" checked={allSpeaker} onChange={e => setAllSpeaker(e.target.checked)}/>{copy.applyAll(speakerContext.count)}</label>}

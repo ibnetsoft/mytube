@@ -61,6 +61,16 @@ function harness(initialTab, historyUserId, speakerContext, locale = 'ko', extra
 
 (async () => {
     const ko = voiceDialogCopy('ko');
+    const narration = harness('elevenlabs', undefined, { name: '', gender: '', count: 21, narration: true });
+    let narrationTree = narration.render();
+    const bulk = narrationTree.find(n => n.type === 'label' && text(n).includes('모든 내레이션 21개에 적용'));
+    assert(bulk, 'Narration picker offers a clearly scoped bulk option');
+    const checkbox = nodes(bulk).find(n => n.type === 'input' && n.props.type === 'checkbox');
+    assert.equal(checkbox.props.checked, false, 'Bulk narration starts unchecked');
+    checkbox.props.onChange({ target: { checked: true } }); narrationTree = narration.render();
+    button(narrationTree, ko.select).props.onClick(); narrationTree = narration.render();
+    await button(narrationTree, ko.confirm).props.onClick();
+    assert.equal(narration.applied[0][2], true);
     // Speaker labels are presentation only: localize without changing saved identity.
     const cachedThai = Object.freeze({ name: '町奉行', label: '町奉行 (เจ้าเมือง)' });
     assert.equal(voiceDialogSpeakerName(cachedThai, 'th'), 'เจ้าเมือง');

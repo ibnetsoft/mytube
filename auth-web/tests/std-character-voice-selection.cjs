@@ -95,3 +95,16 @@ test('the real row voice handler persists attribution and opens speaker editor o
         assert.equal(editor, ambiguous ? 0 : undefined)
     }
 })
+
+test('the row voice handler applies narration to narration only and marks changed audio stale', async () => {
+    const rows = [row('first', 'old'), row('dialogue', 'character', 'hero'), row('second', 'old')]
+    let saved; const stale = []
+    const context = { speechSubtitlesRef: { current: rows }, isPlayingPreview: false, selectedProject: { project: { project_payload: {} } },
+        mapDialogueAnnotations, subtitleSpeaker, assignSpeakerVoice, speakerCharacters: [], currentLocale: 'ko', speakerNameTranslations: {}, characterVoices: {},
+        voiceNameById: new Map([['theo', '테오']]), isSubtitleNarration: (_row, i) => i !== 1,
+        markVrewSegmentStale: (_row, i) => stale.push(i), persistVrewVoiceSubtitles: async value => { saved = value }, setSpeakerEditorIndex: () => {} }
+    const handler = extract('    const applySubtitleSpeakerVoice =', '    const saveSubtitleSpeaker =', 'applySubtitleSpeakerVoice', context)
+    await handler(0, 'theo', true)
+    assert.deepEqual(saved.map(x => x.voice_id), ['theo', 'character', 'theo'])
+    assert.deepEqual(stale, [0, 2])
+})
