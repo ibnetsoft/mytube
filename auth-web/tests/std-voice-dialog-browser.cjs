@@ -22,19 +22,20 @@ const voices = [
 ];
 const rows = [
     { id: 'dialogue-1', text: '「こんにちは。」', start_time: 0, end_time: 4, dialogue_override: true, voice_id: voices[0].id },
-    { id: 'dialogue-2', text: '「ありがとうございます。」', start_time: 4, end_time: 8, dialogue_override: true, voice_id: voices[0].id },
+    { id: 'dialogue-2', text: '「ありがとうございます。」', start_time: 4, end_time: 8, dialogue_override: true, voice_id: voices[1].id },
     { id: 'narration-1', text: '静かな朝でした。', start_time: 8, end_time: 12, dialogue_override: false, voice_id: 'gemini:Charon' },
-].map(row => ({ ...row, scene_number: 1, start_num: row.start_time, end_num: row.end_time, translation_manual: true,
+    { id: 'narration-2', text: '次の日になりました。', scene_number: 2, start_time: 12, end_time: 16, dialogue_override: false, voice_id: 'gemini:Charon' },
+].map(row => ({ ...row, scene_number: row.scene_number || 1, start_num: row.start_time, end_num: row.end_time, translation_manual: true,
     ...(row.dialogue_override ? { dialogue_speaker: 'สมชาย', editor_speaker: { name: 'สมชาย', gender: 'male', text: row.text } } : {}) }));
 const project = { id: projectId, title: 'Voice localization fixture', status: 'in_progress', language: 'ja', project_payload: { subtitles: rows }, progress_payload: {} };
-const scenes = [{ scene_number: 1, image_url: '/voice-fixture/scene.svg', scene_text: rows.map(row => row.text).join(' '), start_seconds: 0, end_seconds: 12, duration_seconds: 12 }];
+const scenes = [{ scene_number: 1, image_url: '/voice-fixture/scene.svg', scene_text: rows.slice(0, 3).map(row => row.text).join(' '), start_seconds: 0, end_seconds: 12, duration_seconds: 12 }, { scene_number: 2, image_url: '/voice-fixture/scene.svg', scene_text: rows[3].text, start_seconds: 12, end_seconds: 16, duration_seconds: 4 }];
 
 (async () => {
     const browser = await chromium.launch({ headless: true, channel: process.env.STD_VOICE_BROWSER_CHANNEL || undefined });
     const page = await browser.newPage({ viewport: { width: 1500, height: 1000 } });
-    const pageErrors = [], externalRequests = [];
+    const pageErrors = [], externalRequests = [], saves = [];
     let sampleRequests = 0;
-    page.on('pageerror', error => pageErrors.push(error.message));
+    page.on('pageerror', error => pageErrors.push(error.stack || error.message));
     try {
         await page.addInitScript(() => {
             localStorage.setItem('std_session_token', 'fixture');
@@ -49,8 +50,11 @@ const scenes = [{ scene_number: 1, image_url: '/voice-fixture/scene.svg', scene_
                 let body = { success: true };
                 if (url.pathname.endsWith('/me')) body = { user: { id: 'voice-fixture', email: 'fixture@example.invalid', full_name: 'fixture' } };
                 if (url.pathname.endsWith('/projects')) body = { projects: [project] };
-                if (url.pathname === `/api/std/projects/${projectId}`) body = { project, scenes, assets: [] };
-                if (url.pathname.endsWith('/speaker-coordinates')) body = { state: 'complete', count: 0, results: [] };
+                if (url.pathname === `/api/std/projects/${projectId}`) {
+                    if (route.request().method() === 'PATCH') { const patch = route.request().postDataJSON(); saves.push(patch); Object.assign(project.project_payload, patch.project_payload || {}); }
+                    body = { success: true, project, scenes, assets: [] };
+                }
+                if (url.pathname.endsWith('/speaker-coordinates')) body = { state: 'complete', count: 0, results: [], scenes: [] };
                 if (url.pathname.endsWith('/topics')) body = { topics: [] };
                 if (url.pathname.endsWith('/voices')) body = { voices };
                 if (url.pathname.endsWith('/voice-studio/sample')) { sampleRequests++; return route.fulfill({ status: 503, json: { error: 'English backend failure must not leak' } }); }
@@ -59,7 +63,7 @@ const scenes = [{ scene_number: 1, image_url: '/voice-fixture/scene.svg', scene_
             return route.continue();
         });
         await page.goto(`${baseURL}/std?tab=subtitle_vrew&projectId=${projectId}`, { waitUntil: 'domcontentloaded' });
-        const row = page.locator('[title="클릭하여 선택 · Shift+클릭으로 연속된 자막 선택"]').filter({ hasText: rows[0].text });
+        const row = page.locator('[title]').filter({ hasText: rows[0].text }).filter({ has: page.locator('button[title*="George"]') });
         await row.waitFor({ state: 'visible', timeout: 30000 });
         const languageLabels = { ko: '한국어', en: 'English', vi: 'Tiếng Việt', th: 'ภาษาไทย' };
         const getDialog = () => page.getByRole('dialog');
@@ -73,7 +77,7 @@ const scenes = [{ scene_number: 1, image_url: '/voice-fixture/scene.svg', scene_
         for (const locale of ['ko', 'en', 'vi', 'th']) {
             const copy = voiceDialogCopy(locale);
             await page.getByRole('button', { name: languageLabels[locale], exact: true }).click();
-            await row.locator('button[title^="ElevenLabs"]').click();
+            await row.locator('button[title*="George"]').click({ timeout: 5000 });
             const dialog = getDialog(); await dialog.waitFor();
             assert.equal(await dialog.getAttribute('aria-label'), copy.dialogueTitle);
             assert.equal(await dialog.getByRole('tab', { name: copy.elevenlabs, exact: true }).getAttribute('aria-selected'), 'true');
@@ -135,7 +139,25 @@ const scenes = [{ scene_number: 1, image_url: '/voice-fixture/scene.svg', scene_
         await assertNoForeignThaiCopy(dialog);
         await dialog.getByRole('button', { name: th.close, exact: true }).click();
         console.log('PASS: Thai narration picker, direction field, sample notice and explicit sample failure');
+        await page.getByRole('button', { name: languageLabels.ko, exact: true }).click();
+        await page.getByRole('button', { name: '씬 1 Google 내레이션 성우 선택', exact: true }).click();
+        dialog = getDialog(); await dialog.waitFor();
+        const ko = voiceDialogCopy('ko');
+        await dialog.getByRole('tab', { name: ko.elevenlabs, exact: true }).click();
+        await dialog.getByText(voices[0].name, { exact: true }).waitFor();
+        await dialog.getByRole('button', { name: ko.select, exact: true }).first().click();
+        await dialog.getByRole('button', { name: '전체 내레이션에 적용 (2)', exact: true }).click();
+        await dialog.waitFor({ state: 'hidden' });
+        assert(saves.length, 'Bulk apply persists subtitle changes');
+        const savedRows = saves.at(-1).project_payload.subtitles;
+        assert.equal(savedRows.find(r => r.id === 'narration-1').voice_id, voices[0].id);
+        assert.equal(savedRows.find(r => r.id === 'narration-2').voice_id, voices[0].id);
+        assert.equal(savedRows.find(r => r.id === 'dialogue-2').voice_id, voices[1].id);
+        console.log('PASS: actual scene narration picker bulk button saves both scenes');
         assert.deepEqual(pageErrors, [], 'No uncaught browser errors');
         assert.deepEqual(externalRequests, [], 'Fixture never calls a real external service');
+    } catch (error) {
+        console.error('Fixture page errors:', pageErrors, 'body:', (await page.locator('body').innerText()).slice(0, 1500));
+        throw error;
     } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

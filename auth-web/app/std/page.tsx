@@ -10440,8 +10440,9 @@ export default function StdPortalPage() {
                                                                             description={voiceCopy.sceneScope}
                                                                             value={groupNarrationVoiceId}
                                                                             direction={groupNarrationSubtitle?.voice_direction || ''}
+                                                                            narrationCount={localSubtitles.filter(isSubtitleNarration).length}
                                                                             headers={authedJsonHeaders}
-                                                                            onChange={(id, direction) => void setSubtitleGroupVoice(group, id, direction)}
+                                                                            onChange={(id, direction, allNarration) => setSubtitleGroupVoice(group, id, direction, allNarration)}
                                                                         />
                                                                     </div>
                                                                 )}
