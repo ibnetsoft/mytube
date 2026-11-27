@@ -8,6 +8,18 @@ def claim_acknowledgement(snapshot, metadata, token):
         raise ValueError('State footage needs explicit worker acknowledgement')
     if any(t.get('contract') not in SUPPORTED for t in timelines):
         raise ValueError('Unsupported frozen wuxia native timeline')
+    if required == 'wuxia_source_anatomy/v1':
+        if timelines:
+            raise ValueError('Mixed anatomy and native timeline contracts are unsupported')
+        images = [s for s in snapshot.get('scenes', []) if s.get('source_kind') == 'image']
+        for scene in images:
+            metadata = (scene.get('source') or {}).get('metadata') or {}
+            check = metadata.get('wuxia_anatomy_check') or {}
+            if check.get('contract') != required or not metadata.get('sha256') or check.get('source_sha256') != metadata.get('sha256'):
+                raise ValueError('Image lacks a source-bound anatomy check')
+        if not images:
+            raise ValueError('Anatomy contract lacks source images')
+        return {'worker_contract_ack': {'contract': required, 'lease_token': token}}
     if required:
         if required not in SUPPORTED or not timelines:
             raise ValueError('Unsupported required wuxia worker contract')

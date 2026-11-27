@@ -54,8 +54,10 @@ test('wuxia submission never substitutes an unreviewed still when state directio
  const f=fixture(),sha='a'.repeat(64)
  f.project.project_payload.structure={image_style:'wuxia_webtoon',scenes:[{scene_number:1,cut_id:'C001',image_use_status:'review_candidate',source_image_sha256:sha,gcs_bucket:'bucket',gcs_path:'source.png'}]}
  f.image.metadata.gcs_bucket='bucket'
- await assert.rejects(()=>f.run(),/해부학 검수/)
- assert.equal(f.calls.rpc.length,0)
+ await f.run()
+ const automation=f.calls.rpc[0].args.p_manifest.automation
+ assert.equal(automation.required_worker_contract,'wuxia_source_anatomy/v1')
+ assert.equal(JSON.parse(automation.snapshot_json).scenes[0].source.metadata.wuxia_anatomy_check.source_sha256,sha)
 })
 test('horizontal webtoon freezes the inspected plan and uses a queue older workers cannot claim',async()=>{
  const f=fixture();f.project.project_payload.render_settings.motion.edit_mode='horizontal_webtoon'

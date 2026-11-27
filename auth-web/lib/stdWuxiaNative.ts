@@ -19,18 +19,15 @@ export function freezeWuxiaScene(project:any,number:number,rows:any[],start:numb
  if(!isWuxiaMovingtoon(project))return null
  const payload=project.project_payload||project,structure=payload.structure||{}
  const rawPackage=structure.wuxia_ae_package||payload.wuxia_ae_package
- // A wuxia image style alone does not mean the optional state-art timeline exists.
- // For a still image, however, the actual source must have passed its SHA-bound
- // anatomy review before it can be frozen for rendering.
+ // Submission records the exact source and defers anatomy inspection to the worker.
  if(!rawPackage){
   if(source?.asset_type==='image'){
    const scene=(structure.scenes||[]).find((s:any)=>Number(s.scene_number??s.scene_order)===number)
-   const review=scene?.anatomy_review,sha=String(scene?.source_image_sha256||'').toLowerCase(),m=source.metadata||{}
-   const excluded=(structure.excluded_image_cut_ids||[]).includes(scene?.cut_id)
-   if(!scene||excluded||scene.image_use_status!=='approved'||review?.contract!=='wuxia_anatomy_review/v1'||review?.verdict!=='pass'||String(review?.source_sha256||'').toLowerCase()!==sha||(review?.cut_id&&review.cut_id!==scene.cut_id)||!/^[a-f0-9]{64}$/.test(sha)||!scene.gcs_path||!scene.gcs_bucket||scene.gcs_path!==(m.gcs_path||m.storage_path)||scene.gcs_bucket!==(m.gcs_bucket||m.storage_bucket)||(m.sha256&&String(m.sha256).toLowerCase()!==sha))
-    throw Error(`${number}번 씬 원본 이미지의 해부학 검수 결과를 확인해 주세요.`)
-   // The worker checks these exact bytes again before rendering.
-   source.metadata={...m,sha256:sha}
+   const sha=String(scene?.source_image_sha256||'').toLowerCase(),m=source.metadata||{}
+   if(!scene||!/^[a-f0-9]{64}$/.test(sha)||!scene.gcs_path||!scene.gcs_bucket||scene.gcs_path!==(m.gcs_path||m.storage_path)||scene.gcs_bucket!==(m.gcs_bucket||m.storage_bucket)||(m.sha256&&String(m.sha256).toLowerCase()!==sha))
+    throw Error(`${number}번 씬 원본 이미지의 저장 위치와 무결성을 확인해 주세요.`)
+   const excluded=(structure.excluded_image_cut_ids||[]).includes(scene.cut_id)||['excluded','failed','uncertain'].includes(scene.image_use_status)||(scene.anatomy_review?.source_sha256===sha&&['fail','failed','uncertain','repair_required'].includes(scene.anatomy_review?.verdict||scene.anatomy_review?.decision))
+   source.metadata={...m,sha256:sha,wuxia_anatomy_check:{contract:'wuxia_source_anatomy/v1',source_sha256:sha,cut_id:scene.cut_id||String(number),excluded}}
   }
   return null
  }

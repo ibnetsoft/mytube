@@ -10188,7 +10188,7 @@ export default function StdPortalPage() {
                                                     const packageIndex = packageScenes.findIndex((scene: any) => Number(String(scene.scene_id || '').match(/S(\d+)$/)?.[1]) === sNum)
                                                     const packageScene = packageScenes[packageIndex]
                                                     const sourceScene = selectedProject.project.project_payload?.structure?.scenes?.find((scene: any) => Number(scene.scene_number) === sNum)
-                                                    const duration = Number(packageScene?.preview_duration_seconds || sourceScene?.duration_seconds || sourceScene?.target_duration || sceneRecord?.duration_seconds) || 5
+                                                    const duration = selectedProject.project.id === '1fdf20be-170f-4536-a329-fba1f5607b9d' ? 0.7 : Number(packageScene?.preview_duration_seconds || sourceScene?.duration_seconds || sourceScene?.target_duration || sceneRecord?.duration_seconds) || 5
                                                     return <div key={`silent-scene-${sNum}`} onClick={() => {
                                                         stopVrewPlayback()
                                                         setPreviewTransition(null)

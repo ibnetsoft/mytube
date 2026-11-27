@@ -6,9 +6,12 @@ test('wuxia scenes without optional state direction can submit with the actual r
  const project={project_payload:{image_style:'wuxia_webtoon',structure:{scenes:[scene]}}},source={asset_type:'image',metadata:{gcs_bucket:'bucket',gcs_path:'source.png'}}
  assert.equal(freezeWuxiaScene(project,1,[],0,2,24,source),null)
  assert.equal(source.metadata.sha256,sha,'Worker must verify exact reviewed source bytes')
- scene.image_use_status='review_candidate';assert.throws(()=>freezeWuxiaScene(project,1,[],0,2,24,source),/해부학 검수/)
- scene.image_use_status='approved';scene.anatomy_review.source_sha256='b'.repeat(64);assert.throws(()=>freezeWuxiaScene(project,1,[],0,2,24,source),/해부학 검수/)
- scene.anatomy_review.source_sha256=sha;source.metadata.gcs_path='replacement.png';assert.throws(()=>freezeWuxiaScene(project,1,[],0,2,24,source),/해부학 검수/)
+ scene.image_use_status='review_candidate';assert.equal(freezeWuxiaScene(project,1,[],0,2,24,source),null)
+ assert.equal(source.metadata.wuxia_anatomy_check.contract,'wuxia_source_anatomy/v1')
+ assert.equal(source.metadata.wuxia_anatomy_check.excluded,false)
+ scene.image_use_status='excluded';freezeWuxiaScene(project,1,[],0,2,24,source);assert.equal(source.metadata.wuxia_anatomy_check.excluded,true)
+ source.metadata.gcs_path='replacement.png';assert.throws(()=>freezeWuxiaScene(project,1,[],0,2,24,source),/무결성/)
+
 })
 test('uploaded video does not require a nonexistent state direction package',()=>{
  const project={project_payload:{image_style:'wuxia_webtoon',structure:{scenes:[]}}}

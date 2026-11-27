@@ -21,3 +21,12 @@ def test_sword_aura_requires_reviewable_source_bound_patches():
  assert claim_acknowledgement(snapshot,{'input':{'required_worker_contract':'wuxia_sword_aura/v1'}},'lease')['worker_contract_ack']['contract']=='wuxia_sword_aura/v1'
  snapshot['scenes'][0]['wuxia_timeline']['states']=[]
  with pytest.raises(ValueError,match='no matching'):claim_acknowledgement(snapshot,{'input':{'required_worker_contract':'wuxia_sword_aura/v1'}},'lease')
+
+def test_source_anatomy_requires_exact_binding_for_every_image():
+ sha='a'*64
+ marker={'contract':'wuxia_source_anatomy/v1','source_sha256':sha}
+ snapshot={'scenes':[{'source_kind':'image','source':{'metadata':{'sha256':sha,'wuxia_anatomy_check':marker}}}]}
+ metadata={'input':{'required_worker_contract':'wuxia_source_anatomy/v1'}}
+ assert claim_acknowledgement(snapshot,metadata,'lease')['worker_contract_ack']['contract']=='wuxia_source_anatomy/v1'
+ snapshot['scenes'].append({'source_kind':'image','source':{'metadata':{'sha256':sha}}})
+ with pytest.raises(ValueError,match='source-bound'):claim_acknowledgement(snapshot,metadata,'lease')

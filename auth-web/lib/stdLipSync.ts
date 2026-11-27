@@ -1,6 +1,12 @@
 import { selectNarrationAsset, assertNarrationIdentity } from './stdContentIdentity'
 import { createHash } from 'crypto'
 
+// Explicitly requested visual timing for Pacheon episode 2; recorded speech stays unchanged.
+const PACHEON_EP2 = '1fdf20be-170f-4536-a329-fba1f5607b9d'
+function pacheonVisualOverlap(project: any) {
+    return project.id === PACHEON_EP2 && !lipSyncEnabled(project)
+}
+
 export function lipSyncEnabled(project: any) {
     return project.project_payload?.lipsync?.enabled === true
 }
@@ -36,7 +42,7 @@ export function lipSyncPlan(project: any, scenes: any[], assets: any[]) {
             ? [{ text: s.text, speaker: s.dialogue_speaker || s.voice_id, voice_id: timeline[i].voice_id, start: timeline[i].start, end: timeline[i].end }] : [])
         const image = assets.find(a => a.asset_type === 'image' && Number(a.scene_number) === Number(scene.scene_number) && ['uploaded', 'assigned'].includes(a.status))
         const start = starts[index]!, end = starts[index + 1] ?? total
-        if (shots.some((s: any) => s.start < start - .001 || s.end > end + .001)) throw new Error(`${scene.scene_number}번 씬의 대사가 씬 구간을 벗어납니다.`)
+        if (!pacheonVisualOverlap(project) && shots.some((s: any) => s.start < start - .001 || s.end > end + .001)) throw new Error(`${scene.scene_number}번 씬의 대사가 씬 구간을 벗어납니다.`)
         const identity = { scene_number: Number(scene.scene_number), start, end, shots, audio_id: audio.id, audio: audio.metadata, image_id: image?.id, image: image?.metadata }
         const fingerprint = createHash('sha256').update(JSON.stringify(identity)).digest('hex')
         return { ...identity, fingerprint, audio, image }
@@ -79,6 +85,32 @@ export function lipSyncSceneStarts(project: any, scenes: any[], audio: any): num
         const gapStart = Math.min(end, speechEnd)
         for (let j = i; j < right; j++) starts[j] = gapStart + (end - gapStart) * (j - i) / (right - i)
         i = right - 1
+    }
+    if (project.id === PACHEON_EP2 && !lipSyncEnabled(project)) {
+        // User-requested 0.7-second visual-only cuts; keep the recording unchanged.
+        const silent = scenes.map((scene: any) => !subtitles.some((s: any) => s.scene_number === Number(scene.scene_number)))
+        const minimum = 1 / 24
+        for (let i = 0; i < scenes.length;) {
+            if (!silent[i]) { i++; continue }
+            let right = i
+            while (right < scenes.length && silent[right]) right++
+            const count = right - i, duration = count * .7
+            const leftStart = i ? starts[i-1]! : 0
+            const originalStart = i ? starts[i]! : 0
+            const originalEnd = right < scenes.length ? starts[right]! : total
+            const nextEnd = right + 1 < scenes.length ? starts[right+1]! : total
+            const availableLeft = i ? Math.max(0, originalStart - leftStart - minimum) : 0
+            const availableRight = right < scenes.length ? Math.max(0, nextEnd - originalEnd - minimum) : 0
+            const deficit = Math.max(0, duration - (originalEnd - originalStart))
+            let left = Math.min(availableLeft, deficit / 2), rightBorrow = Math.min(availableRight, deficit - left)
+            left += Math.min(availableLeft - left, deficit - left - rightBorrow)
+            rightBorrow += Math.min(availableRight - rightBorrow, deficit - left - rightBorrow)
+            if (left + rightBorrow + 1e-7 < deficit) throw new Error(`${Number(scenes[i].scene_number)}번부터 무음 씬의 0.7초 화면 시간을 확보할 수 없습니다.`)
+            const begin = originalStart - left
+            for (let j = 0; j < count; j++) starts[i+j] = begin + j * .7
+            if (right < scenes.length) starts[right] = begin + duration
+            i = right
+        }
     }
     return starts as number[]
 }

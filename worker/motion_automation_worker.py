@@ -803,6 +803,23 @@ def process_one(engine='ae', job_id=None):
         voice=download(snapshot['audio'],'final-voice');sources={};previews={};references={};filmcraft_ai_sources={}
         for scene in snapshot['scenes']:
             fresh();number=scene['number'];sources[number]=download(scene['source'],f'source-{number}')
+            anatomy=(scene['source'].get('metadata') or {}).get('wuxia_anatomy_check')
+            if anatomy:
+                if anatomy.get('excluded'):raise NeedsReview(f'{number}번 씬 원본은 사용 제외되어 교체가 필요합니다.')
+                from worker.wuxia_art_quality import review_state, ROOT as anatomy_root
+                from motion_attachment_staging import MotionAttachmentRunner
+                import shutil
+                if digest(sources[number]) != anatomy['source_sha256']:raise NeedsReview('Source checksum differs from submitted asset')
+                anatomy_runner=MotionAttachmentRunner(CodexStagedContentRunner(),anatomy_root,directory)
+                state={'asset_id':str(scene['source'].get('id') or anatomy['cut_id']),'sha256':anatomy['source_sha256']}
+                def copy_anatomy_source(_state,target):shutil.copyfile(sources[number],target)
+                review=review_state(state,{'scene_id':anatomy['cut_id']},str(job['id']),copy_anatomy_source,fresh,anatomy_runner)
+                anatomy_reviews=copy.deepcopy(meta.get('anatomy_reviews') or {})
+                anatomy_reviews[str(number)]=review
+                meta['anatomy_reviews']=anatomy_reviews
+                save(anatomy_reviews=anatomy_reviews)
+                if review.get('passed') is not True or review.get('source_sha256') != anatomy['source_sha256']:
+                    raise NeedsReview(f'{number}번 씬 원본 해부학 검수 {review.get("decision")}: 원본 사용을 제외하고 수정이 필요합니다.')
             scene['_advisory_review']=True
             scene['_skip_review']=video_postwork_review_bypass(meta,snapshot)
             scene['_preserve_uploaded_video']=not video_postwork_required_review(snapshot) and meta.get('source_policy')=='preserve_uploaded_video/v1'
