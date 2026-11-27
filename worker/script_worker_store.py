@@ -48,6 +48,13 @@ class ScriptStore:
                     time.sleep(0.5 * (2 ** attempt))
             if response.status_code == 409:
                 raise StoreUnavailable('다른 대본 작업이 실행 중이거나 저장 버전이 충돌했습니다.')
+            if table == 'rpc/std_script_worker_deliver' and response.status_code >= 400:
+                try:
+                    message = str(response.json().get('message') or '')
+                except ValueError:
+                    message = ''
+                if any(marker in message for marker in ('유저웹', '프로젝트', '대본', '씬 연결', '작업이', '계정', '항목이', '등록 입력')):
+                    raise StoreUnavailable(message[:500])
             response.raise_for_status()
             count = response.headers.get('Content-Range', '').split('/')[-1]
             return (response.json() if response.content else []), int(count) if count.isdigit() else None

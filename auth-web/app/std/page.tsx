@@ -8079,9 +8079,13 @@ export default function StdPortalPage() {
         setSelectedSceneIndexes(prev => prev.includes(index) ? prev.filter(i => i !== index) : [...prev, index])
     }
 
-    const copyPromptText = (text: string) => {
-        navigator.clipboard.writeText(text)
-        alert(ui('프롬프트가 클립보드에 복사되었습니다!'))
+    const copyPromptText = async (text: string) => {
+        try {
+            await navigator.clipboard.writeText(text)
+            alert(ui('프롬프트가 클립보드에 복사되었습니다!'))
+        } catch {
+            alert(ui('복사하지 못했습니다. 프롬프트를 펼쳐 직접 복사해 주세요.'))
+        }
     }
 
     const copyAllPrompts = () => {
@@ -11548,6 +11552,9 @@ export default function StdPortalPage() {
                                                                         {ui('보기')}
                                                                     </a>
                                                                 ) : <span className="text-gray-500">{ui('이미지 없음')}</span>}
+                                                                <button type="button" className="ml-auto text-sky-300 hover:text-sky-200 disabled:text-gray-600" disabled={!String(scene.image_prompt || scene.metadata?.image_prompt || scene.prompt || '').trim()} onClick={() => copyPromptText(String(scene.image_prompt || scene.metadata?.image_prompt || scene.prompt || '').trim())} aria-label={`${ui('씬')} ${sNum} ${ui('이미지 프롬프트 복사')}`}>
+                                                                    {ui('프롬프트 복사')}
+                                                                </button>
                                                                 {isMiddleVideo && <label className={`${isUploading ? 'pointer-events-none text-gray-500' : 'cursor-pointer text-amber-300 hover:text-amber-200'} transition-colors`}>
                                                                     <span className="text-gray-600">|</span> {isUploading ? ui('업로드 중...') : scene.video_url ? ui('영상 교체') : ui('영상 업로드')}
                                                                     <input type="file" accept="video/mp4,video/webm,video/quicktime" className="hidden" disabled={isUploading || !canEditStdAsset(selectedProject.project, 'video', Number(scene.scene_number))} onChange={e => { const file = e.target.files?.[0] || null; e.target.value = ''; void uploadAsset(scene, 'video', file) }} />

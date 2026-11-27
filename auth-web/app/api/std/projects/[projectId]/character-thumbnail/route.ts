@@ -10,6 +10,7 @@ export const dynamic = 'force-dynamic'
 function transformedSupabaseUrl(value: unknown, preview = false, sheet = false): string {
     const raw = String(value || '').trim()
     if (!/^https:\/\//i.test(raw) || !raw.includes('.supabase.co/storage/v1/object/public/')) return ''
+    if (sheet || !preview) return raw
     const url = new URL(raw.replace('/storage/v1/object/public/', '/storage/v1/render/image/public/'))
     url.searchParams.set('width', sheet ? '160' : preview ? '1024' : '64')
     url.searchParams.set('height', sheet ? '100' : preview ? '1024' : '64')
@@ -75,12 +76,6 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
             const image = await downloadGcsObject({ bucket: gcsObject.bucket, objectPath: gcsObject.path })
             const contentType = characterImageContentType(gcsObject.path)
             if (!contentType.startsWith('image/')) return new NextResponse(null, { status: 415 })
-            if (requestedSheet) {
-                const sharp = (await import('sharp')).default
-                const thumbnail = await sharp(image).rotate().resize(160, 100, { fit: 'inside', withoutEnlargement: true })
-                    .webp({ quality: 35 }).toBuffer()
-                return new NextResponse(new Uint8Array(thumbnail), { headers: { ...headers, 'Content-Type': 'image/webp' } })
-            }
             return new NextResponse(new Uint8Array(image), { headers: { ...headers, 'Content-Type': contentType } })
         } catch {
             return new NextResponse(null, { status: 404 })

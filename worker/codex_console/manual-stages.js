@@ -24,6 +24,13 @@
   if(root.dataset.job!==data.job.id)root.dataset.active=String(Math.max(0,w.stages.findIndex(s=>s.status!=='approved')));
   root.dataset.job=data.job.id;root.dataset.key=key;root.dataset.dirty='false';root.replaceChildren();
   root.append(element('h3','단계별 수동 진행'),element('p','확정과 다음 단계 시작은 별도입니다. 결과는 저장되며, 자동으로 다음 단계나 이미지·영상 제작을 실행하지 않습니다.','muted'));
+  const deliveryPanel=element('section',undefined,'panel');
+  const deliveryButton=element('button','유저웹에 현재 작업 등록');
+  deliveryButton.disabled=origin==='legacy'||!['review','approved'].includes(w.stages?.[0]?.status)||['queued','running','canceled','cancelled'].includes(data.job.status);
+  deliveryPanel.append(element('h4','유저웹 등록 · supapit'),element('p','대본, 이미지 프롬프트와 확정된 지침 데이터를 같은 프로젝트에 반영합니다. 이미지 파일과 썸네일은 이 버튼으로 등록되지 않습니다. 유저웹 변경 내용과 충돌하면 저장을 멈춥니다.','muted'),deliveryButton);
+  if(data.job.registered_project_id){const a=element('a','유저웹 프로젝트 열기');a.href='https://studio.airing.work/std?tab=script_gen&projectId='+encodeURIComponent(data.job.registered_project_id);a.target='_blank';a.rel='noopener noreferrer';deliveryPanel.append(a);}
+  deliveryButton.onclick=async()=>{if(root.dataset.dirty==='true'||root.dataset.sceneDirty==='true'){notice('수정 중인 내용을 먼저 저장해 주세요.');return;}deliveryButton.disabled=true;try{const result=await api('jobs/'+data.job.id+'/web-delivery',{expected_hash:data.job.candidate_hash});notice('유저웹 등록 완료 · '+result.scene_count+'개 씬 · 이미지 프롬프트 '+result.prompt_count+'개');delete root.dataset.key;await showJob(data.job.id,origin);void refresh();}catch(e){error(e.message);deliveryButton.disabled=false;}};
+  root.append(deliveryPanel);
   const artwork=w.artwork_collection;
   if(artwork){
    const gallery=element('details'),summary=element('summary',artwork.title+' · 이미지 '+artwork.image_count+'장 / 120컷');gallery.id='artwork-collection';gallery.append(summary);root.append(gallery);
@@ -84,7 +91,7 @@
    for(const [role,v] of Object.entries(cast.applied_cast)){const line=element('p',role+' → '+v.voice_name+' · '+cast.bindings.filter(b=>b.speaker===role).length+'개 발화');line.dataset.castSpeaker=role;section.append(line);}
    if(cast.unassigned.length)section.append(element('p','새 성우 지정 필요: '+[...new Set(cast.unassigned.map(b=>b.speaker))].join(' / ')));
   }
-  if(w.topic_registration){const r=w.topic_registration,panel=element('section',undefined,'panel');panel.id='registered-topic';panel.append(element('h4','유저웹 주제 #'+r.topic_id+' 등록 완료'),element('p','120컷 대본·이미지·썸네일·성우 설정·제작 지침 연결. 음성 생성·AE 실행은 나중에 진행합니다.'));if(r.project_id){const a=element('a','유저웹 2화 열기');a.href='https://studio.airing.work/std?tab=script_gen&projectId='+encodeURIComponent(r.project_id);a.target='_blank';a.rel='noopener noreferrer';panel.append(a);}root.prepend(panel);}
+  if(w.topic_registration){const r=w.topic_registration,panel=element('section',undefined,'panel');panel.id='registered-topic';panel.append(element('h4','유저웹 주제 #'+r.topic_id+' 등록 완료'),element('p','이전에 확인된 등록 내역입니다. 실제 등록된 항목은 작업 영수증과 유저웹에서 확인하세요.'));if(r.project_id){const a=element('a','유저웹 프로젝트 열기');a.href='https://studio.airing.work/std?tab=script_gen&projectId='+encodeURIComponent(r.project_id);a.target='_blank';a.rel='noopener noreferrer';panel.append(a);}root.prepend(panel);}
   const policyPanel=element('section',undefined,'panel');root.append(policyPanel);
   policyPanel.append(element('h4','실행 지침 · 생성 전 준비와 원화 검수'),element('p','지침 확인은 그림 검수 통과가 아닙니다. 실제 원화·고정 자산·좌우·적의 동작 상태를 확인해야 합니다.','muted'));
   const policyInfo=element('div');policyPanel.append(policyInfo);

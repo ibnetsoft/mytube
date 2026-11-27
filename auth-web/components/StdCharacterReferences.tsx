@@ -28,7 +28,6 @@ export default function StdCharacterReferences({ payload, impersonateEmail, loca
                         : 0
                     return <div role="listitem" key={character.character_key || `${character.name}-${index}`} className="flex w-52 shrink-0 min-w-0 items-center gap-2 rounded-lg bg-black/20 p-2">
                         {url ? <div className={`${sheet ? 'h-16 w-24' : 'h-14 w-14'} shrink-0 overflow-hidden rounded`}>
-                            {/* Show only the low-resolution authenticated display proxy. */}
                             {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img
                                 src={url}
@@ -36,7 +35,6 @@ export default function StdCharacterReferences({ payload, impersonateEmail, loca
                                 width={sheet ? 96 : 56}
                                 height={sheet ? 64 : 56}
                                 className={sheet ? 'h-16 w-24 object-contain' : 'h-14 w-14 object-cover'}
-                                draggable={false}
                             />
                         </div> : <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded bg-black/20 text-center text-[9px] text-amber-300">{ui('기준 이미지')}<br />{ui('생성 대기')}</div>}
                         <div className="min-w-0">

@@ -1440,6 +1440,9 @@ def approve(identity: str, request: ApproveRequest):
 from worker.script_manual_workflow import register as register_manual_routes
 register_manual_routes(app,jobs,TOKEN)
 
+from worker.script_web_incremental import register as register_incremental_delivery
+register_incremental_delivery(app,jobs)
+
 from worker.script_artwork_collection import register as register_artwork_routes
 register_artwork_routes(app,jobs)
 
