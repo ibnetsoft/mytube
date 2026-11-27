@@ -31,6 +31,9 @@
   if(data.job.registered_project_id){const a=element('a','유저웹 프로젝트 열기');a.href='https://studio.airing.work/std?tab=script_gen&projectId='+encodeURIComponent(data.job.registered_project_id);a.target='_blank';a.rel='noopener noreferrer';deliveryPanel.append(a);}
   deliveryButton.onclick=async()=>{if(root.dataset.dirty==='true'||root.dataset.sceneDirty==='true'){notice('수정 중인 내용을 먼저 저장해 주세요.');return;}deliveryButton.disabled=true;try{const result=await api('jobs/'+data.job.id+'/web-delivery',{expected_hash:data.job.candidate_hash});notice('유저웹 등록 완료 · '+result.scene_count+'개 씬 · 이미지 프롬프트 '+result.prompt_count+'개');delete root.dataset.key;await showJob(data.job.id,origin);void refresh();}catch(e){error(e.message);deliveryButton.disabled=false;}};
   root.append(deliveryPanel);
+  const deliveryAvailable=!deliveryButton.disabled;
+  deliveryButton.disabled=true;
+  fetch('/health').then(response=>response.json()).then(health=>{if(health.script_web_delivery_version===1)deliveryButton.disabled=!deliveryAvailable;else deliveryPanel.append(element('p','새 등록 기능을 사용하려면 실행 중인 대본워커를 안전하게 재시작해야 합니다.','callout'));}).catch(()=>deliveryPanel.append(element('p','대본워커 상태를 확인하지 못했습니다.','callout')));
   const artwork=w.artwork_collection;
   if(artwork){
    const gallery=element('details'),summary=element('summary',artwork.title+' · 이미지 '+artwork.image_count+'장 / 120컷');gallery.id='artwork-collection';gallery.append(summary);root.append(gallery);

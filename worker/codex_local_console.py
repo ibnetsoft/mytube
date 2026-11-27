@@ -815,6 +815,7 @@ def health():
     return {'service': 'codex-local-console', 'port': PORT, 'legacy_dashboard': False,
             'generation_validation_profile': PROFILE,
             'effect_scope_version': 1,
+            'script_web_delivery_version': 1,
             'wuxia_mouth_automation': 'wuxia_mouth_auto/v1',
             'documentary_evidence_profile': 'japanese_documentary_evidence/v1'}
 
