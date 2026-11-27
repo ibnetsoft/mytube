@@ -103,6 +103,13 @@ export async function registerMotionAutomation(project:any,scenes:any[],assets:a
         const purpose=parallaxFallback?null:creative?.purpose_policy
         const sourceKind=source.asset_type==='original'?(horizontal?'image':'psd'):source.asset_type
         const recordedRows=project.project_payload.subtitles.map((row:any,i:number)=>({...row,start:timeline[i].start,end:timeline[i].end,voice_id:timeline[i].voice_id||row.voice_id||''})).filter((row:any)=>Number(row.scene_number)===n)
+        const savedBubbles=project.project_payload?.structure?.preserved_selected_speech_bubbles
+        const selectedBubbles=Array.isArray(savedBubbles)&&cutId?savedBubbles.filter((bubble:any)=>bubble?.selected===true&&String(bubble.cut_id||'')===cutId):[]
+        const restoredBubblePlan=selectedBubbles.length?{contract:'speech_bubble_presets/v1',cues:selectedBubbles.map((bubble:any)=>{
+            const row=recordedRows.find((item:any)=>item.dialogue_kind==='dialogue'&&item.text===bubble.text&&String(item.dialogue_speaker||item.editor_speaker?.name||'').trim()===String(bubble.speaker||'').trim())
+            if(!row)throw new Error(`${n}번 씬의 저장된 말풍선 대사 또는 화자가 확정 대사와 다릅니다.`)
+            return {text:bubble.text,speaker:bubble.speaker,style:'dialogue',reason:'대본에서 선택해 저장한 대사 말풍선'}
+        })}:null
         const reviewedDepth=(preparation?.metadata?.result?.plan?.effects||[]).filter((e:any)=>['depth_background_blur','depth_foreground_blur','depth_background_haze'].includes(e.type))
         const effectivePurpose=purpose?{...purpose,...(recordedRows.some((r:any)=>r.dialogue_kind==='dialogue')?{...scenePurposePolicy.roles.dialogue,role:'dialogue'}:{})}:null
         const reviewedCamera=preparation?.metadata?.result?.plan?.camera
@@ -131,7 +138,7 @@ export async function registerMotionAutomation(project:any,scenes:any[],assets:a
             ...(wuxiaTimeline?{wuxia_timeline:wuxiaTimeline}:{}),
             ...(ambientLoops.length?{ambient_loops:ambientLoops}:{}),
             ...(effectivePurpose?{purpose_policy:effectivePurpose}:{}),
-            ...(creative?.speech_bubble_plan?.contract==='speech_bubble_presets/v1'?{speech_bubble_plan:creative.speech_bubble_plan}:{}),
+            ...(creative?.speech_bubble_plan?.contract==='speech_bubble_presets/v1'?{speech_bubble_plan:creative.speech_bubble_plan}:restoredBubblePlan?{speech_bubble_plan:restoredBubblePlan}:{}),
             ...(reviewedDepth.length?{reviewed_depth_effects:reviewedDepth}:{}),
             ...(allParallax?{parallax_plan:planned.parallax_plan,parallax_mouth:freezeParallaxMouth(project,recordedRows)}:{}),
             ...(postwork?{direction_contract:VIDEO_POSTWORK_CONTRACT,postwork}:!horizontal&&directedScene(creative)?{direction_contract:creative.contract}:{}),
