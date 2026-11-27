@@ -2835,7 +2835,7 @@ export default function StdPortalPage() {
         return names
     }
 
-    const setSubtitleGroupVoice = async (group: any, voiceId: string, direction?: string) => {
+    const setSubtitleGroupVoice = async (group: any, voiceId: string, direction?: string, allNarration = false) => {
         const nextVoiceId = String(voiceId || selectedVoice)
         const groupSceneNumber = Number(group.scene_number)
         const selectedSceneSet = new Set(selectedSubtitleSceneNumbers)
@@ -2844,7 +2844,7 @@ export default function StdPortalPage() {
             : new Set([groupSceneNumber])
         const changedIndexes: number[] = []
         const updatedSubtitles = localSubtitles.map((item: any, index: number) => {
-            if (!targetSceneNumbers.has(Number(item?.scene_number)) || !isSubtitleNarration(item, index)) return item
+            if ((!allNarration && !targetSceneNumbers.has(Number(item?.scene_number))) || !isSubtitleNarration(item, index)) return item
             changedIndexes.push(index)
             return {
                 ...item,
@@ -9987,16 +9987,16 @@ export default function StdPortalPage() {
                                                 {renderVoicePicker(
                                                     'selected-scenes-bulk',
                                                     selectedSubtitleSceneVoiceId,
-                                                    (nextVoiceId) => {
+                                                    (nextVoiceId, allNarration) => {
                                                         if (selectedSubtitleSceneGroup) {
-                                                            void setSubtitleGroupVoice(selectedSubtitleSceneGroup, nextVoiceId)
+                                                            return setSubtitleGroupVoice(selectedSubtitleSceneGroup, nextVoiceId, undefined, allNarration)
                                                         }
                                                     },
                                                     `선택한 씬 ${selectedSubtitleSceneNumbers.length}개 나레이션 성우`,
                                                     'default',
                                                     'left',
                                                     !hasSelectedSubtitleSections,
-                                                    { description: voiceCopy.sceneScope }
+                                                    { description: voiceCopy.sceneScope, speakerContext: { name: '', gender: '', count: localSubtitles.filter(isSubtitleNarration).length, narration: true } }
                                                 )}
                                                 {renderSelectedSceneTransitionPicker(!hasSelectedSubtitleSections)}
                                                 <div className="ml-0.5">
@@ -10654,10 +10654,10 @@ export default function StdPortalPage() {
                                                             {renderVoicePicker(
                                                                 `scene-${sNum}`,
                                                                 groupNarrationVoiceId,
-                                                                (nextVoiceId) => void setSubtitleGroupVoice(group, nextVoiceId),
+                                                                (nextVoiceId, allNarration) => setSubtitleGroupVoice(group, nextVoiceId, undefined, allNarration),
                                                                 `씬 ${sNum} 나레이션 성우`,
                                                                 'default', 'right', false,
-                                                                { description: voiceCopy.sceneScope }
+                                                                { description: voiceCopy.sceneScope, speakerContext: { name: '', gender: '', count: localSubtitles.filter(isSubtitleNarration).length, narration: true } }
                                                             )}
                                                         </div>
                                                     </div>

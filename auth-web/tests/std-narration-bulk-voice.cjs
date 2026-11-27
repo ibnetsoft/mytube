@@ -164,6 +164,12 @@ test('a partial selection changes narration only in selected scenes and preserve
     assertScope(h, [6, 7], 'new-eleven-voice')
 })
 
+test('the whole conversion option applies to narration in every scene, preserving dialogue', async () => {
+    const h = harness([2])
+    await h.setVoice({ scene_number: 2 }, 'new-eleven-voice', undefined, true)
+    assertScope(h, [0, 6, 7, 8], 'new-eleven-voice')
+})
+
 test('a scene narration picker outside the current selection affects only its own narration', async () => {
     const h = harness([1, 2])
     await h.setVoice({ scene_number: 3 }, 'gemini:Aoede', '')

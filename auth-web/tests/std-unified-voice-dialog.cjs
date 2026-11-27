@@ -63,8 +63,10 @@ function harness(initialTab, historyUserId, speakerContext, locale = 'ko', extra
     const ko = voiceDialogCopy('ko');
     const narration = harness('elevenlabs', undefined, { name: '', gender: '', count: 21, narration: true });
     let narrationTree = narration.render();
-    const bulk = narrationTree.find(n => n.type === 'label' && text(n).includes('모든 내레이션 21개에 적용'));
+    const bulk = narrationTree.find(n => n.type === 'label' && text(n).includes('전체 변환 · 모든 씬의 내레이션 21개에 적용'));
     assert(bulk, 'Narration picker offers a clearly scoped bulk option');
+    assert(narrationTree.indexOf(bulk) > narrationTree.findIndex(n => n.props?.role === 'group' && n.props?.['aria-label'] === ko.preview), 'Bulk control appears below the preview player');
+    assert(narrationTree.indexOf(bulk) < narrationTree.indexOf(button(narrationTree, ko.confirm)), 'Bulk control remains above the confirm button');
     const checkbox = nodes(bulk).find(n => n.type === 'input' && n.props.type === 'checkbox');
     assert.equal(checkbox.props.checked, false, 'Bulk narration starts unchecked');
     checkbox.props.onChange({ target: { checked: true } }); narrationTree = narration.render();
