@@ -161,6 +161,13 @@ test('manual blink confirmation overrides a newer generated plan',()=>{
  const blink=lib.aeMouthInput(f.project,f.scenes,f.assets).input.scenes[0].eye_blink
  assert.equal(blink.id,'manual-blink');assert.equal(blink.character,'소녀');assert.equal(blink.interval_seconds,5)
 });
+test('a saved blink selects its reviewed scene even without mouth work',()=>{
+ const f=fixture();f.project.project_payload.mouth_work_policy={enabled:false};
+ f.assets.push({id:'blink-only',asset_type:'other',status:'uploaded',scene_number:19,metadata:{kind:'eye_blink_confirmation',state:'confirmed',image_id:'image19',source_sha256:'a'.repeat(64),left_eye_box:[.3,.3,.34,.33],right_eye_box:[.4,.3,.44,.33],interval_seconds:4}});
+ assert.equal(lib.aeMouthApplicable(f.project,f.scenes,f.assets),true);
+ const scene=lib.aeMouthInput(f.project,f.scenes,f.assets).input.scenes.find(s=>s.number===19);
+ assert.equal(scene.eye_blink.id,'blink-only');
+});
 test('confirmed eye blink plan is source-bound and invalidates stale AE work',()=>{
  const f=fixture(),plan={id:'blink',asset_type:'other',status:'uploaded',scene_number:19,created_at:'2026-10-10',metadata:{
   kind:'eye_blink_confirmation',state:'confirmed',version:1,image_id:'image19',source_bucket:'b',source_path:'image.png',source_sha256:'a'.repeat(64),

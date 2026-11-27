@@ -7,6 +7,7 @@ import {selectNarrationAsset,assertNarrationIdentity} from '@/lib/stdContentIden
 import {lipSyncPlan,lipSyncSceneStarts} from '@/lib/stdLipSync'
 import {coordinateSource} from '@/lib/stdSpeakerGeometry'
 import {downloadGcsObject,createGcsSignedReadUrl} from '@/lib/gcsStorage'
+import {withReviewedPayloadImages} from '@/lib/stdReviewedPayloadImages'
 
 export const dynamic='force-dynamic'
 const roles=['mouth_closed','mouth_half','mouth_open','blink','hair'] as const
@@ -19,7 +20,7 @@ async function context(req:Request,id:string){
  if(project.error)throw project.error
  if(!project.data||['canceled','cancelled'].includes(project.data.status))return {response:NextResponse.json({error:'프로젝트를 찾을 수 없습니다.'},{status:404})}
  const assets=await loadStdProjectAssets(db,id,'*');if(assets.error)throw assets.error
- return {project:project.data,assets:(assets.data||[]).filter((a:any)=>['uploaded','assigned'].includes(a.status)).sort((a:any,b:any)=>String(b.created_at).localeCompare(String(a.created_at)))}
+ return {project:project.data,assets:withReviewedPayloadImages(project.data,(assets.data||[]).filter((a:any)=>['uploaded','assigned'].includes(a.status)).sort((a:any,b:any)=>String(b.created_at).localeCompare(String(a.created_at))))}
 }
 export async function GET(req:Request,{params}:{params:{projectId:string}}){
  try{

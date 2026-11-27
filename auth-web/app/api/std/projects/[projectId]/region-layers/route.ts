@@ -6,6 +6,7 @@ import { requireStdUser } from '@/lib/stdWeb'
 import { coordinateSource } from '@/lib/stdSpeakerGeometry'
 import { downloadGcsObject, uploadGcsBuffer } from '@/lib/gcsStorage'
 import { regionLayerGeometry, regionLayerKey } from '@/lib/stdRegionMotion'
+import { withReviewedPayloadImages } from '@/lib/stdReviewedPayloadImages'
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
 const digest = (b: Buffer | string) =>
@@ -15,7 +16,7 @@ async function context(req: Request, projectId: string) {
     if (!auth.ok) return { response: auth.response }
     const p = await db
         .from('std_projects')
-        .select('id,status,submitted_at')
+        .select('id,status,submitted_at,project_payload')
         .eq('id', projectId)
         .eq('employee_email', auth.requester.email)
         .maybeSingle()
@@ -34,7 +35,7 @@ async function context(req: Request, projectId: string) {
         .in('status', ['uploaded', 'assigned'])
         .order('created_at', { ascending: false })
     if (a.error) throw a.error
-    return { assets: a.data || [], project: p.data }
+    return { assets: withReviewedPayloadImages(p.data, a.data || []), project: p.data }
 }
 async function insert(projectId: string, scene: number, metadata: any) {
     const r = await db
@@ -129,6 +130,7 @@ export async function POST(
                 objectPath: source.path,
             }),
             sha = digest(bytes)
+        if (image.metadata?.reviewed_source_sha256 && image.metadata.reviewed_source_sha256 !== sha) throw new Error('검토한 원본 이미지가 변경됐습니다.')
         if (sha !== body.imageSha256)
             throw new Error('원본 이미지가 변경됐습니다.')
         if (body.action === 'upload' && form) {

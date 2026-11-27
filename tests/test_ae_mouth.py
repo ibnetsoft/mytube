@@ -133,6 +133,25 @@ def test_snapshot_invalidates_new_sources_but_ignores_generated_output():
     assert not worker.input_matches(scoped, project, assets, expanded_scenes)
 
 
+def test_snapshot_accepts_reviewed_payload_image_and_rejects_stale_review():
+    from worker.reviewed_payload_images import reviewed_payload_image
+    sha = 'a' * 64
+    source = {'scene_number': 19, 'cut_id': 'C019', 'image_use_status': 'approved',
+              'source_image_sha256': sha, 'gcs_bucket': 'bucket', 'gcs_path': 'image.png',
+              'anatomy_review': {'contract': 'wuxia_anatomy_review/v1', 'verdict': 'pass', 'source_sha256': sha}}
+    project = {'id': 'p', 'project_payload': {'subtitles': [{'text': 'hello', 'scene_number': 19, 'start': 0, 'end': 1, 'voice_id': 'girl'}], 'structure': {'scenes': [source]}}}
+    image = reviewed_payload_image(project, 19)
+    audio = {'id': 'audio', 'asset_type': 'audio', 'status': 'uploaded', 'metadata': {}}
+    snapshot = {'audio': {'id': 'audio', 'metadata': {}}, 'cast': {'main': {}, 'supporting': [], 'scene_cast': []}, 'annotations': {},
+                'subtitles': [{'index': 0, 'text': 'hello', 'scene_number': 19, 'start': 0, 'end': 1, 'voice_id': 'girl', 'kind': '', 'speaker': ''}],
+                'scenes': [{'number': 19, 'text': 'hello', 'image': {'id': image['id'], 'metadata': image['metadata']},
+                            'direction': {'ae_motion_plan': None, 'ae_effect_plan': None, 'ae_directorial_plan': None, 'image_prompt': ''}}]}
+    scenes = [{'scene_number': 19, 'scene_text': 'hello'}]
+    assert worker.input_matches(snapshot, project, [audio], scenes)
+    source['image_use_status'] = 'review_candidate'
+    assert not worker.input_matches(snapshot, project, [audio], scenes)
+
+
 def test_compact_preview_context_keeps_recording_cast_and_source_directions():
     source={'scene_number':19,'scene_text':'hello','image_prompt':'original','ae_motion_plan':{'enabled':True}}
     rows=[{'text':'hello','voice_id':'voice','start':0,'end':2}]
@@ -192,7 +211,7 @@ def test_snapshot_rebuilds_automatic_blink_from_final_image_receipt():
 
 
 @pytest.mark.parametrize('video_scene,auto_video', [(False,False),(True,False),(True,True)])
-def test_submitted_job_discovers_then_waits_for_direction_approval_before_generating(monkeypatch, tmp_path, video_scene, auto_video):
+def test_submitted_job_preserves_unavailable_source_as_quality_result(monkeypatch, tmp_path, video_scene, auto_video):
     import json
     from PIL import Image, ImageDraw
     from ae_media_utils import ffmpeg, run
@@ -204,7 +223,7 @@ def test_submitted_job_discovers_then_waits_for_direction_approval_before_genera
     subtitles = [{'index': 0, 'text': 'hello', 'scene_number': 19, 'start': 1, 'end': 2, 'voice_id': 'girl', 'kind': 'dialogue', 'speaker': 'girl'},
                  {'index': 1, 'text': 'ending', 'scene_number': 20, 'start': 18, 'end': 19, 'voice_id': 'n', 'kind': 'narration', 'speaker': ''}]
     saved = [{**r, 'dialogue_kind': r['kind'], 'dialogue_speaker': r['speaker']} for r in subtitles]
-    project = {'id': 'p', 'project_payload': {'subtitles': saved}}
+    project = {'id': 'p', 'status': 'in_progress', 'submitted_at': '2026-01-01T00:00:00Z', 'project_payload': {'subtitles': saved}}
     scenes = [{'scene_number': n, 'scene_text': text} for n, text in [(19, 'hello'), (20, 'ending')]]
     audio_meta = {'gcs_bucket': 'bucket', 'gcs_path': 'voice.wav'}
     assets = [{'id': 'audio', 'asset_type': 'audio', 'status': 'uploaded', 'metadata': audio_meta},
@@ -257,7 +276,8 @@ def test_submitted_job_discovers_then_waits_for_direction_approval_before_genera
             return image, speakers, {'source_duration': 3, 'speakers': speakers}
         monkeypatch.setattr(worker, 'track_video', track)
     job = {'id': 'job', 'project_id': 'p', 'asset_type': 'other', 'updated_at': 'initial',
-           'metadata': {'kind': 'ae_mouth_job', 'state': 'queued', 'fingerprint': 'test-fingerprint', 'input': snapshot, 'results': [], 'auto_video_coordinates': auto_video}}
+           'workflow_project': {'id': 'p', 'status': 'in_progress', 'submitted_at': '2026-01-01T00:00:00Z'},
+           'metadata': {'kind': 'ae_mouth_job', 'pipeline_version': 2, 'state': 'queued', 'fingerprint': 'test-fingerprint', 'input': snapshot, 'results': [], 'auto_video_coordinates': auto_video}}
     class Response:
         def __init__(self, value): self.value = copy.deepcopy(value)
         def json(self): return self.value
@@ -331,25 +351,9 @@ def test_submitted_job_discovers_then_waits_for_direction_approval_before_genera
         assert worker.process_one(should_stop=lambda: any(r.get('number') == 5 for r in job['metadata']['results']))
         assert job['metadata']['state'] == 'processing'
         assert tracked == []
-        assert next(r for r in job['metadata']['results'] if r['number'] == 5)['status'] == ('needs_review' if auto_video else 'skipped')
+        assert next(r for r in job['metadata']['results'] if r['number'] == 5)['status'] == 'needs_review'
     assert worker.process_one()
-    assert job['metadata']['state'] == 'direction_pending'
+    assert job['metadata']['state'] == 'artifact_ready', job['metadata']
     assert generated == []
-    assert [r['status'] for r in job['metadata']['results']] == ([('needs_review' if auto_video else 'skipped'), 'direction_pending', 'skipped'] if video_scene else ['direction_pending', 'skipped'])
-    if video_scene:
-        if auto_video:
-            assert job['metadata']['results'][0]['coordinate_state'] == 'needs_review'
-            assert job['metadata']['results'][1]['video_coordinate_asset_id'] == 'saved-video-coordinates'
-        else:
-            assert job['metadata']['results'][0]['skip_reason'] == 'missing_speaker_coordinates'
-        assert tracked == [18]
-    job['metadata']['state'] = 'direction_approved'; job['metadata']['phase'] = 'render'
-    job['metadata']['results'][1 if video_scene else 0]['status'] = 'direction_approved'
-    assert worker.process_one()
-    assert job['metadata']['state'] == 'review_pending'
-    assert len(generated) == 3
-    assert [r['status'] for r in job['metadata']['results']] == ([('needs_review' if auto_video else 'skipped'), 'review_pending', 'skipped'] if video_scene else ['review_pending', 'skipped'])
-    output = next(a for a in assets if a.get('metadata', {}).get('ae_mouth_fingerprint'))
-    assert output['metadata']['source_video_id'] == ('video12' if video_scene else None)
-    assert output['metadata']['timing_locked'] is True
-    assert output['metadata']['ae_reviewed'] is False
+    assert [r['status'] for r in job['metadata']['results']] == (['needs_review', 'needs_review', 'skipped'] if video_scene else ['needs_review', 'skipped'])
+    assert not any(a.get('metadata', {}).get('ae_mouth_fingerprint') for a in assets)

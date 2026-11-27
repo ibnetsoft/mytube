@@ -4,6 +4,7 @@ import { supabaseAdmin as db } from '@/lib/supabaseAdmin'
 import { requireStdUser } from '@/lib/stdWeb'
 import { coordinateSource } from '@/lib/stdSpeakerGeometry'
 import { downloadGcsObject, createGcsSignedReadUrl } from '@/lib/gcsStorage'
+import { withReviewedPayloadImages } from '@/lib/stdReviewedPayloadImages'
 import {
     motionSceneTimeline,
     validateRegionMotions,
@@ -41,7 +42,7 @@ async function context(req: Request, id: string) {
         .in('status', ['uploaded', 'assigned'])
         .order('created_at', { ascending: false })
     if (a.error) throw a.error
-    return { project: p.data, assets: a.data || [] }
+    return { project: p.data, assets: withReviewedPayloadImages(p.data, a.data || []) }
 }
 function scenes(ctx: any) {
     const numbers = [
@@ -126,6 +127,7 @@ export async function GET(
                     bucket: source.bucket,
                     objectPath: source.path,
                 })
+            if (asset.metadata?.reviewed_source_sha256 && createHash('sha256').update(bytes).digest('hex') !== asset.metadata.reviewed_source_sha256) throw new Error('검토한 원본 이미지가 변경됐습니다.')
             return new NextResponse(new Uint8Array(bytes), {
                 headers: {
                     'Content-Type': asset.mime_type || 'image/png',
@@ -246,6 +248,7 @@ export async function POST(
             objectPath: source.path,
         })
         const imageSha256 = createHash('sha256').update(bytes).digest('hex')
+        if (image.metadata?.reviewed_source_sha256 && image.metadata.reviewed_source_sha256 !== imageSha256) throw new Error('검토한 원본 이미지가 변경됐습니다.')
         if (body.imageSha256 !== imageSha256)
             throw new Error('원본 이미지가 변경됐습니다. 다시 불러와 주세요.')
         const fresh = await context(req, params.projectId)

@@ -5,6 +5,7 @@ import {supabaseAdmin as db} from '@/lib/supabaseAdmin'
 import {requireStdUser} from '@/lib/stdWeb'
 import {coordinateSource} from '@/lib/stdSpeakerGeometry'
 import {downloadGcsObject, uploadGcsBuffer} from '@/lib/gcsStorage'
+import {withReviewedPayloadImages} from '@/lib/stdReviewedPayloadImages'
 
 export const dynamic = 'force-dynamic'
 const roles = new Set(['mouth_closed', 'mouth_half', 'mouth_open', 'blink', 'hair'])
@@ -13,7 +14,7 @@ const digest = (b: Buffer) => createHash('sha256').update(b).digest('hex')
 async function context(req: Request, projectId: string) {
     const auth = await requireStdUser(req)
     if (!auth.ok) return {response: auth.response}
-    const project = await db.from('std_projects').select('id,status,submitted_at').eq('id', projectId).eq('employee_email', auth.requester.email).maybeSingle()
+    const project = await db.from('std_projects').select('id,status,submitted_at,project_payload').eq('id', projectId).eq('employee_email', auth.requester.email).maybeSingle()
     if (project.error) throw project.error
     if (!project.data || project.data.status === 'canceled') return {response: NextResponse.json({error:'프로젝트를 찾을 수 없습니다.'}, {status:404})}
     return {project: project.data}
@@ -46,8 +47,10 @@ export async function POST(req: Request, {params}: {params:{projectId:string}}) 
         if (!Number.isInteger(scene) || scene < 1 || !roles.has(role) || !/^[a-f0-9]{64}$/.test(imageSha) || !(file instanceof File) || file.size < 1 || file.size > 4*1024*1024) throw Error('씬, 패치 종류와 4MB 이하 PNG를 확인해 주세요.')
         const source = await db.from('std_project_assets').select('*').eq('project_id',params.projectId).eq('scene_number',scene).eq('asset_type','image').in('status',['uploaded','assigned']).order('created_at',{ascending:false}).limit(1).maybeSingle()
         if (source.error) throw source.error
-        if (!source.data || source.data.id !== imageId) throw Error('씬 원본 이미지가 변경되었습니다. 다시 불러와 주세요.')
-        const location = coordinateSource(source.data), original = await downloadGcsObject({bucket:location.bucket,objectPath:location.path})
+        const image = withReviewedPayloadImages(ctx.project, source.data ? [source.data] : []).find(a => a.asset_type === 'image' && Number(a.scene_number) === scene)
+        if (!image || image.id !== imageId) throw Error('씬 원본 이미지가 변경되었습니다. 다시 불러와 주세요.')
+        const location = coordinateSource(image), original = await downloadGcsObject({bucket:location.bucket,objectPath:location.path})
+        if (image.metadata?.reviewed_source_sha256 && digest(original) !== image.metadata.reviewed_source_sha256) throw Error('검토한 원본 이미지가 변경됐습니다.')
         if (digest(original) !== imageSha) throw Error('원본 이미지가 변경되었습니다. 다시 불러와 주세요.')
         const raw = Buffer.from(await file.arrayBuffer()), meta = await sharp(raw,{limitInputPixels:40000000}).metadata(), dimensions = await sharp(original,{limitInputPixels:40000000}).metadata()
         if (meta.format !== 'png' || !meta.hasAlpha || !meta.width || !meta.height || !dimensions.width || !dimensions.height || meta.width !== dimensions.width || meta.height !== dimensions.height) throw Error('원본과 같은 크기의 투명 PNG가 필요합니다.')

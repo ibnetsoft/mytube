@@ -154,6 +154,9 @@ def input_matches(snapshot: dict, project: dict, assets: list[dict], scenes: lis
         s = next(s for s in scenes if int(s['scene_number']) == number)
         source = next((r for r in structure.get('scenes', []) if int(r.get('scene_number') or r.get('scene_order') or 0) == number), s)
         image = next((a for a in assets if a.get('asset_type') == 'image' and int(a.get('scene_number') or 0) == number and a.get('status') in ('uploaded', 'assigned')), None)
+        if image is None:
+            from worker.reviewed_payload_images import reviewed_payload_image
+            image = reviewed_payload_image(project, number)
         video = next((a for a in assets if a.get('asset_type') == 'video' and int(a.get('scene_number') or 0) == number
                       and a.get('status') in ('uploaded', 'assigned') and not (a.get('metadata') or {}).get('ae_mouth_fingerprint')
                       and not (a.get('metadata') or {}).get('lipsync_fingerprint') and not (a.get('metadata') or {}).get('region_motion_plan_id')

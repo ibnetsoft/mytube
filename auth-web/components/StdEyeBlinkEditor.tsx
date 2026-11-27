@@ -14,7 +14,7 @@ const copies = {
         instruction: '왼쪽 눈과 오른쪽 눈을 각각 작게 드래그하세요. 캐릭터 이름은 선택 사항이며, 지정한 원본 이미지에서만 사용됩니다.',
         leftEye: '① 왼쪽 눈', rightEye: '② 오른쪽 눈', loading: '이미지 불러오는 중…', save: '눈 깜빡임 저장',
         saved: '눈 깜빡임 작업을 저장했습니다.', imageLoadFailed: '이미지를 불러오지 못했습니다.',
-        stillRequired: '19번 이후 정지 이미지가 필요합니다.', projectMissing: '프로젝트를 찾을 수 없습니다.',
+        stillRequired: '사용 가능한 검토 완료 이미지가 없습니다. 이미지 검토 상태를 확인해 주세요.', projectMissing: '프로젝트를 찾을 수 없습니다.',
         imageChanged: '원본 이미지가 변경됐습니다. 다시 불러와 주세요.', imageMissing: '원본 이미지를 찾지 못했습니다.',
         characterTooLong: '캐릭터 이름은 100자 이내로 입력해 주세요.', eyesRequired: '왼쪽 눈과 오른쪽 눈의 작은 영역을 각각 지정해 주세요.',
         eyesOverlap: '왼쪽 눈과 오른쪽 눈 영역이 겹칠 수 없습니다.', intervalInvalid: '눈 깜빡임 간격은 2~12초로 설정해 주세요.',
@@ -25,7 +25,7 @@ const copies = {
         instruction: 'Drag a small box around each eye. The character name is optional, and the setting applies only to this source image.',
         leftEye: '① Left eye', rightEye: '② Right eye', loading: 'Loading image…', save: 'Save eye blink',
         saved: 'Eye blink settings saved.', imageLoadFailed: 'Could not load the image.',
-        stillRequired: 'A still image from scene 19 onward is required.', projectMissing: 'Project not found.',
+        stillRequired: 'No reviewed image is available for this scene. Please check its review status.', projectMissing: 'Project not found.',
         imageChanged: 'The source image changed. Please load it again.', imageMissing: 'The source image could not be found.',
         characterTooLong: 'Character names must be 100 characters or fewer.', eyesRequired: 'Draw a small area around both the left and right eye.',
         eyesOverlap: 'The left and right eye areas cannot overlap.', intervalInvalid: 'Set the blink interval between 2 and 12 seconds.',
@@ -120,7 +120,7 @@ export default function StdEyeBlinkEditor({ projectId, headers, selectedSceneNum
     }
     return <>
         <button type="button" className="w-max max-w-full flex-none rounded-md border border-white/20 bg-violet-900 px-2 py-1 text-xs" onClick={async () => {
-            try { const items = await refresh(); const selected = items.find(row => row.number === selectedSceneNumber) || items[0]; if (!selected) throw new Error(copy.stillRequired); choose(selected); setOpen(true) } catch (error: any) { setNotice(localizedError(error.message)) }
+            try { const items = await refresh(); const selected = selectedSceneNumber ? items.find(row => row.number === selectedSceneNumber) : items[0]; if (!selected) throw new Error(copy.stillRequired); choose(selected); setOpen(true) } catch (error: any) { setNotice(localizedError(error.message)) }
         }}>{copy.launcher}</button>
         {!open && notice && <span className="text-xs">{notice}</span>}
         {open && scene && createPortal(<div className="fixed inset-0 z-[190] flex items-center justify-center bg-black/80 p-3"><section role="dialog" aria-modal="true" className="max-h-[96vh] w-full max-w-6xl overflow-auto rounded-xl bg-[#171c24] p-4 text-white">

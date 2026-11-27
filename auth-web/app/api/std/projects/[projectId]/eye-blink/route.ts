@@ -5,6 +5,7 @@ import { requireStdUser } from '@/lib/stdWeb'
 import { coordinateSource } from '@/lib/stdSpeakerGeometry'
 import { downloadGcsObject } from '@/lib/gcsStorage'
 import { charactersFromPayload } from '@/lib/stdCharacterProtection'
+import { withReviewedPayloadImages } from '@/lib/stdReviewedPayloadImages'
 
 export const dynamic = 'force-dynamic'
 type Box = [number, number, number, number]
@@ -22,7 +23,7 @@ async function context(req: Request, id: string) {
     if (!project.data || project.data.status === 'canceled') return { response: NextResponse.json({ error: '프로젝트를 찾을 수 없습니다.' }, { status: 404 }) }
     const assets = await db.from('std_project_assets').select('*').eq('project_id', id).in('status', ['uploaded', 'assigned']).order('created_at', { ascending: false })
     if (assets.error) throw assets.error
-    return { project: project.data, assets: assets.data || [] }
+    return { project: project.data, assets: withReviewedPayloadImages(project.data, assets.data || []) }
 }
 
 const characterLocales = ['ko', 'en', 'vi', 'th'] as const
@@ -84,6 +85,7 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
             const source = coordinateSource(image)
             const bytes = await downloadGcsObject({ bucket: source.bucket, objectPath: source.path })
             const sha = createHash('sha256').update(bytes).digest('hex')
+            if (image.metadata?.reviewed_source_sha256 && image.metadata.reviewed_source_sha256 !== sha) throw new Error('검토한 원본 이미지가 변경됐습니다.')
             return new NextResponse(new Uint8Array(bytes), { headers: {
                 'Content-Type': image.mime_type || 'image/png',
                 'Cache-Control': 'private, no-store',
@@ -114,6 +116,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         const source = coordinateSource(image)
         const bytes = await downloadGcsObject({ bucket: source.bucket, objectPath: source.path })
         const sha = createHash('sha256').update(bytes).digest('hex')
+        if (image.metadata?.reviewed_source_sha256 && image.metadata.reviewed_source_sha256 !== sha) throw new Error('검토한 원본 이미지가 변경됐습니다.')
         if (body.imageSha256 && sha !== body.imageSha256) throw new Error('원본 이미지가 변경됐습니다. 다시 불러와 주세요.')
         const metadata = { kind: 'eye_blink_confirmation', version: 1, state: 'confirmed', scene_number: number,
             image_id: image.id, source_bucket: source.bucket, source_path: source.path, source_sha256: sha,

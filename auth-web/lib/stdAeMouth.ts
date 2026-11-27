@@ -1,4 +1,5 @@
 import { selectNarrationAsset } from './stdContentIdentity'
+import { withReviewedPayloadImages } from './stdReviewedPayloadImages'
 import { isNonverbalProject } from './stdNonverbal'
 import { savedSpeakerGeometry, coordinateCast, coordinateImage, coordinateVideo } from './stdSpeakerGeometry'
 import { dialogueSceneIndex, subtitleDialogueSpeakerName } from './stdDialogueSceneIndex'
@@ -49,14 +50,21 @@ function approvedLayeredSource(source: any) {
 }
 
 export function aeMouthApplicable(project: any, scenes: any[], assets: any[] = []) {
+    assets = withReviewedPayloadImages(project, assets)
     return hasAeSceneIntent(project, scenes, assets) ||
+        scenes.some(s => Number(s.scene_number) >= 19 && Boolean(eyeBlinkPlan(assets, Number(s.scene_number), coordinateImage(assets, Number(s.scene_number))))) ||
         (!isNonverbalProject(project) && !isComicProject(project) && mouthWorkScenes(project, scenes, assets).size > 0)
 }
 
 export function aeMouthInput(project: any, scenes: any[], assets: any[]) {
+    assets = withReviewedPayloadImages(project, assets)
     scenes = [...scenes].sort((a, b) => Number(a.scene_number) - Number(b.scene_number))
     const selected = project.project_payload?.ae_mouth?.enabled === false ? new Set<number>() : mouthWorkScenes(project, scenes, assets)
     const mouthSelected = new Set(selected)
+    for (const scene of scenes) {
+        const number = Number(scene.scene_number)
+        if (number >= 19 && eyeBlinkPlan(assets, number, coordinateImage(assets, number))) selected.add(number)
+    }
     const savedStructure = project.project_payload?.structure || project.generated_structure || {}
     const explicitMouthSelection = assets.some(a => active(a) && a.metadata?.kind === 'mouth_work_selection') ||
         (savedStructure.scenes || []).some((s: any) => s.metadata?.cowork_image_asset?.speaker_geometry?.mouth_work_selection) ||

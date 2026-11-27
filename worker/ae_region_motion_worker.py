@@ -73,6 +73,9 @@ def process_one(stage="postproduction"):
         from project_assets import read_project_assets
         assets=[a for a in read_project_assets(ae._request,url,headers,job['project_id']) if a.get('status') in ('uploaded','assigned')]
         image=next((a for a in assets if a.get('asset_type')=='image' and a.get('scene_number')==meta['input']['number']),None)
+        if not image and projects:
+            from worker.reviewed_payload_images import reviewed_payload_image
+            image=reviewed_payload_image(projects[0],meta['input']['number'])
         latest=next((a for a in assets if (a.get('metadata') or {}).get('kind')==meta['kind'] and a.get('scene_number')==meta['input']['number']),None)
         if projects: assert_project(projects[0],stage)
         if not projects or projects[0].get('status')=='canceled' or not image or image['id']!=meta['input']['image']['id'] or not latest or latest['id']!=job['id'] or (not is_layers and timeline(projects[0],meta['input']['number'])!=meta['input']['timeline']):
@@ -83,6 +86,7 @@ def process_one(stage="postproduction"):
         directory=worker_config.TEMP_DIR/'region-motion'/job['id'];directory.mkdir(parents=True,exist_ok=True)
         source=directory/'source.png';bucket,path=ref(meta['input']['image']);ae._download_gcs_file(ae.GcsRef(bucket,path),source)
         save(progress='영역 분리와 배경 보정')
+        if hashlib.sha256(source.read_bytes()).hexdigest()!=meta['input']['imageSha256']:raise ValueError('원본 이미지가 변경됐습니다.')
         from ae_region_layers import build_layers, load_runtime
         def download(asset, target):
             a = asset.get('metadata', asset)

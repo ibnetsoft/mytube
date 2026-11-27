@@ -272,12 +272,11 @@ export default function StdRegionMotionEditor({
                 onClick={async () => {
                     try {
                         const items = await refresh()
-                        const s =
-                            items.find(
-                                (s) => s.number === selectedSceneNumber,
-                            ) || items[0]
+                        const s = selectedSceneNumber
+                            ? items.find((s) => s.number === selectedSceneNumber)
+                            : items[0]
                         if (!s)
-                            throw new Error(tr("먼저 씬 이미지를 준비해 주세요."))
+                            throw new Error(tr("선택한 씬에 사용 가능한 검토 완료 이미지가 없습니다."))
                         choose(s)
                         setOpen(true)
                     } catch (e: any) {
