@@ -6,6 +6,11 @@ import { motionForProject } from './stdMotionStudio'
 // packages persist the requested count so every web execution path shares it.
 export const STD_REQUIRED_CLIP_SCENE_END = 18
 
+/** Explicit project opt-in: every scene starts as a still and may receive a clip. */
+export function isStdImageFirstProject(project: any): boolean {
+    return project?.project_payload?.image_first_optional_video === true
+}
+
 function positiveInteger(value: unknown): number | null {
     if (value == null || value === '') return null
     const parsed = Number(value)

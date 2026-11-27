@@ -7,7 +7,7 @@ import { audioAssetStorageFields } from '@/lib/stdAudioMix'
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { requireStdUser } from '@/lib/stdWeb'
-import { isStdRequiredClipScene, isStdVideoPromptScene, stdRequiredVideoSceneCount, strictRevisionSceneUploadAllowed } from '@/lib/stdPolicy'
+import { isStdImageFirstProject, isStdRequiredClipScene, isStdVideoPromptScene, stdRequiredVideoSceneCount, strictRevisionSceneUploadAllowed } from '@/lib/stdPolicy'
 import { syncStdProjectToLegacy } from '@/lib/stdLegacySync'
 import { getGcsObjectMetadata, isGcsConfiguredAsync } from '@/lib/gcsStorage'
 
@@ -160,6 +160,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
     if (
         sceneNumber != null
         && !isComicProject(project)
+        && !isStdImageFirstProject(project)
         && project.project_payload?.strict_content_identity !== true
         && sceneNumber > stdRequiredVideoSceneCount(project)
         && ['image', 'video'].includes(assetType)

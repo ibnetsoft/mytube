@@ -241,7 +241,7 @@ import { restoreSavedSubtitleSnapshot, splitSourceRecoveryPlaceholders } from '@
 import { applyRecordedSubtitleTiming } from '@/lib/stdRecordedSubtitleTiming'
 import { createSubtitleSaveQueue } from '@/lib/stdSubtitlePersistence'
 import { canEditStdAsset } from '@/lib/stdAssetEditPolicy'
-import { isStdRequiredVideoScene as baseIsStdRequiredVideoScene, isStdRequiredClipScene as baseIsStdRequiredClipScene, isStdVideoPromptScene as baseIsStdVideoPromptScene, isStdMiddleVideoScene as baseIsStdMiddleVideoScene, stdRequiredVideoSceneCount } from '@/lib/stdPolicy'
+import { isStdImageFirstProject, isStdRequiredVideoScene as baseIsStdRequiredVideoScene, isStdRequiredClipScene as baseIsStdRequiredClipScene, isStdVideoPromptScene as baseIsStdVideoPromptScene, isStdMiddleVideoScene as baseIsStdMiddleVideoScene, stdRequiredVideoSceneCount } from '@/lib/stdPolicy'
 import {
     generateSynchronizedSubtitles as generateAnnotatedSubtitles,
     authoredSceneNarrations,
@@ -864,6 +864,7 @@ export default function StdPortalPage() {
     const forceProjectListRefreshRef = useRef(false)
     const [selectedProject, setSelectedProject] = useState<SelectedProjectPayload | null>(null)
     const comicProject = isComicProject(selectedProject?.project)
+    const imageFirstProject = isStdImageFirstProject(selectedProject?.project)
     const isStdRequiredVideoScene = (number: any) => baseIsStdRequiredVideoScene(number, selectedProject?.project)
     const isStdRequiredClipScene = (number: any) => baseIsStdRequiredClipScene(number, selectedProject?.project)
     const isStdVideoPromptScene = (number: any) => baseIsStdVideoPromptScene(number, selectedProject?.project)
@@ -5958,7 +5959,7 @@ export default function StdPortalPage() {
             setMessage(`씬 ${sceneNum}은 필수 영상 구간입니다. 영상 파일을 업로드하세요.`)
             return false
         }
-        if (!revisionedMedia && !comicProject && !isStdRequiredClipScene(sceneNum) && ['image', 'video'].includes(actualAssetType) && !(actualAssetType === 'video' && isStdVideoPromptScene(sceneNum))) {
+        if (!revisionedMedia && !comicProject && !imageFirstProject && !isStdRequiredClipScene(sceneNum) && ['image', 'video'].includes(actualAssetType) && !(actualAssetType === 'video' && isStdVideoPromptScene(sceneNum))) {
             setMessage(`씬 ${sceneNum}의 미디어는 교체할 수 없습니다.`)
             return false
         }
@@ -11641,6 +11642,16 @@ export default function StdPortalPage() {
                                                                     <input type="file" accept="video/mp4,video/webm,video/quicktime" className="hidden" disabled={isUploading || !canEditStdAsset(selectedProject.project, 'video', Number(scene.scene_number))} onChange={e => { const file = e.target.files?.[0] || null; e.target.value = ''; void uploadAsset(scene, 'video', file) }} />
                                                                 </label>}
                                                             </div>
+                                                            {imageFirstProject && <div className="mt-2 flex flex-wrap gap-2 text-[11px] font-bold">
+                                                                <label className={`${isUploading ? 'pointer-events-none text-gray-500' : 'cursor-pointer text-sky-300 hover:text-sky-200'}`}>
+                                                                    {scene.image_url ? '이미지 교체' : '이미지 업로드'}
+                                                                    <input type="file" accept="image/*" className="hidden" disabled={isUploading || !canEditStdAsset(selectedProject.project, 'image', Number(sNum))} onChange={e => { const file = e.target.files?.[0] || null; e.target.value = ''; void uploadAsset(scene, 'image', file) }} />
+                                                                </label>
+                                                                <label className={`${isUploading || !scene.image_url ? 'pointer-events-none text-gray-500' : 'cursor-pointer text-amber-300 hover:text-amber-200'}`} title={!scene.image_url ? '기준 이미지를 먼저 등록하세요' : '이 씬에만 영상 클립을 등록합니다'}>
+                                                                    {scene.video_url ? '선택 영상 교체' : '이 씬 영상 업로드'}
+                                                                    <input type="file" accept="video/mp4,video/webm,video/quicktime" className="hidden" disabled={isUploading || !scene.image_url || !canEditStdAsset(selectedProject.project, 'video', Number(sNum))} onChange={e => { const file = e.target.files?.[0] || null; e.target.value = ''; void uploadAsset(scene, 'video', file) }} />
+                                                                </label>
+                                                            </div>}
                                                         </div>
                                                     )
                                                 })}
