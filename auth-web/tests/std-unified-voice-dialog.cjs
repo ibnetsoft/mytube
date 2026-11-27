@@ -63,16 +63,15 @@ function harness(initialTab, historyUserId, speakerContext, locale = 'ko', extra
     const ko = voiceDialogCopy('ko');
     const narration = harness('elevenlabs', undefined, { name: '', gender: '', count: 21, narration: true });
     let narrationTree = narration.render();
-    const bulk = narrationTree.find(n => n.type === 'label' && text(n).includes('전체 변환 · 모든 씬의 내레이션 21개에 적용'));
-    assert(bulk, 'Narration picker offers a clearly scoped bulk option');
+    const bulk = button(narrationTree, '전체 내레이션에 적용 (21)');
     assert(narrationTree.indexOf(bulk) > narrationTree.findIndex(n => n.props?.role === 'group' && n.props?.['aria-label'] === ko.preview), 'Bulk control appears below the preview player');
     assert(narrationTree.indexOf(bulk) < narrationTree.indexOf(button(narrationTree, ko.confirm)), 'Bulk control remains above the confirm button');
-    const checkbox = nodes(bulk).find(n => n.type === 'input' && n.props.type === 'checkbox');
-    assert.equal(checkbox.props.checked, false, 'Bulk narration starts unchecked');
-    checkbox.props.onChange({ target: { checked: true } }); narrationTree = narration.render();
     button(narrationTree, ko.select).props.onClick(); narrationTree = narration.render();
-    await button(narrationTree, ko.confirm).props.onClick();
+    await button(narrationTree, '전체 내레이션에 적용 (21)').props.onClick();
     assert.equal(narration.applied[0][2], true);
+    const oneNarration = harness('elevenlabs', undefined, { name: '', gender: '', count: 21, narration: true });
+    let oneTree = oneNarration.render(); button(oneTree, ko.select).props.onClick(); oneTree = oneNarration.render();
+    await button(oneTree, ko.confirm).props.onClick(); assert.equal(oneNarration.applied[0][2], false);
     // Speaker labels are presentation only: localize without changing saved identity.
     const cachedThai = Object.freeze({ name: '町奉行', label: '町奉行 (เจ้าเมือง)' });
     assert.equal(voiceDialogSpeakerName(cachedThai, 'th'), 'เจ้าเมือง');
@@ -126,9 +125,11 @@ function harness(initialTab, historyUserId, speakerContext, locale = 'ko', extra
         button(tree, copy.select).props.onClick(); tree = h.render();
         assert.equal(button(tree, copy.confirm).props.disabled, true, 'Gender mismatch must remain blocked in every locale');
         assert(tree.some(n => n.props?.role === 'alert' && text(n).includes(copy.mismatch(h.props.speakerContext.name, 'Sarah'))));
-        tree.filter(n => n.type === 'input' && n.props.type === 'checkbox')[1].props.onChange({ target: { checked: true } }); tree = h.render();
+        tree.filter(n => n.type === 'input' && n.props.type === 'checkbox')[0].props.onChange({ target: { checked: true } }); tree = h.render();
         assert.equal(button(tree, copy.confirm).props.disabled, false);
-        await button(tree, copy.confirm).props.onClick(); assert.equal(h.applied[0][2], true);
+        const bulkButton = tree.find(n => n.type === 'button' && text(n).includes(h.props.speakerContext.name) && text(n).includes('(2)'));
+        assert(bulkButton, 'The bulk button names the character');
+        await bulkButton.props.onClick(); assert.equal(h.applied[0][2], true);
         // Canonical gender state survives a live locale switch, including Korean Google catalog genders.
         h.props.locale = locale === 'th' ? 'en' : 'th';
         const nextCopy = voiceDialogCopy(h.props.locale); tree = h.render();
