@@ -15,7 +15,7 @@ function load(relative) {
     return mod.exports
 }
 
-const { normalizeStdRenderHistory, nextStdRenderVersion } = load('lib/stdRenderVersion.ts')
+const { normalizeStdRenderHistory, nextStdRenderVersion, attachStdRenderPlaybackAssets } = load('lib/stdRenderVersion.ts')
 
 const legacyRows = [
     { id: 'newer', metadata: { std_web_project_id: 'project-1' } },
@@ -31,4 +31,12 @@ const versionedRows = [
 assert.equal(nextStdRenderVersion(versionedRows), 4)
 assert.equal(nextStdRenderVersion([]), 1)
 
-console.log('PASS: legacy renders receive stable versions and subsequent renders increment in place')
+const storage = { gcs_bucket: 'private', gcs_path: 'final/verified.mp4', sha256: 'a'.repeat(64) }
+const completed = { status: 'completed', result_file_id: 'gs://private/final/verified.mp4', metadata: storage }
+const final = { id: 'owned-final', status: 'uploaded', asset_type: 'video', metadata: { ...storage, kind: 'motion_final' } }
+assert.deepEqual(attachStdRenderPlaybackAssets([completed, { ...completed, status: 'rendering' }], [final])
+    .map(row => row.playback_asset_id), ['owned-final', null])
+assert.equal(attachStdRenderPlaybackAssets([completed], [{ ...final, metadata: { ...final.metadata, sha256: 'b'.repeat(64) } }])[0].playback_asset_id, null)
+assert.equal(attachStdRenderPlaybackAssets([completed], [{ ...final, status: 'deleted' }])[0].playback_asset_id, null)
+
+console.log('PASS: stable render versions and exact saved-final playback asset matching')

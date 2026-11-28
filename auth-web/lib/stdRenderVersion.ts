@@ -13,6 +13,22 @@ export function normalizeStdRenderHistory(rows: any[]) {
     }))
 }
 
+export function attachStdRenderPlaybackAssets(rows: any[], assets: any[]) {
+    const finalAssets = new Map<string, string>()
+    for (const asset of assets) {
+        const meta = asset.metadata || {}
+        if (asset.asset_type === 'video' && ['uploaded', 'assigned'].includes(asset.status) && asset.id
+            && meta.kind === 'motion_final' && meta.gcs_bucket && meta.gcs_path && meta.sha256) {
+            finalAssets.set(JSON.stringify([meta.gcs_bucket, meta.gcs_path, meta.sha256]), asset.id)
+        }
+    }
+    return rows.map(row => {
+        const meta = row.metadata || {}
+        const key = JSON.stringify([meta.gcs_bucket, meta.gcs_path, meta.sha256])
+        return { ...row, playback_asset_id: row.status === 'completed' ? finalAssets.get(key) ?? null : null }
+    })
+}
+
 export function nextStdRenderVersion(rows: any[]): number {
     return Math.max(0, ...normalizeStdRenderHistory(rows).map(stdRenderVersionOf)) + 1
 }

@@ -20,6 +20,7 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { requireStdUser } from '@/lib/stdWeb'
 import { isStdVideoPromptScene } from '@/lib/stdPolicy'
 import { getStdProjectRenderHistory } from '@/lib/stdRenderQueue'
+import { attachStdRenderPlaybackAssets } from '@/lib/stdRenderVersion'
 import { protectCharacterReferenceUrls } from '@/lib/stdCharacterProtection'
 import { sceneImageUrl } from '@/lib/stdSceneMediaUrl'
 import { stripPostworkDirection } from '@/lib/stdUserWebPayload'
@@ -286,7 +287,7 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
     if (!initialVersion || (!requesterEmail.startsWith('admin') && !requesterEmail.startsWith('worker') && requesterEmail !== String(initialVersion.employee_email || '').toLowerCase())) {
         return new NextResponse(null, { status: 204, headers: { 'Cache-Control': 'no-store' } })
     }
-    const etag = `"std-read-v5-${initialVersion.version}"`
+    const etag = `"std-read-v6-${initialVersion.version}"`
     const readHeaders = { 'Cache-Control': 'private, no-cache', ETag: etag, Vary: 'Authorization, x-impersonate-email' }
     const forceRefresh = req.headers.get('x-std-refresh') === '1'
     if (!forceRefresh && req.headers.get('if-none-match') === etag) return new NextResponse(null, { status: 304, headers: readHeaders })
@@ -421,7 +422,7 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
             project.project_payload?.strict_content_identity === true ? undefined : sourceSceneByNumber.get(sceneNumberOf(scene, index + 1))
         )),
         assets: enrichedAssets,
-        render_history: renderHistory,
+        render_history: attachStdRenderPlaybackAssets(renderHistory, assets || []),
     })
     // Do not label a response with a version that changed while assembling it.
     const finalVersion = await fingerprint().catch(() => null)

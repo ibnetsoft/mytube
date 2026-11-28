@@ -2,7 +2,7 @@
 const { chromium, expect } = require('@playwright/test')
 const assert = require('node:assert/strict')
 const base = 'http://localhost:3017'
-const project = { id:'mobile-fixture', title:'長い日本語のプロジェクトタイトル', category_name:'무협 웹툰', topic_queue_id:3428, updated_at:'2026-11-04T06:00:00Z', title_localization:{title_translations:{ko:'긴 프로젝트 제목'}}, step_status:{isTopicDone:true,isPlanningDone:true,isScriptDone:true,isVideoStepDone:true,videoNotRequired:true,isImageDone:true,isTtsDone:false,isSubtitlesDone:false,isThumbnailDone:false,allDone:false} }
+const project = { id:'mobile-fixture', title:'長い日本語のプロジェクトタイトル', category_name:'무협 웹툰', topic_queue_id:3428, updated_at:'2026-11-04T06:00:00Z', title_localization:{title_translations:{ko:'긴 프로젝트 제목'}}, has_saved_render:true, render_pending:true, step_status:{isTopicDone:true,isPlanningDone:true,isScriptDone:true,isVideoStepDone:true,videoNotRequired:true,isImageDone:true,isTtsDone:false,isSubtitlesDone:false,isThumbnailDone:false,allDone:false} }
 ;(async () => {
  const browser = await chromium.launch({channel:'chrome',headless:true})
  try {
@@ -23,6 +23,7 @@ const project = { id:'mobile-fixture', title:'長い日本語のプロジェク�
   await expect(page.getByText('프로젝트 목록',{exact:true})).toBeVisible()
   const card = page.locator('article').filter({hasText:project.title})
   await expect(card).toBeVisible()
+  await expect(card.getByRole('link',{name:'최종본 재생'})).toHaveAttribute('href','/std?tab=render&projectId=mobile-fixture')
   await expect(card.getByLabel('영상: 영상 클립 제작 대상이 아닙니다')).toHaveText('×')
   await card.getByRole('checkbox').check()
   await expect(page.getByRole('button',{name:'선택 삭제 (1)'})).toBeEnabled()

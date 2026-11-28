@@ -25,7 +25,7 @@ async function boundedCache<T>(operation: Promise<T>, fallback: T): Promise<T> {
 
 function projectListCacheKey(email: string, projects: any[]) {
     const digest = createHash('sha256').update(JSON.stringify([email.toLowerCase(), projects])).digest('hex')
-    return `std-project-list:v4:${digest}`
+    return `std-project-list:v5:${digest}`
 }
 
 export async function GET(req: Request) {
@@ -83,7 +83,7 @@ async function buildProjectList(baseProjects: any[]) {
         if (!ids.length) return assets
         for (let offset = 0; ; offset += 1000) {
             const { data: batch, error } = await supabaseAdmin.from('std_project_assets')
-                .select('id,project_id,scene_number,asset_type,status,created_at,gcs_path:metadata->>gcs_path,storage_path:metadata->>storage_path,gcs_signed_url:metadata->>gcs_signed_url,gcs_public_url:metadata->>gcs_public_url,script_sha256:metadata->content_identity->>script_sha256')
+                .select('id,project_id,scene_number,asset_type,status,created_at,kind:metadata->>kind,gcs_path:metadata->>gcs_path,storage_path:metadata->>storage_path,gcs_signed_url:metadata->>gcs_signed_url,gcs_public_url:metadata->>gcs_public_url,script_sha256:metadata->content_identity->>script_sha256')
                 .in('project_id', ids).in('asset_type', ['image','video','audio','thumbnail'])
                 .in('status', ['uploaded','assigned']).order('id').range(offset, offset + 999)
             if (error) throw error
@@ -159,6 +159,8 @@ async function buildProjectList(baseProjects: any[]) {
                 ...stdProjectListDisplay(project, context, assetsByProject.get(project.id) || []),
                 title_localization: titleLocalizationByTopic.get(Number(project.topic_queue_id)) || null,
                 progress_payload: protectCharacterReferenceUrls(context?.progress_payload, project.id),
+                has_saved_render: (assetsByProject.get(project.id) || []).some(asset =>
+                    asset.asset_type === 'video' && asset.kind === 'motion_final' && Boolean(asset.gcs_path)),
                 render_pending: activeJobs.has(project.id),
                 render_needs_audio: needsAudio,
                 step_status: needsAudio ? { ...steps, isTtsDone: false, allDone: false } : steps,

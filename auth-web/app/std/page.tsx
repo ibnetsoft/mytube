@@ -1344,7 +1344,19 @@ export default function StdPortalPage() {
     const [renderLogList, setRenderLogList] = useState<string[]>([
         '대기 중 - 렌더링 시작 버튼을 누르면 작업이 진행됩니다.'
     ])
-    const [renderedVideoUrl, setRenderedVideoUrl] = useState('')
+    const renderVersions = currentNav === 'render' && selectedProject
+        ? (selectedProject.render_history || []).map(render => {
+            const metadata = render.metadata || {}
+            const legacyUrl = [metadata.gcs_public_url, metadata.result_public_url, render.result_file_id]
+                .find(url => /^https?:\/\//i.test(String(url || '')))
+            const url = render.status === 'completed' ? (render.playback_asset_id
+                ? projectAssetFileUrl(selectedProject.project.id, { id: render.playback_asset_id })
+                : legacyUrl) : null
+            return { ...render, url }
+        }) : []
+    const latestPlayableRender = [...renderVersions].sort((left, right) => right.render_version - left.render_version)
+        .find(render => render.url)
+    const renderedVideoUrl = latestPlayableRender?.url || ''
 
     const [settingsSubTab, setSettingsSubTab] = useState<'basic' | 'orgchart' | 'history' | 'withdrawal' | 'support' | 'announcements'>('basic')
     const [settingName, setSettingName] = useState('김호')
@@ -9024,6 +9036,12 @@ export default function StdPortalPage() {
                                             </div>
                                             <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-white/5 pt-2 text-[11px] text-gray-400">
                                                 <span>{ui('수정일')} {formatProjectListDate(p.updated_at)} {Number(p.latest_render_version) > 0 && <span className="ml-1 text-cyan-300">v{p.latest_render_version}</span>}</span>
+                                                {p.has_saved_render && (
+                                                    <a href={`/std?tab=render&projectId=${encodeURIComponent(p.id)}`} target="_blank" rel="noopener noreferrer"
+                                                        className="inline-flex min-h-9 items-center gap-1 rounded-lg border border-cyan-500/40 bg-cyan-500/10 px-3 font-bold text-cyan-200">
+                                                        <Play className="h-3 w-3" aria-hidden="true" />{ui('최종본 재생')}
+                                                    </a>
+                                                )}
                                                 <button type="button" disabled={Boolean(submittingProjectId) || Boolean(renderState) || (!p.submitted_at && !canSubmit)} onClick={() => p.submitted_at ? reopenProjectForRerender(String(p.id)) : submitProject(String(p.id))} className="min-h-9 rounded-lg border border-indigo-400/40 bg-indigo-500/15 px-3 font-bold text-indigo-200 disabled:opacity-40">{renderState || (submitting ? ui('처리 중…') : p.submitted_at ? '↻ Re' : ui('렌더'))}</button>
                                             </div>
                                         </article>
@@ -9158,6 +9176,14 @@ export default function StdPortalPage() {
                                                                 </td>
                                                                 {/* 제출 버튼 컬럼 */}
                                                                 <td className="px-2 py-2 text-center" onClick={e => e.stopPropagation()}>
+                                                                    {p.has_saved_render && (
+                                                                        <div className="mb-1">
+                                                                            <a href={`/std?tab=render&projectId=${encodeURIComponent(p.id)}`} target="_blank" rel="noopener noreferrer"
+                                                                                className="mx-auto inline-flex items-center gap-1 whitespace-nowrap rounded-md border border-cyan-500/40 bg-cyan-500/10 px-2 py-1.5 font-bold text-cyan-200 hover:bg-cyan-500/20">
+                                                                                <Play className="h-3 w-3" aria-hidden="true" />{ui('최종본 재생')}
+                                                                            </a>
+                                                                        </div>
+                                                                    )}
                                                                     {p.render_pending || p.render_needs_audio ? (
                                                                         <span className="text-xs text-amber-300">{p.render_pending ? ui('작업 중') : ui('TTS 재생성 필요')}</span>
                                                                     ) : isSubmitted ? (
@@ -13532,19 +13558,12 @@ export default function StdPortalPage() {
                                                 ⚙️ 인코더 libx264
                                             </div>
                                         </div>
-                                        {Boolean(selectedProject.render_history?.length) && (
+                                        {Boolean(renderVersions.length) && (
                                             <div className="border-t border-white/10 pt-3 space-y-2">
                                                 <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">렌더 버전 이력</div>
                                                 <div className="flex flex-wrap gap-2">
-                                                    {selectedProject.render_history!.map((render: any) => {
-                                                        const metadata = render.metadata || {}
-                                                        const rawResult = metadata.gcs_public_url || metadata.result_public_url || render.result_file_id
-                                                        const resultHref = rawResult
-                                                            ? String(rawResult).startsWith('http')
-                                                                ? String(rawResult)
-                                                                : undefined
-                                                            : undefined
-
+                                                    {renderVersions.map(render => {
+                                                        const resultHref = render.url || undefined
                                                         return (
                                                             <a
                                                                 key={render.id}
@@ -13590,7 +13609,10 @@ export default function StdPortalPage() {
                                     <div className="flex-1 bg-black flex items-center justify-center relative overflow-hidden">
                                         {renderedVideoUrl ? (
                                             <video
+                                                key={renderedVideoUrl}
                                                 src={renderedVideoUrl}
+                                                preload="metadata"
+                                                aria-label={`최종본 v${latestPlayableRender?.render_version}`}
                                                 controls
                                                 className="w-full h-full object-contain"
                                             />
@@ -13608,7 +13630,7 @@ export default function StdPortalPage() {
                                     {/* 하단 액션 버튼 바 */}
                                     <div className="p-4 bg-[#181d26] border-t border-white/10 flex items-center justify-between gap-3 shrink-0">
                                         <div className="text-xs text-gray-400 font-mono">
-                                            {renderedVideoUrl ? '✅ MP4 렌더링 완료' : '대기 상태'}
+                                            {renderedVideoUrl ? `최종본 v${latestPlayableRender?.render_version} · MP4` : '대기 상태'}
                                         </div>
                                         <div className="flex items-center gap-2">
                                             <a

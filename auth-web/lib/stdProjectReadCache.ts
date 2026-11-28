@@ -3,7 +3,7 @@ import { getServerCache, setServerCache } from './server-cache'
 
 // Versioned entries need no invalidation across independent web/worker writes.
 export function projectReadCacheKey(scope: string, projectId: string, version: string) {
-    return `std-project-read:v4:${encodeURIComponent(scope)}:${projectId}:${version}`
+    return `std-project-read:v5:${encodeURIComponent(scope)}:${projectId}:${version}`
 }
 export async function readProjectResponse(key: string) {
     const encoded = await getServerCache<string>(key)
