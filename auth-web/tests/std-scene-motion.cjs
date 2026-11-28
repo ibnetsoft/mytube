@@ -26,29 +26,35 @@ async function main() {
     const end = page.indexOf('    const setSubtitleBlockVoice', start)
     const source = compile(page.slice(start, end) + '\nreturn applySelectedSceneTransition;')
     const original = {project: {id: 'p', project_payload: {}}, scenes: [{scene_number: 1, metadata: {transition_effect: 'dissolve'}}, {scene_number: 13}]}
-    let saved, state = original, failed = false
-    const apply = new Function('selectedProject', 'selectedSubtitleSceneNumbers', 'sceneEffectSavingRef', 'setIsSceneEffectSaving', 'setIsTransitionPickerOpen', 'setMessage', 'setSelectedProject', 'rememberProjectState', 'fetch', 'authedJsonHeaders', 'setIsMotionPickerOpen', source)(
-        original, [1], {current: false}, () => {}, () => {}, () => {}, fn => {state = fn(state)}, () => {},
-        async (_, options) => {saved = JSON.parse(options.body); return {ok: !failed, text: async () => 'save failed'}}, {}, () => {},
-    )
+    let request, state = original, failed = false
+    const bind = new Function('selectedProject', 'selectedSubtitleSceneNumbers', 'sceneEffectSavingRef', 'setIsSceneEffectSaving', 'setIsTransitionPickerOpen', 'setMessage', 'setSelectedProject', 'rememberProjectState', 'fetch', 'authedJsonHeaders', 'setIsMotionPickerOpen', 'isWuxiaMovingtoon', source)
+    const apply = (...args) => bind(
+        state, [1], {current: false}, () => {}, () => {}, () => {}, fn => {state = fn(state)}, () => {},
+        async (url, options) => {
+            request = {url, method: options.method, body: JSON.parse(options.body)}
+            return {ok: !failed, text: async () => 'save failed'}
+        }, {}, () => {}, p => p.project_payload.image_style === 'wuxia_webtoon',
+    )(...args)
     await apply('zoom_out', 'image_effect', [1, 13])
-    assert.equal(saved.project_payload.scenes[0].metadata.image_effect, undefined)
-    assert.equal(saved.project_payload.structure.scenes[0].metadata.transition_effect, 'dissolve')
-    assert.equal(saved.project_payload.scenes[1].metadata.image_effect, 'zoom_out')
+    assert.deepEqual(request, {url: '/api/std/projects/p/scene-effects', method:'PATCH', body:{scene_numbers:[13], field:'image_effect', value:'zoom_out'}})
+    assert.equal(state.project.project_payload.structure.scenes[0].metadata.transition_effect, 'dissolve')
     assert.equal(motion.sceneMotion(state.scenes[1]), 'zoom_out')
-    const previousSave = saved
+    const previousSave = request
     await apply('none', 'image_effect', Array.from({length: 12}, (_, i) => i + 1))
-    assert.equal(saved, previousSave, 'Hook-only selection must not save image motion')
+    assert.equal(request, previousSave, 'Hook-only standard selection must not save image motion')
     await apply('fade', 'transition_effect', [1, 13])
-    assert.equal(saved.project_payload.scenes[0].metadata.transition_effect, 'fade')
-    await apply('zoom_out', 'image_effect', [13])
+    assert.equal(state.project.project_payload.scenes[0].metadata.transition_effect, 'fade')
     await apply('2', 'motion_speed', [1, 13])
-    assert.equal(saved.project_payload.scenes[0].metadata.motion_speed, undefined)
-    assert.equal(saved.project_payload.scenes[1].metadata.motion_speed, '2')
+    assert.equal(state.project.project_payload.scenes[0].metadata.motion_speed, undefined)
     assert.equal(motion.sceneMotionSpeed(state.scenes[1]), 2)
     failed = true
     await apply('none', 'image_effect', [13])
     assert.equal(motion.sceneMotion(state.scenes[1]), 'zoom_out', 'failed save must not replace committed motion')
+    state = {...state, project: {...state.project, project_payload: {...state.project.project_payload, image_style:'wuxia_webtoon'}}}
+    failed = false
+    await apply('pan_right_zoom_out', 'image_effect', [1])
+    assert.deepEqual(request.body, {scene_numbers:[1], field:'image_effect', value:'pan_right_zoom_out'})
+    assert.equal(state.project.project_payload.structure.scenes[0].metadata.image_effect, 'pan_right_zoom_out')
     console.log('PASS: scene motion endpoints, clamping, metadata persistence, targeted updates and failed saves')
 }
 main().catch(error => {console.error(error); process.exitCode = 1})

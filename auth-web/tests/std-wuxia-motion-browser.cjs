@@ -15,10 +15,15 @@ function App(){const [value,set]=React.useState('none'),[time,setTime]=React.use
  });
  await page.goto('http://localhost:43219');await page.addScriptTag({content:script});
  await page.getByLabel('무협 이동 방향').selectOption('pan_right');await page.getByLabel('무협 줌 방향').selectOption('zoom_out');await page.getByLabel('열기 아지랑이 왜곡').check();await page.getByRole('button',{name:'선택한 씬에 모션 적용'}).click();
- await page.waitForFunction(()=>document.querySelector('[data-wuxia-camera-clock]')?.getAttribute('style').includes('scale(1.24)'));
+ await page.waitForFunction(()=>{
+  const value=document.querySelector('[data-wuxia-camera-clock]')?.style.transform.match(/scale\(([0-9.]+)\)/)?.[1];
+  return Math.abs(Number(value)-1.419118)<.00001;
+ });
  assert.deepEqual(saves[0],{scene_numbers:[1],field:'image_effect',value:'pan_right_zoom_out+heat'});
  const show=async(kind,time)=>{await page.evaluate(([k,t])=>window.demo(k,t),[kind,time]);await page.locator('[data-wuxia-camera-clock]').waitFor();await page.waitForFunction(()=>document.querySelectorAll('#screen img').length>0&&[...document.querySelectorAll('#screen img')].every(i=>i.complete&&i.naturalWidth>0));await page.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));};
- await show('pan_right_zoom_out',0);const before=await page.locator('[data-wuxia-camera-clock]').getAttribute('style');await show('pan_right_zoom_out',1);assert.notEqual(await page.locator('[data-wuxia-camera-clock]').getAttribute('style'),before);await show('pan_right_zoom_out',0);assert.equal(await page.locator('[data-wuxia-camera-clock]').getAttribute('style'),before);
+ await show('pan_right_zoom_out',0);const before=await page.locator('[data-wuxia-camera-clock]').getAttribute('style');await show('pan_right_zoom_out',1);assert.notEqual(await page.locator('[data-wuxia-camera-clock]').getAttribute('style'),before);await show('pan_right_zoom_out',3);const late=await page.locator('[data-wuxia-camera-clock]').getAttribute('style');
+ await show('pan_right_zoom_out',95/24);assert.notEqual(await page.locator('[data-wuxia-camera-clock]').getAttribute('style'),late);
+ await show('pan_right_zoom_out',0);assert.equal(await page.locator('[data-wuxia-camera-clock]').getAttribute('style'),before);
  await show('none+heat',.5);const a=await page.locator('#screen').screenshot();assert.ok(await page.locator('[data-wuxia-heat-band]').count()>5);
  await show('none+heat',.9);const b=await page.locator('#screen').screenshot();
  const crop=(buffer,top,height)=>sharp(buffer).extract({left:250,top,width:300,height}).raw().toBuffer();

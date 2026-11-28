@@ -15,7 +15,7 @@ pan_right means artwork moves left to right; pan_up means bottom to top. Combine
 pan and zoom only when both serve the action, reveal, relationship or reaction.
 Use none/none for a readable still dialogue or composition. Never rotate choices,
 pad counts, animate every scene, or infer camera motion from an isolated keyword.
-All added camera moves last about 0.9 seconds then HOLD, never slow whole-scene zoom.
+Selected camera moves progress at a steady rate through the scene; prefer fixed framing when clear composition calls for it.
 Heat is spatial refraction, not camera shake. Select it ONLY for literally depicted
 flames, hot air, burning ground or another visible high-temperature region. A torch
 mentioned in dialogue, metaphorical rage, imagined or extinguished fire is insufficient.

@@ -18,8 +18,11 @@ def validate(timeline):
         f=motion_frame(sample)
         if not isinstance(f,dict) or f.get('contract')!='wuxia_motion_samples/v1' or f.get('issues')!=[]:
             raise ValueError('Invalid frozen image motion')
-        if not number(f.get('dx'),-.03,.03) or not number(f.get('dy'),-.03,.03) or not number(f.get('scale'),1,1.24):
+        dx, dy, scale = f.get('dx'), f.get('dy'), f.get('scale')
+        if not number(dx, -.09, .09) or not number(dy, -.09, .09) or not number(scale, 1, 1.48):
             raise ValueError('Unbounded frozen camera motion')
+        if max(abs(dx), abs(dy)) > (scale - 1) / 2 + 1e-6:
+            raise ValueError('Frozen camera exposes the source edge')
         heat=f.get('heat')
         if not isinstance(heat,list) or len(heat) not in (0,48) or any(not number(v,-5,5) for v in heat):raise ValueError('Invalid heat displacement bands')
         if heat:

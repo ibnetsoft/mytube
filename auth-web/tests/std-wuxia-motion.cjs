@@ -6,14 +6,28 @@ function fixture(value){
  const project={project_payload:{structure:{wuxia_ae_package:{contract:'wuxia_still_ae_episode/v1',scenes:[{scene_id:'S001',preview_duration_seconds:4,states:[state],graphics:[]}]},scenes:[{scene_number:1,image_effect:value,transition_effect:'flash'}]}}};
  return {project,state,at:t=>wuxiaSceneFrame(project,1,[],t,24)};
 }
-test('four camera directions support both zoom directions and settle before the scene ends',()=>{
+test('camera directions and zoom keep moving at a constant rate through the last displayed frame',()=>{
  for(const pan of ['pan_left','pan_right','pan_up','pan_down'])for(const zoom of ['none','zoom_in','zoom_out']){
-  const f=fixture(joinWuxiaMotion(pan,zoom,false)),a=f.at(0).motion,b=f.at(1).motion,c=f.at(3).motion;
+  const f=fixture(joinWuxiaMotion(pan,zoom,false)),a=f.at(0).motion,b=f.at(1).motion,c=f.at(2).motion,last=f.at(95/24).motion;
   const axis=pan==='pan_left'||pan==='pan_right'?'dx':'dy';assert.equal(Math.sign(b[axis]-a[axis]),pan==='pan_right'||pan==='pan_down'?1:-1);
   if(zoom!=='none')assert.equal(Math.sign(b.scale-a.scale),zoom==='zoom_in'?1:-1);
-  assert.deepEqual(b,c);assert.ok(a.scale>=1&&b.scale>=1);
+  assert.ok(Math.abs((b[axis]-a[axis])-(c[axis]-b[axis]))<1e-6);
+  assert.notEqual(last[axis],f.at(94/24).motion[axis]);
+  assert.ok(a.scale>=1&&b.scale>=1);
  }
  for(const id of WUXIA_MOTIONS.map(m=>m.id))assert.equal(splitWuxiaMotion(id+'+heat').valid,true);
+});
+test('111 reference is matched at 1x and long shots distribute the crop limit over the scene',()=>{
+ const f=fixture('zoom_out'),scene=f.project.project_payload.structure.wuxia_ae_package.scenes[0];
+ scene.preview_duration_seconds=110/24;
+ assert.ok(Math.abs(f.at(0).motion.scale-1.3205882352941177)<1e-6);
+ assert.equal(f.at(109/24).motion.scale,1);
+ assert.ok(f.at(108/24).motion.scale>1);
+ const combined=fixture('pan_right_zoom_in');
+ combined.project.project_payload.structure.wuxia_ae_package.scenes[0].preview_duration_seconds=12;
+ assert.equal(combined.at(0).motion.scale,1.18);
+ assert.equal(combined.at(287/24).motion.scale,1.48);
+ assert.ok(combined.at(286/24).motion.dx<combined.at(287/24).motion.dx);
 });
 test('heat refracts space with independent band phases and preserves reviewed face rows',()=>{
  const f=fixture('none+heat'),a=f.at(.5).motion,b=f.at(.9).motion;
@@ -55,9 +69,11 @@ test('a reviewed torch cut alone refracts the approved top rows; earlier face cu
  assert.deepEqual(f.at(.5).motion.heat,[]);const hot=f.at(2.5).motion.heat;assert.ok(hot.some(v=>v!==0));assert.ok(hot.slice(10).every(v=>v===0));
  const frozen=freezeWuxiaScene(f.project,1,[],0,4,24,{metadata:{}});assert.equal(frozen.states[1].heat_face_reviewed,true);assert.ok(frozen.samples.some(s=>s.state==='b'&&s.motion.heat.some(x=>x)));
 });
-test('source-reviewed camera strength reduces overscan without changing the opening movement clock',()=>{
+test('source-reviewed camera strength scales the movement and preserves the full scene clock',()=>{
  const f=fixture('pan_left');f.project.project_payload.structure.wuxia_ae_package.scenes[0].motion_strength=.4;
- assert.equal(f.at(1).motion.scale,1.048);assert.equal(f.at(1).motion.dx,-.012);assert.deepEqual(f.at(1).motion,f.at(3).motion);
+ const a=f.at(1).motion,b=f.at(3).motion;
+ assert.ok(Math.abs(a.scale-(1+.07058823529411765*.4*(95/24)/2))<1e-6);
+ assert.ok(a.dx>b.dx);
  f.project.project_payload.structure.wuxia_ae_package.scenes[0].motion_strength=2;assert.match(f.at(.5).motion.issues[0],/invalid_motion_strength/);
 });
 test('energy-only state preserves anatomy and heat/camera holds on every frame through nine seconds',()=>{

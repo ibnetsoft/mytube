@@ -1,4 +1,6 @@
-/** Bounded opening camera move plus sampled, spatially varying heat refraction. */
+import cameraProfile from './stdCameraMotionProfile.json'
+
+/** Scene-clock camera motion and sampled, spatially varying heat refraction. */
 export const WUXIA_PANS=[{id:'none',label:'이동 없음'},{id:'pan_right',label:'좌 → 우'},{id:'pan_left',label:'우 → 좌'},{id:'pan_up',label:'아래 → 위'},{id:'pan_down',label:'위 → 아래'}] as const
 export const WUXIA_ZOOMS=[{id:'none',label:'줌 없음'},{id:'zoom_in',label:'줌인'},{id:'zoom_out',label:'줌아웃'}] as const
 export const WUXIA_MOTIONS=WUXIA_PANS.flatMap(p=>WUXIA_ZOOMS.map(z=>({id:p.id==='none'?z.id:z.id==='none'?p.id:`${p.id}_${z.id}`,label:[p.id==='none'?'':p.label,z.id==='none'?'':z.label].filter(Boolean).join(' + ')||'고정'})))
@@ -21,10 +23,16 @@ export function wuxiaMotionFrame(project:any,scene:any,state:any,number:number,s
  const validStrength=typeof strength==='number'&&Number.isFinite(strength)&&strength>=.25&&strength<=1
  if(!validStrength)issues.push('invalid_motion_strength')
  const amount=validStrength?strength:1
- const local=Math.max(0,Math.floor((seconds-start)*fps+1e-7)/fps),duration=Math.min(1.2,.9/speed,Math.max(1/fps,end-start-1/fps))
- const t=Math.min(1,local/duration),progress=t*t*(3-2*t),pan=selection.pan!=='none'
- const scale=(pan?1+.12*amount:1)+(selection.zoom==='zoom_in'?.12*amount*progress:selection.zoom==='zoom_out'?.12*amount*(1-progress):0)
- const offset=.03*amount*(2*progress-1)
+ const local=Math.max(0,Math.floor((seconds-start)*fps+1e-7)/fps)
+ // Both the browser and frozen AE timeline use the last displayed frame as the endpoint.
+ const lastFrame=Math.max(0,Math.ceil((end-start)*fps-1e-7)-1)
+ const duration=lastFrame/fps
+ const progress=duration>0?Math.min(1,local/duration):0
+ const zoomRate=cameraProfile.zoomPerSecond*speed*amount
+ const panTravel=selection.pan==='none'?0:Math.min(cameraProfile.maxPanTravel,zoomRate*duration/2)
+ const zoomTravel=Math.min(cameraProfile.maxZoomTravel,cameraProfile.maxOverscan-panTravel,zoomRate*duration)
+ const scale=1+panTravel+(selection.zoom==='zoom_in'?zoomTravel*progress:selection.zoom==='zoom_out'?zoomTravel*(1-progress):0)
+ const offset=panTravel*(progress-.5)
  const dx=selection.pan==='pan_right'?offset:selection.pan==='pan_left'?-offset:0
  const dy=selection.pan==='pan_down'?offset:selection.pan==='pan_up'?-offset:0
  const heat:number[]=[]

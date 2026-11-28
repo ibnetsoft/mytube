@@ -37,9 +37,9 @@ For wuxia_motion_fit compare the scene's planned choice with ACTUAL source and
 rendered pixels. Inspect visible action, gaze, composition and readability; a fixed
 choice is valid and no quota applies. Heat needs actual visible flames/hot-air context,
 not metaphor or narration alone. For wuxia_camera_execution compare sampled frozen
-dx/dy/scale with actual output at start, DURING the opening move, its end and held
-frames: correct pan direction, zoom direction, combined motion and final hold must
-be visibly present when requested. For wuxia_heat_execution compare different heat
+dx/dy/scale with actual output at the first, middle and last sampled frames.
+Check direction and progress against the frozen samples, including continued
+motion or a held pose where the samples specify one. For wuxia_heat_execution compare different heat
 phases in unprotected image regions; spatially varying refraction must be present
 without whole-camera wobble, and an unrequested effect must be absent. For
 wuxia_transition_execution compare the frozen boundary transition with actual

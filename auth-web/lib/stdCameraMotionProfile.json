@@ -1,0 +1,6 @@
+{
+  "zoomPerSecond": 0.07058823529411765,
+  "maxZoomTravel": 0.36,
+  "maxPanTravel": 0.18,
+  "maxOverscan": 0.48
+}

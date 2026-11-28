@@ -17,7 +17,7 @@ def test_native_camera_and_heat_require_new_worker_acknowledgement():
  t['contract']='wuxia_native_timeline/v4'
  with pytest.raises(ValueError,match='v5'):validate(t)
 
-@pytest.mark.parametrize('change',[{'scale':1.5},{'dx':float('nan')},{'heat':[6]*48},{'heat':[0]*3},{'issues':['missing_review']}])
+@pytest.mark.parametrize('change',[{'scale':1.5},{'scale':1.01,'dx':.02},{'dx':.091},{'dx':float('nan')},{'heat':[6]*48},{'heat':[0]*3},{'issues':['missing_review']}])
 def test_unsafe_or_incomplete_samples_fail(change):
  t=timeline();t['samples'][0]['motion'].update(change)
  with pytest.raises(ValueError):validate(t)
@@ -42,7 +42,7 @@ def test_real_web_frozen_camera_and_heat_samples_pass_native_validation_for_ever
  root=Path(__file__).resolve().parents[1]
  script="""
  const load=require('./tests/load-ts-module.cjs'),{freezeWuxiaScene}=load('lib/stdWuxiaNative.ts'),{WUXIA_MOTIONS}=load('lib/stdWuxiaMotion.ts');
- const result=WUXIA_MOTIONS.map(m=>{const p={project_payload:{structure:{wuxia_ae_package:{contract:'wuxia_still_ae_episode/v1',scenes:[{scene_id:'S001',preview_duration_seconds:2,states:[{asset_id:'a',sha256:'a'.repeat(64),media_url:'/api/std/media?bucket=b&path=a.png',start:0,end:1,face_exclusion_boxes:[[.3,.25,.6,.55]]}],graphics:[]}]},scenes:[{scene_number:1,image_effect:m.id+'+heat'}]}}};return freezeWuxiaScene(p,1,[],0,2,24,{metadata:{}})});process.stdout.write(JSON.stringify(result));
+ const result=WUXIA_MOTIONS.map(m=>{const p={project_payload:{structure:{wuxia_ae_package:{contract:'wuxia_still_ae_episode/v1',scenes:[{scene_id:'S001',preview_duration_seconds:5,states:[{asset_id:'a',sha256:'a'.repeat(64),media_url:'/api/std/media?bucket=b&path=a.png',start:0,end:1,face_exclusion_boxes:[[.3,.25,.6,.55]]}],graphics:[]}]},scenes:[{scene_number:1,image_effect:m.id+'+heat'}]}}};return freezeWuxiaScene(p,1,[],0,5,24,{metadata:{}})});process.stdout.write(JSON.stringify(result));
  """
  timelines=json.loads(subprocess.check_output(['node','-e',script],cwd=root/'auth-web'))
  assert len(timelines)==15
