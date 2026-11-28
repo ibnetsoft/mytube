@@ -1,6 +1,8 @@
 'use client'
 import { scriptSceneSpeech, scriptSceneVisual } from '@/lib/stdScriptSceneFields'
 import { SubtitleWorkerTransition, SubtitleWorkerTransitionList } from '@/components/SubtitleWorkerTransition'
+import { StdFinalSceneEffects, StdFinalScenePlayer } from '@/components/StdFinalSceneEffects'
+import type { FinalSceneDelivery, FinalScenePlayback } from '@/lib/stdFinalSceneDelivery'
 import StdWuxiaMotionControls from '@/components/StdWuxiaMotionControls'
 import { WUXIA_MOTIONS, wuxiaMotionValue, wuxiaMotionSpeed, splitWuxiaMotion } from '@/lib/stdWuxiaMotion'
 import { WUXIA_TRANSITIONS } from '@/lib/stdWuxiaTransition'
@@ -373,6 +375,7 @@ type SelectedProjectPayload = {
     scenes: any[]
     assets: any[]
     render_history?: any[]
+    final_scene_delivery?: FinalSceneDelivery | null
 }
 
 type MusicSubmission = {
@@ -863,6 +866,14 @@ export default function StdPortalPage() {
     const [projectsRefreshKey, setProjectsRefreshKey] = useState(0)
     const forceProjectListRefreshRef = useRef(false)
     const [selectedProject, setSelectedProject] = useState<SelectedProjectPayload | null>(null)
+    const finalSceneDelivery = selectedProject?.final_scene_delivery
+    const finalSceneEffects = useMemo(() => new Map(finalSceneDelivery?.scenes.map(scene => [scene.number, scene])), [finalSceneDelivery])
+    const [finalScenePreview, setFinalScenePreview] = useState<(FinalScenePlayback & { assetId: string }) | null>(null)
+    const playFinalScene = (range: FinalScenePlayback) => {
+        if (!finalSceneDelivery) return
+        stopVrewPlayback()
+        setFinalScenePreview({ ...range, assetId: finalSceneDelivery.master.asset_id })
+    }
     const comicProject = isComicProject(selectedProject?.project)
     const imageFirstProject = isStdImageFirstProject(selectedProject?.project)
     const isStdRequiredVideoScene = (number: any) => baseIsStdRequiredVideoScene(number, selectedProject?.project)
@@ -10201,6 +10212,16 @@ export default function StdPortalPage() {
 
 
                                     <SubtitleWorkerTransitionList project={selectedProject?.project} />
+                                    {finalSceneDelivery && (
+                                        <p className="px-3 py-1.5 text-xs font-semibold text-cyan-200">
+                                            최종본 v{finalSceneDelivery.master.render_version} · {finalSceneDelivery.scenes.length}씬 적용 효과
+                                        </p>
+                                    )}
+                                    {finalSceneDelivery && finalScenePreview?.assetId === finalSceneDelivery.master.asset_id && (
+                                        <StdFinalScenePlayer range={finalScenePreview} version={finalSceneDelivery.master.render_version}
+                                            src={projectAssetFileUrl(selectedProject.project.id, { id: finalScenePreview.assetId })!}
+                                            onClose={() => setFinalScenePreview(null)} />
+                                    )}
                                     {/* 자막 카드 목록 */}
                                     <div className="flex flex-1 overflow-hidden">
                                         <div className="subtitle-navy-scrollbar flex-1 overflow-y-auto p-0 space-y-0">
@@ -10235,8 +10256,11 @@ export default function StdPortalPage() {
                                                             <label onClick={event => event.stopPropagation()} className="mt-1 flex items-center gap-1 text-[10px] text-cyan-200"><input type="checkbox" aria-label={`씬 ${sNum} 열기 왜곡`} disabled={Boolean(group.video_url) || isSceneEffectSaving} checked={splitWuxiaMotion(motionEffect).heat} onChange={event => void applySelectedSceneTransition(splitWuxiaMotion(motionEffect).id + (event.target.checked ? '+heat' : ''), 'image_effect', [sNum])} />열기 왜곡</label>
                                                             <label onClick={event => event.stopPropagation()} className="mt-1 flex items-center gap-1 text-[10px] text-cyan-200">속도 <select aria-label={`씬 ${sNum} 모션 속도`} value={wuxiaMotionSpeed(sceneRecord)} disabled={Boolean(group.video_url) || motionEffect === 'none' || isSceneEffectSaving} onChange={event => void applySelectedSceneTransition(event.target.value, 'motion_speed', [sNum])} className="rounded border border-white/15 bg-[#14181f] p-1 text-white disabled:opacity-40">{[0.5, 1, 1.5, 2, 3].map(speed => <option key={speed} value={speed}>{speed}×</option>)}</select></label>
                                                         </div>
-                                                        <SubtitleWorkerTransition project={selectedProject?.project} scene={sceneRecord} number={sNum} />
-                                                        <div className="text-xs text-gray-400"><span className="mr-2 rounded bg-blue-500/15 px-1.5 py-0.5 font-bold text-blue-300">씬 {sNum}</span>{sourceScene?.silent_visual === true ? '무음 장면' : '음성 구간 없음'} <span className="ml-2 text-cyan-300">미리보기 {duration.toFixed(1)}초</span></div>
+                                                        {!finalSceneEffects.has(sNum) && <SubtitleWorkerTransition project={selectedProject?.project} scene={sceneRecord} number={sNum} />}
+                                                        <div className="min-w-0 flex-1 text-xs text-gray-400">
+                                                            <span className="mr-2 rounded bg-blue-500/15 px-1.5 py-0.5 font-bold text-blue-300">씬 {sNum}</span>{sourceScene?.silent_visual === true ? '무음 장면' : '음성 구간 없음'} <span className="ml-2 text-cyan-300">미리보기 {duration.toFixed(1)}초</span>
+                                                            {finalSceneEffects.has(sNum) && <StdFinalSceneEffects scene={finalSceneEffects.get(sNum)!} onPlay={playFinalScene} />}
+                                                        </div>
                                                     </div>
                                                 }
                                                 const isActive = !silentScenePreview && selectedSubIndex >= group.firstIndex && selectedSubIndex <= group.lastIndex
@@ -10356,7 +10380,7 @@ export default function StdPortalPage() {
                                                                 {Number(group.start_time).toFixed(1)}s ~ {Number(group.end_time).toFixed(1)}s
                                                                 <span className="ml-1 text-[9px] text-gray-500">{duration.toFixed(1)}s</span>
                                                             </div>
-                                                            <SubtitleWorkerTransition project={selectedProject?.project} scene={sceneRecord} number={Number(sNum)} />
+                                                            {!finalSceneEffects.has(Number(sNum)) && <SubtitleWorkerTransition project={selectedProject?.project} scene={sceneRecord} number={Number(sNum)} />}
                                                             {transitionEffect && transitionEffect !== 'none' && (
                                                                 <div
                                                                     title={`화면전환효과: ${ui(sceneTransitionLabel(transitionEffect))}`}
@@ -10387,6 +10411,7 @@ export default function StdPortalPage() {
                                                             )}
                                                         </div>
                                                         <div className="w-full min-w-0 flex-none sm:flex-1">
+                                                            {finalSceneEffects.has(Number(sNum)) && <StdFinalSceneEffects scene={finalSceneEffects.get(Number(sNum))!} onPlay={playFinalScene} />}
                                                             <div className="mb-1 flex flex-wrap items-center gap-1 sm:gap-2">
                                                                 <span className={`rounded px-1.5 py-0.5 text-[9px] font-bold sm:text-[10px] ${isHook ? 'bg-orange-500/15 text-orange-300' : 'bg-blue-500/15 text-blue-300'}`}>
                                                                     {ui('씬')} {sNum}

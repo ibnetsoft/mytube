@@ -21,6 +21,7 @@ import { requireStdUser } from '@/lib/stdWeb'
 import { isStdVideoPromptScene } from '@/lib/stdPolicy'
 import { getStdProjectRenderHistory } from '@/lib/stdRenderQueue'
 import { attachStdRenderPlaybackAssets } from '@/lib/stdRenderVersion'
+import { readStdFinalSceneDelivery } from '@/lib/stdFinalSceneDelivery'
 import { protectCharacterReferenceUrls } from '@/lib/stdCharacterProtection'
 import { sceneImageUrl } from '@/lib/stdSceneMediaUrl'
 import { stripPostworkDirection } from '@/lib/stdUserWebPayload'
@@ -287,7 +288,7 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
     if (!initialVersion || (!requesterEmail.startsWith('admin') && !requesterEmail.startsWith('worker') && requesterEmail !== String(initialVersion.employee_email || '').toLowerCase())) {
         return new NextResponse(null, { status: 204, headers: { 'Cache-Control': 'no-store' } })
     }
-    const etag = `"std-read-v6-${initialVersion.version}"`
+    const etag = `"std-read-v7-${initialVersion.version}"`
     const readHeaders = { 'Cache-Control': 'private, no-cache', ETag: etag, Vary: 'Authorization, x-impersonate-email' }
     const forceRefresh = req.headers.get('x-std-refresh') === '1'
     if (!forceRefresh && req.headers.get('if-none-match') === etag) return new NextResponse(null, { status: 304, headers: readHeaders })
@@ -365,7 +366,7 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
 
     // Resolve private media on demand through the authorized asset reader. Signing every
     // historical TTS/image/video object here delays the entire project response.
-    const enrichedAssets = (assets || []).filter((asset: any) => !['content_revision', 'content_revision_backup'].includes(asset?.metadata?.kind)
+    const enrichedAssets = (assets || []).filter((asset: any) => !['content_revision', 'content_revision_backup', 'final_scene_delivery'].includes(asset?.metadata?.kind)
         && assetMatchesContentRevision(project, asset)).map((asset: any) => {
         const metadata = asset?.metadata || {}
         const storageBucket = metadata?.storage_bucket || CONTENT_ASSETS_BUCKET
@@ -413,6 +414,7 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
         progress_payload: protectCharacterReferenceUrls(project.progress_payload, project.id),
     }
 
+    const renderHistoryWithAssets = attachStdRenderPlaybackAssets(renderHistory, assets || [])
     const responsePayload = stripPostworkDirection({
         success: true,
         project: protectedProject,
@@ -422,7 +424,8 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
             project.project_payload?.strict_content_identity === true ? undefined : sourceSceneByNumber.get(sceneNumberOf(scene, index + 1))
         )),
         assets: enrichedAssets,
-        render_history: attachStdRenderPlaybackAssets(renderHistory, assets || []),
+        render_history: renderHistoryWithAssets,
+        final_scene_delivery: readStdFinalSceneDelivery(assets || [], renderHistoryWithAssets),
     })
     // Do not label a response with a version that changed while assembling it.
     const finalVersion = await fingerprint().catch(() => null)
